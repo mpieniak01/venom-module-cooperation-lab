@@ -9,6 +9,7 @@ Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie
 - [Kontrakty](docs/CONTRACTS.md)
 - [Kwalifikacja modeli](docs/MODEL_QUALIFICATION.md)
 - [Odbiór](docs/ACCEPTANCE.md)
+- [Wyniki odbioru i jawne ograniczenia](docs/RELEASE_ACCEPTANCE.md)
 - [Przegląd luk](docs/GAP_REVIEW.md)
 - [Źródła](docs/SOURCES.md)
 
