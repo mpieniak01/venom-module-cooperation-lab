@@ -328,3 +328,21 @@ Nie zmieniono wersji 0.1.0 ani nie wybrano sztucznej daty/analizy bazowej.
 Aktualny wynik: [main CI](https://github.com/mpieniak01/venom-module-cooperation-lab/actions/runs/39582768316).
 Nie wyłączono oczekiwania na bramkę ani żadnego jej warunku; historyczne
 nieudane próby pozostają w tym workflow.
+
+Po inicjalizacji `previous_version` pełne main CI dla `4346a66` zakończyło się
+**SUCCESS**, łącznie z testami/kontraktami, Snyk i Sonarem. API Sonara potwierdziło
+`status=OK`; warunki rating A i przegląd hotspotów 100% pozostały niezmienione.
+
+Dokumentacyjne zamknięcie wydania ujawniło w CI niestabilne założenie testu SSE:
+`end` nie musi być ostatnim wpisem, jeżeli później następuje legalny
+`run(cleanup_late=true)`. Replay był zgodny z journalem. Test rozdzielono na
+deterministyczne warianty zwykłego końca i kontrolowanego późnego `close`.
+Nadal wymaga pełnej zgodności SSE/journalu, pojedynczego `end`, poprawnego
+statusu, quiescence i zwolnionego admission. Nie zmieniono kodu produkcyjnego,
+limitów, nie dodano retry ani xfail. Oba konkretne warianty CPU PASS; niezależny
+review testu PASS.
+
+Po tej zmianie pełne `make check HOST=/home/ubuntu/venom`: **253 Python PASS**,
+coverage **97,24%**, **15 frontend PASS**, coverage **96,02%**, Ruff/mypy/TS/lint
+i kontrakty hosta PASS. Dwie deprecjacje narzędzi pozostają ostrzeżeniami.
+To testy CPU fixture; nie powtarzano inferencji lub macierzy GPU.

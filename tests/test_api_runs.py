@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 
 import httpx
 import pytest
@@ -83,15 +84,53 @@ async def test_operator_can_discover_start_observe_export_and_delete(client, rig
 
 
 @pytest.mark.asyncio
-async def test_sse_replays_exact_persisted_sequences_and_cursor_recovery(client, rig):
+@pytest.mark.parametrize("late_cleanup", [False, True])
+async def test_sse_replays_exact_persisted_sequences_and_cursor_recovery(
+    client, rig, late_cleanup
+):
     runner, _ = rig
+    release_close = threading.Event()
+    original_factory = runner.adapter_factory
+
+    def factory(model, lease):
+        adapter = original_factory(model, lease)
+        original_close = adapter.close
+
+        def controlled_close():
+            if not release_close.wait(5):
+                return False
+            return original_close()
+
+        adapter.close = controlled_close
+        return adapter
+
+    # Nominal replay is not a 300 ms CI scheduling test. The second case
+    # deliberately holds the owned close past its deadline, then releases it.
+    runner.cleanup_seconds = 0.02 if late_cleanup else 10.0
+    if late_cleanup:
+        runner.adapter_factory = factory
     response = await client.post(
         "/api/v1/cooperation-lab/runs",
         json=payload(),
         headers={"Idempotency-Key": "stream"},
     )
     run_id = response.json()["run"]["id"]
-    await asyncio.wait_for(runner.jobs[run_id].task, timeout=2)
+    job = runner.jobs[run_id]
+    try:
+        await asyncio.wait_for(job.task, timeout=5)
+        if late_cleanup:
+            assert not job.cleanup_complete
+            assert runner.snapshot(run_id)["run"]["status"] == "failed"
+            release_close.set()
+            async with asyncio.timeout(5):
+                while not job.late_cleanup_recorded:
+                    await asyncio.sleep(0.001)
+        else:
+            assert runner.snapshot(run_id)["run"]["status"] == "completed"
+        assert job.cleanup_complete
+        assert runner.admission.snapshot()["status"] == "available"
+    finally:
+        release_close.set()
     sse = await client.get(
         f"/api/v1/cooperation-lab/runs/{run_id}/events/stream?after=1",
         headers={"Last-Event-ID": "3"},
@@ -106,7 +145,19 @@ async def test_sse_replays_exact_persisted_sequences_and_cursor_recovery(client,
     expected = runner.store.events(run_id, owner=OWNER, after=3)
     assert data == expected
     assert all(item["seq"] > 3 for item in data)
-    assert data[-1]["kind"] == "end"
+    endings = [event for event in data if event["kind"] == "end"]
+    assert len(endings) == 1
+    if late_cleanup:
+        assert endings[0]["payload"]["quiescent"] is False
+        assert data[-1]["kind"] == "run"
+        assert data[-1]["payload"] == {
+            "status": "failed",
+            "quiescent": True,
+            "cleanup_late": True,
+        }
+    else:
+        assert data[-1] == endings[0]
+        assert endings[0]["payload"]["quiescent"] is True
     bad = await client.get(
         f"/api/v1/cooperation-lab/runs/{run_id}/events/stream",
         headers={"Last-Event-ID": "not-int"},
