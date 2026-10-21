@@ -48,3 +48,16 @@ UI działa jako istniejąca venom-rider-ui-release.service, API jako
 venom-module-disable-start.service (api-only). Pierwszy restart łączony wykrył
 istniejący listener UI, dlatego zachowano sprawny frontend i uruchomiono tylko API.
 Bez zmiany modeli, flag pozostałych modułów, globalnego wyboru LLM i robota.
+
+### Przewijanie rozmowy
+
+Okno wymiany wiadomości ma maksymalnie 20 rem wysokości (lub połowę
+wysokości ekranu na mniejszych widokach). Dłuższy dialog przewija się wewnątrz
+okna kółkiem, dotykiem i klawiaturą po ustawieniu fokusu. Wiadomości zachowują
+pełną treść; nowe wpisy nie wymuszają przewinięcia podczas czytania historii.
+
+Weryfikacja lokalna: `make check HOST=/home/ubuntu/venom` PASS. Test w Chrome
+na szerokościach 1366 i 390 px: okno 320 px, dłuższa treść przewijana klawiszem
+End po ustawieniu fokusu, pozycja przycisków bez zmian. Długą rozmowę zasymulowano
+wyłącznie w DOM przeglądarki i usunięto przez ponowne wczytanie strony; bez
+wywołań modeli i bez zapisu danych prób.

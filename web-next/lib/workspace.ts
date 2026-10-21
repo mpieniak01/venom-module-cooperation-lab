@@ -33,8 +33,9 @@ export const workspaceStyles = `
 .coop-workspace .coop-participants { min-width:0; margin:0; padding:0; border:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .coop-workspace .coop-panel { min-width:0; border:1px solid #ffffff1a; border-radius:12px; padding:12px; }
 .coop-workspace .coop-panel h2 { margin:0 0 8px; font-size:16px; font-weight:600; }
-.coop-workspace .coop-messages { display:flex; flex-direction:column; gap:12px; list-style:none; margin:0; padding:0; }
-.coop-workspace .coop-message { min-width:0; border-radius:8px; background:#0f172a; padding:12px; }
+.coop-workspace .coop-messages { display:flex; flex-direction:column; gap:12px; list-style:none; margin:0; padding:4px; max-height:min(20rem, 50dvh); overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; overscroll-behavior:contain; }
+.coop-workspace .coop-messages:focus-visible { outline:2px solid #2dd4bf; outline-offset:2px; }
+.coop-workspace .coop-message { flex:0 0 auto; min-width:0; border-radius:8px; background:#0f172a; padding:12px; }
 .coop-workspace .coop-message p { white-space:pre-wrap; overflow-wrap:anywhere; }
 .coop-workspace .coop-message { align-self:flex-start; max-width:94%; width:fit-content; border:1px solid #22d3ee44; border-left:3px solid #22d3ee; background:#082f493d; }
 .coop-workspace .coop-message[data-sender="B"] { align-self:flex-end; border:1px solid #a78bfa55; border-right:3px solid #a78bfa; background:#2e10653d; }

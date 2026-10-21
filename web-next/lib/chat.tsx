@@ -17,7 +17,7 @@ export function recordedTime(timestamp: number, language: string) {
 export function Conversation({ events, language }: { events:LabEvent[]; language:string }) {
   const t = texts(language);
   const byId = new Map(events.map((event) => [text(event, "message_id"), event]));
-  return <ol className="coop-messages">
+  return <ol className="coop-messages" tabIndex={0} aria-label={t.dialog}>
     {events.map((event) => {
       const sender = text(event, "sender");
       const recipient = text(event, "recipient");
