@@ -1,6 +1,6 @@
 # L4 — ekran obserwacji i kontroli współpracy
 
-Status: PLAN, nie istniejący numer PR. Repo: venom-module-cooperation-lab. Zależność: L3; projektowanie po zamrożeniu API może zacząć się wcześniej.
+Status: kod lokalny L4, odbiór hosta i CI przed wydaniem. Repo: venom-module-cooperation-lab. Zależność: L3; projektowanie po zamrożeniu API może zacząć się wcześniej.
 
 ## Problem i wynik
 
@@ -26,3 +26,40 @@ Poza zakresem: dekoracyjny graf zastępujący dialog, nowy framework UI, automat
 - [ ] Review i wymagane bramki zakończone; dokumentacja i rollback.
 
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
+
+Implementacja i użycie: [WORKSPACE](../WORKSPACE.md). Niezależny review poprawił wybranie archiwum podczas pracy, spóźnione odpowiedzi STOP, powiązanie potwierdzenia DELETE z ID, pending START/STOP i zgodność z rzeczywistym kontraktem L3.
+
+
+## Poprawka po rzeczywistym browser smoke
+
+Style krytyczne należą do modułu jako statyczny scoped CSS; zewnętrzna ścieżka
+modułu nie musi być skanowana przez Tailwind JIT hosta. Własna wysokość uwzględnia
+rzeczywisty top elementu w viewport, stałe kontrolki i notice są nad wewnętrznym
+scroll body. Desktop od1024px: settings6kolumn i main+aside; START zielony,
+STOP czerwony. Nie zmieniono globalnych stylów/layoutu core.
+
+Wybrana próba synchronizuje formularz przed kolejnym paint z immutable config
+(nested model.model_id i budgets), wyłącznie poprawne wartości. Test historii
+Qwen 4tury/32tokeny/seed17/no_contact/correction zabezpiecza regres domyślnego
+RWKV 8/128 w nieaktywnych polach. Node/JSDOM potwierdza kolory i overflow bez
+Tailwind; rzeczywiste bounding boxes i media queries odbiera koordynator.
+
+Node24 generuje rzeczywisty LCOV z tej samej sesji testów do
+`test-results/lcov.info`, wskazanego przez sonar.javascript.lcov.reportPaths.
+Bez wyłączeń pokrycia i zmiany progów. TS/lint oraz12testów PASS,95,28% line
+coverage. Wynik Sonara/i18n CPD należy ocenić po actual skanie.
+
+## Naprawa rzeczywistej bramki PR #12
+
+Dla SHA971720b SonarCloud wykazał13,7% duplikacji nowych linii (146/1064),
+wyłącznie trzy powtórzone struktury kluczy w słownikach PL/EN/DE. Coverage92,3%,
+ratings A i hotspots100% przechodziły. Zamieniono powtarzane słowniki na jedną
+sprawdzaną typami tabelę klucz→[PL,EN,DE]; osobne dokładne porównanie potwierdziło
+zachowanie wszystkich tekstów/kluczy. Bez exclusions, ignorowania CPD lub progów.
+
+Dwanaście uwag utrzymaniowych obsłużono przez helpery prezentacji i bounded
+replay, findLast, typowany status bez String(object) oraz natywne fieldset/output.
+Zachowano limity4stron/256zdarzeń, kontrolę disposal i wcześniejsze regresje STOP.
+TS/lint i15testów PASS; rzeczywisty LCOV96,02%. Dodatkowe testy sprawdzają błędny
+obiekt statusu i skończony catch-up. Końcowy status Sonara wymaga nowego skanu CI,
+nie jest wywnioskowany z lokalnych testów.

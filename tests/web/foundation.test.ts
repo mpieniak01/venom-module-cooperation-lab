@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { messages, texts } from "../../web-next/lib/i18n";
+import { diagnosticCode, messages, reasonLabel, texts } from "../../web-next/lib/i18n";
 import { healthState } from "../../web-next/lib/health";
+import { savedSettings } from "../../web-next/lib/workspace";
 
 test("translations have identical complete keys and unknown language falls back", () => {
   const expected = Object.keys(messages.en).sort();
@@ -10,6 +11,7 @@ test("translations have identical complete keys and unknown language falls back"
     assert.ok(Object.values(texts(language)).every((text) => text.length > 0));
   }
   assert.equal(texts("invalid"), messages.en);
+  assert.equal(texts("__proto__"), messages.en);
 });
 test("discovery never invents a ready model from invalid or future responses", () => {
   for (const value of [null, false, 1, {}, { state: "ready", ready: true }, { state: "not_ready", ready: true }]) {
@@ -17,4 +19,35 @@ test("discovery never invents a ready model from invalid or future responses", (
   }
   assert.equal(healthState({ state: "disabled" }), "disabled");
   assert.equal(healthState({ state: "not_ready", ready: false }), "not_ready");
+});
+
+
+test("known readiness/error codes are translated in PL/EN/DE and future codes use a safe fallback", () => {
+  const expected = {
+    pl: ["Współdzielona kontrola zasobów jest wyłączona.", "Zasób modelu jest zajęty.", "Model nie ma aktualnej kwalifikacji hosta."],
+    en: ["Shared runtime admission is disabled.", "The model resource is busy.", "The model has no current host qualification."],
+    de: ["Die gemeinsame Ressourcenfreigabe ist deaktiviert.", "Die Modellressource ist belegt.", "Das Modell hat keine aktuelle Host-Qualifikation."],
+  };
+  for (const language of ["pl", "en", "de"] as const) {
+    const t = texts(language);
+    assert.deepEqual(["runtime_admission_disabled", "runtime_busy", "model_not_qualified"].map((code) => reasonLabel(t, code)), expected[language]);
+    assert.equal(reasonLabel(t, "future_backend_code"), t.problemUnknown);
+    assert.equal(reasonLabel(t, "/private/untrusted/path"), t.problemUnknown);
+    assert.equal(reasonLabel(t, undefined), t.problemUnknown);
+    assert.equal(reasonLabel(t, "__proto__"), t.problemUnknown);
+    assert.equal(reasonLabel(t, "constructor"), t.problemUnknown);
+  }
+  assert.equal(diagnosticCode("future_backend_code"), "future_backend_code");
+  assert.equal(diagnosticCode("/private/untrusted/path"), undefined);
+});
+
+
+test("saved form settings use immutable nested model/budgets and reject invalid values", () => {
+  assert.deepEqual(savedSettings({model:{model_id:"rwkv7-g1d-0.4b"}}), {model:"rwkv7-g1d-0.4b"});
+  assert.deepEqual(savedSettings({model:{model_id:"qwen3-4b-control"}, scenario_id:"correction", mode:"no_contact", seed:17, budgets:{max_turns:4,max_new_tokens:32}}),
+    {model:"qwen3-4b-control",scenario:"correction",mode:"no_contact",seed:17,turns:4,tokens:32});
+  assert.deepEqual(savedSettings({model:[],scenario_id:"unexpected",mode:"shell",seed:-1,budgets:{max_turns:9,max_new_tokens:0}}),{});
+  assert.deepEqual(savedSettings({scenario_id:["split_facts"],mode:["dialog"]}),{});
+  assert.deepEqual(savedSettings({model:{model_id:"/private/path"},seed:1.5,budgets:{max_turns:true,max_new_tokens:257}}),{});
+  assert.deepEqual(savedSettings({model:{model_id:".hidden"}}), {});
 });
