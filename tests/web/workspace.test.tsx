@@ -187,3 +187,38 @@ test("selected Qwen history shows its actual immutable settings and module style
     await act(async () => root.unmount()); box.remove(); globalThis.fetch=oldFetch; localStorage.clear();
   }
 });
+
+
+test("switching Qwen history to RWKV replaces the model with its dotted immutable ID", async () => {
+  const oldFetch = globalThis.fetch;
+  localStorage.clear(); Stream.instances = [];
+  localStorage.setItem("cooperation-lab.run", "qwen-history");
+  const saved = (id:string, model:string, turns:number, tokens:number, seed:number):Run => ({id,status:"completed",created:1,last_seq:0,bytes:1,
+    config:{model:{model_id:model},scenario_id:"split_facts",mode:"dialog",seed,budgets:{max_turns:turns,max_new_tokens:tokens}}});
+  const qwen = saved("qwen-history","qwen3-4b-control",4,32,17);
+  const rwkv = saved("rwkv-history","rwkv7-g1d-0.4b",2,16,3);
+  globalThis.fetch = async (url, init) => {
+    assert.ok(!init?.method || init.method === "GET");
+    const path = new URL(String(url),"http://localhost:3300").pathname;
+    if (path.endsWith("/capabilities")) return response(caps);
+    if (path.endsWith("/events")) return response({events:[]});
+    if (path.endsWith("/runs/qwen-history")) return response({run:qwen});
+    if (path.endsWith("/runs/rwkv-history")) return response({run:rwkv});
+    return response({runs:[qwen,rwkv]});
+  };
+  const box = document.createElement("div"); document.body.append(box); const root = createRoot(box);
+  try {
+    await act(async () => root.render(<CooperationLabPage/>)); await settle();
+    const settings = box.querySelector("fieldset")!;
+    const model = settings.querySelector("select")!;
+    assert.equal(model.value,"qwen3-4b-control");
+    const history = [...box.querySelectorAll("select")].find((select) => select.parentElement?.textContent?.startsWith("Historia prób"))!;
+    assert.equal(history.disabled,false);
+    await act(async () => {history.value="rwkv-history"; history.dispatchEvent(new dom.window.Event("change",{bubbles:true}));}); await settle();
+    assert.equal(history.value,"rwkv-history");
+    assert.equal(model.value,"rwkv7-g1d-0.4b");
+    assert.deepEqual([...settings.querySelectorAll("input")].map((input) => input.value),["2","16","3"]);
+  } finally {
+    await act(async () => root.unmount()); box.remove(); globalThis.fetch=oldFetch; localStorage.clear();
+  }
+});
