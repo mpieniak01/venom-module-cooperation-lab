@@ -1,10 +1,10 @@
 # Odbiór Cooperation Lab — 2026-10-21
 
 Stan: **lokalny odbiór techniczny GPU, macierzy L5, browser/SSE/STOP i OFF
-wykonany; miejsce do eksperymentów gotowe technicznie**. L1–L4, C0 i cleanup
-follow-up Venom #553 scalone. [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) ma kontrole
-i niezależny review PASS dla odebranej rewizji; finalny commit ponawia CI przed
-merge/deploymentem. C0 cleanup po rzeczywistym ponownym HTTP 400 PASS.
+wykonany; L1–L5 scalone i wdrożone lokalnie**. C0 i cleanup
+follow-up Venom #553 scalone. [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) scalono jako
+`4346a66fd6f2f07629bc2146b2061caa81e1d0f1`; kontrole PR
+i niezależny review odebranego kodu PASS. API i DOM potwierdzono na obu main. C0 cleanup po rzeczywistym ponownym HTTP 400 PASS.
 Brak treści legacy chatu jest osobnym Venom #554, nie blockerem zakwalifikowanych
 modeli. Działający transport nie dowodzi nauki ani poprawy jakości modeli.
 
@@ -30,8 +30,8 @@ Pełne receipty z odpowiedziami i pomiarami pozostają lokalnie poza Git.
 Wygenerowano kandydatów `qualified=false`, `approval_required=true`; harness nie
 wpisał sam kwalifikacji do bazy. Zaufany administrator osobno zatwierdza ryzyka
 i zgodność pełnej tożsamości modelu przed aktywacją. Rewizja próby nie jest
-zastępowana późniejszym SHA integracji. Końcowe SHA wydania/deploymentu zostaną potwierdzone
-po scaleniu L5; prywatne identyfikatory prób nie są publikowane.
+zastępowana późniejszym SHA integracji. Wdrożone SHA: core `7401493f73db98dcdf2cb39503fca57eb2cbe421`,
+moduł `4346a66fd6f2f07629bc2146b2061caa81e1d0f1`. Prywatne identyfikatory prób nie są publikowane.
 
 Artefakty, pełne digest/tokenizer/template i odtworzenie:
 [modele L2](RWKV_L2.md). Kwalifikacja jest związana ze wszystkimi niezmiennymi
@@ -47,7 +47,7 @@ polami [kontraktu](CONTRACTS.md), także runtime i kwantyzacją.
 | L3 | [moduł #11](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/11), scalony | `b4623ff151ff3991f374d4b6c6caf668336bfe97` |
 | L4 | [moduł #12](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/12), scalony; CI/contracts, Sonar, Snyk, GitGuardian i niezależny review PASS | merge `1021bb3a37bde64ca286b83607abae0109c408bf`; kod `6fb761393f202fe7e0ad338704deeeda6778fb47` |
 | C0 cleanup follow-up | [Venom #553](https://github.com/mpieniak01/Venom/pull/553), scalony; CI/review/Sonar PASS | `7401493f73db98dcdf2cb39503fca57eb2cbe421` |
-| L5 | [moduł #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13), otwarty do main; odebrana rewizja ma CI/contracts/Snyk/Sonar/GitGuardian i niezależny review PASS | Finalny commit ponawia CI; merge/deployment potwierdza stan PR |
+| L5 | [moduł #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13), scalony; CI/contracts/Snyk/Sonar/GitGuardian oraz niezależny review odebranego kodu PASS | merge `4346a66fd6f2f07629bc2146b2061caa81e1d0f1`; odebrany kod `ea3ff241931db49e8b512350fd2ece405283a2a4` |
 
 ## Rzeczywiste wyniki C0/L2
 
@@ -293,9 +293,56 @@ C0; nie zastępują testu GPU/przeglądarki.
 | Recovery/cleanup C0 po błędzie zwykłego chatu | PASS — fizyczny dowód i force=false; ponowny HTTP 400 zwalnia busy 1→available/0, ps[] i konfiguracja bez zmian |
 | Treść zwykłego legacy chatu | Osobne ograniczenie [Venom #554](https://github.com/mpieniak01/Venom/issues/554): nadal HTTP 400 bez treści/done. Nie CHAT PASS ani blocker zakwalifikowanych modeli |
 | Eksport i usunięcie własnej anulowanej próby | PASS — rzeczywiste pobranie przez przeglądarkę i potwierdzenie usunięcia HTTP 404 |
-| Pełny lokalny `make check` i kontrole wydania | Na core `7401493`: 252 Python / 15 frontend PASS, mypy/TS/lint/host contracts PASS. L4 scalony; odebrany L5 ma CI/contracts/Sonar/Snyk/GitGuardian i niezależny review PASS. Świeży wynik finalnego commita w [Checks PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13/checks) przed merge |
+| Pełny lokalny `make check` i kontrole wydania | Na core `7401493`: 252 Python / 15 frontend PASS, mypy/TS/lint/host contracts PASS. L1–L5 scalone; kontrole PR CI/contracts/Sonar/Snyk/GitGuardian oraz niezależny review odebranego kodu PASS. [Checks PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13/checks) zachowują wynik opublikowanej rewizji |
 | Host baseline i aktualna zgodność | Minimum ABI 1.0.0 z C0 `aa2d6124` zachowane; aktualny przypięty/scalony core `7401493f73db98dcdf2cb39503fca57eb2cbe421`. Historyczne GPU/macierz SHA bez zmian |
-| Końcowy merge modułu i deployment | Koordynator wykona po świeżym CI; trwały punkt odniesienia [PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13). Gotowość techniczna nie jest deklaracją wykonanego merge/deploymentu |
+| Końcowy merge modułu i deployment | PASS — [PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) scalony jako `4346a66`; API i UI uruchomione z kanonicznych main. Ekran i Rider HTTP 200, runtime available/0, oba zakwalifikowane modele widoczne; brak generacji w finalnym probe |
 
 Sposób uruchomienia, retencja, OFF i rollback:
 [RUNBOOK](RUNBOOK.md). Kryteria pełnego MVP: [ACCEPTANCE](ACCEPTANCE.md).
+
+
+## Końcowe wdrożenie i higiena środowiska
+
+2026-10-21 potwierdzono rzeczywisty DOM `/cooperation-lab`: Rider i laboratorium
+widoczne, Google Home i Brand Studio nieobecne, START aktywny, STOP nieaktywny,
+dwa zakwalifikowane modele. Istniejące moduły Google Home/Brand Studio zachowano,
+ale wyłączono ich flagi/menu i rejestrację backendu. Operator może wrócić do ich
+konfiguracji; moduł Rider i zapisany wybór Prod pozostały bez zmian.
+
+Końcowy probe nie uruchamiał generacji. Runtime był dostępny z 0 operacjami,
+Ollama nie miała załadowanych modeli. Własne zakończone worktree zarchiwizowano
+w prywatnych bundle Git i receiptach, bez kasowania modeli lub istniejącego Full.
+
+Sonar nowego projektu początkowo miał pustą główną gałąź `master` i błędną
+SHORT `main`. Po jawnej zgodzie właściciela usunięto pięć dzisiejszych analiz
+SHORT (identyfikatory zachowano lokalnie), przemianowano pustą MAIN na `main`
+i zachowano wszystkie pięć zestawów analiz PR. Kontrolę ponowiono na tym samym
+SHA, bez zmiany progów, wyłączeń lub nazwy raportowanej gałęzi Git.
+
+Pierwsze dwie prawidłowe analizy MAIN tego SHA zostały przetworzone (95,8%
+pokrycia, 0 bugs, 0 vulnerabilities, 0% duplikacji, 88 uwag utrzymaniowych),
+ale Sonar zwrócił `NONE`, który skaner prawidłowo potraktował jako brak PASS.
+Odczyt ustawień potwierdził brak definicji nowego kodu. Po osobnej jawnej zgodzie
+właściciela ustawiono standardowe `previous_version` i ponowiono ten sam SHA.
+Nie zmieniono wersji 0.1.0 ani nie wybrano sztucznej daty/analizy bazowej.
+Aktualny wynik: [main CI](https://github.com/mpieniak01/venom-module-cooperation-lab/actions/runs/39582768316).
+Nie wyłączono oczekiwania na bramkę ani żadnego jej warunku; historyczne
+nieudane próby pozostają w tym workflow.
+
+Po inicjalizacji `previous_version` pełne main CI dla `4346a66` zakończyło się
+**SUCCESS**, łącznie z testami/kontraktami, Snyk i Sonarem. API Sonara potwierdziło
+`status=OK`; warunki rating A i przegląd hotspotów 100% pozostały niezmienione.
+
+Dokumentacyjne zamknięcie wydania ujawniło w CI niestabilne założenie testu SSE:
+`end` nie musi być ostatnim wpisem, jeżeli później następuje legalny
+`run(cleanup_late=true)`. Replay był zgodny z journalem. Test rozdzielono na
+deterministyczne warianty zwykłego końca i kontrolowanego późnego `close`.
+Nadal wymaga pełnej zgodności SSE/journalu, pojedynczego `end`, poprawnego
+statusu, quiescence i zwolnionego admission. Nie zmieniono kodu produkcyjnego,
+limitów, nie dodano retry ani xfail. Oba konkretne warianty CPU PASS; niezależny
+review testu PASS.
+
+Po tej zmianie pełne `make check HOST=/home/ubuntu/venom`: **253 Python PASS**,
+coverage **97,24%**, **15 frontend PASS**, coverage **96,02%**, Ruff/mypy/TS/lint
+i kontrakty hosta PASS. Dwie deprecjacje narzędzi pozostają ostrzeżeniami.
+To testy CPU fixture; nie powtarzano inferencji lub macierzy GPU.
