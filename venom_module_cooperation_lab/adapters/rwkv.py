@@ -13,6 +13,7 @@ from .base import (
     GenerationParameters,
     GenerationResult,
     Lease,
+    ModelAdapter,
     ModelSpec,
     remaining,
     validate_messages,
@@ -21,7 +22,7 @@ from .rwkv_process import RwkvAdapter, RwkvConfig, RwkvError, RwkvParameters
 from .rwkv_tokenizer import clean_message
 
 
-class RecurrentAdapter:
+class RecurrentAdapter(ModelAdapter):
     def __init__(
         self, spec: ModelSpec, lease: Lease, model_path: Path, runtime_root: Path
     ) -> None:
