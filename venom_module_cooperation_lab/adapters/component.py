@@ -57,6 +57,8 @@ def checked_members(wheel: bytes, pin: WheelPin) -> dict[str, bytes]:
             if (
                 path.is_absolute()
                 or ".." in path.parts
+                or "__pycache__" in path.parts
+                or path.suffix in {".pyc", ".pyo"}
                 or "\\" in item.filename
                 or not path.parts
                 or ":" in path.parts[0]
@@ -71,6 +73,28 @@ def checked_members(wheel: bytes, pin: WheelPin) -> dict[str, bytes]:
     return files
 
 
+def _verify_pinned_files(root: Path, files: dict[str, bytes]) -> None:
+    for name, expected in files.items():
+        path = root / name
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or not path.resolve().is_relative_to(root)
+            or path.read_bytes() != expected
+        ):
+            raise RuntimeError("component_overlay_integrity_mismatch")
+
+
+def _reject_unlisted_files(root: Path, package: Path, files: dict[str, bytes]) -> None:
+    if package.is_symlink():
+        raise RuntimeError("component_overlay_integrity_mismatch")
+    for path in package.rglob("*"):
+        if path.is_symlink() or (
+            path.is_file() and path.relative_to(root).as_posix() not in files
+        ):
+            raise RuntimeError("component_overlay_integrity_mismatch")
+
+
 def verify_overlay(runtime_root: Path) -> None:
     root = runtime_root.resolve()
     for pin in OVERLAY_PINS:
@@ -78,25 +102,16 @@ def verify_overlay(runtime_root: Path) -> None:
         if not wheel_path.is_file() or wheel_path.is_symlink():
             raise RuntimeError("component_overlay_missing")
         files = checked_members(wheel_path.read_bytes(), pin)
-        for name, expected in files.items():
-            path = root / name
-            if (
-                not path.is_file()
-                or path.is_symlink()
-                or not path.resolve().is_relative_to(root)
-                or path.read_bytes() != expected
-            ):
-                raise RuntimeError("component_overlay_integrity_mismatch")
-        package = root / pin.name
-        for path in package.rglob("*"):
-            if path.is_file() and "__pycache__" not in path.parts:
-                if path.relative_to(root).as_posix() not in files:
-                    raise RuntimeError("component_overlay_integrity_mismatch")
+        _verify_pinned_files(root, files)
+        _reject_unlisted_files(root, root / pin.name, files)
 
 
 def activate_overlay(runtime_root: Path) -> dict[str, str]:
     """Only the isolated child calls this; never mutate the host import paths."""
     verify_overlay(runtime_root)
+    # Only this isolated child changes the flag. Verification rejects all existing
+    # bytecode; suppressing new caches keeps subsequent source imports verifiable.
+    sys.dont_write_bytecode = True
     root = runtime_root.resolve()
     sys.path.insert(0, str(root))
     versions = {}
