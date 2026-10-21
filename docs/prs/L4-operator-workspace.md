@@ -1,6 +1,6 @@
 # L4 — ekran obserwacji i kontroli współpracy
 
-Status: PLAN, nie istniejący numer PR. Repo: venom-module-cooperation-lab. Zależność: L3; projektowanie po zamrożeniu API może zacząć się wcześniej.
+Status: kod lokalny L4, odbiór hosta i CI przed wydaniem. Repo: venom-module-cooperation-lab. Zależność: L3; projektowanie po zamrożeniu API może zacząć się wcześniej.
 
 ## Problem i wynik
 
@@ -26,3 +26,5 @@ Poza zakresem: dekoracyjny graf zastępujący dialog, nowy framework UI, automat
 - [ ] Review i wymagane bramki zakończone; dokumentacja i rollback.
 
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
+
+Implementacja i użycie: [WORKSPACE](../WORKSPACE.md). Niezależny review poprawił wybranie archiwum podczas pracy, spóźnione odpowiedzi STOP, powiązanie potwierdzenia DELETE z ID, pending START/STOP i zgodność z rzeczywistym kontraktem L3.
