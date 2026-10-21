@@ -1,11 +1,12 @@
 # Odbiór Cooperation Lab — 2026-10-21
 
 Stan: **lokalny odbiór techniczny GPU, macierzy L5, browser/SSE/STOP i OFF
-wykonany**. L1–L4 i C0 są scalone; L5 PR #13 do main oczekuje recenzji, kontroli
-i scalenia. Próba zwykłego chatu po laboratorium zwróciła HTTP 400 przed pierwszą
-treścią; to nierozwiązany blocker końcowego odbioru. Całe wydanie nie jest jeszcze zakończone. Wyniki CPU, rzeczywistej inferencji
-i bramek wydania są rozdzielone. Działający transport nie dowodzi nauki ani
-poprawy jakości modeli.
+wykonany; miejsce do eksperymentów gotowe technicznie**. L1–L4, C0 i cleanup
+follow-up Venom #553 scalone. [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) ma kontrole
+i niezależny review PASS dla odebranej rewizji; finalny commit ponawia CI przed
+merge/deploymentem. C0 cleanup po rzeczywistym ponownym HTTP 400 PASS.
+Brak treści legacy chatu jest osobnym Venom #554, nie blockerem zakwalifikowanych
+modeli. Działający transport nie dowodzi nauki ani poprawy jakości modeli.
 
 ## Tożsamość wykonanej próby
 
@@ -19,7 +20,8 @@ Torch/RWKV ładowano dopiero w izolowanym procesie po uzyskaniu lease.
 | --- | --- |
 | Kod core podczas kwalifikacji | `711d70b33ca4b18c3711907e3bb72ee3fdbe7433` |
 | Kod modułu/adapterów podczas kwalifikacji | `becd08b876d5b2fe7166c12b74a23721e5f61b28` |
-| Scalony C0, do którego przypięto kompatybilność i CI | `aa2d612434949f1149d27f64ff10e5dd05334e8e` |
+| Oryginalne minimum ABI C0 (1.0.0), historyczny baseline | `aa2d612434949f1149d27f64ff10e5dd05334e8e` |
+| Aktualny pin hosta i CI po cleanup follow-up | `7401493f73db98dcdf2cb39503fca57eb2cbe421`; ABI 1.0.0/min_core_version 1.6.0 bez zmian |
 | Sprzęt | NVIDIA GeForce RTX 3060, 12288 MiB VRAM |
 | Preset próby | maks. 32 tokeny wyjścia, kontekst 2048, seed 0, temperature 0, top_p 0 |
 | Budżet | do 120 s/model, do 360 s łącznie; rzeczywiście 56.48 s łącznie |
@@ -44,7 +46,8 @@ polami [kontraktu](CONTRACTS.md), także runtime i kwantyzacją.
 | L2 | [moduł #10](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/10), scalony | `95aa0bc60b86b9be737bbb9805eb648277bc9213` |
 | L3 | [moduł #11](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/11), scalony | `b4623ff151ff3991f374d4b6c6caf668336bfe97` |
 | L4 | [moduł #12](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/12), scalony; CI/contracts, Sonar, Snyk, GitGuardian i niezależny review PASS | merge `1021bb3a37bde64ca286b83607abae0109c408bf`; kod `6fb761393f202fe7e0ad338704deeeda6778fb47` |
-| L5 | [moduł #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13), otwarty do main; recenzja, końcowe kontrole i scalenie pozostają do wykonania | końcowy SHA pending |
+| C0 cleanup follow-up | [Venom #553](https://github.com/mpieniak01/Venom/pull/553), scalony; CI/review/Sonar PASS | `7401493f73db98dcdf2cb39503fca57eb2cbe421` |
+| L5 | [moduł #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13), otwarty do main; odebrana rewizja ma CI/contracts/Snyk/Sonar/GitGuardian i niezależny review PASS | Finalny commit ponawia CI; merge/deployment potwierdza stan PR |
 
 ## Rzeczywiste wyniki C0/L2
 
@@ -199,28 +202,41 @@ oddzielnie powyżej. Wynik zwykłego chatu jest opisany w następnej sekcji.
 Końcowe scalenie/deployment oraz widoczność menu w stanie OFF nie są potwierdzane
 samym brakiem tras API.
 
-## Nierozwiązany odbiór zwykłego chatu hosta
+## Cleanup hosta i osobne ograniczenie legacy chatu
 
-Jeden rzeczywisty probe po laboratorium zakończył się **FAILED — HTTP 400 przed
-pierwszą treścią odpowiedzi**. Dotychczasowy wybór operatora `gemma2:2b`
-(legacy, interfejs completion-only) pozostał bez zmian. Oryginalne body błędu
-nie zostało zachowane, więc nie przypisujemy przyczyny modułowi, transportowi
-ani modelowi na podstawie samego kodu HTTP.
+Pierwszy rzeczywisty probe po laboratorium zakończył się HTTP 400 przed pierwszą
+treścią i quarantine=1. Oryginalne body utracono; nie przypisujemy retrospektywnie
+przyczyny na podstawie samego statusu HTTP.
 
-Po tym probe zaobserwowano `quarantine=1`. Poprawka core obsługi cleanup
-typowanego błędu transportu jest w toku; ten follow-up dotyczy zwolnienia zasobu,
-nie poprawki parametru legacy adaptera. Jego odbiór i ponowna rzeczywista próba
-czatu pozostają wymagane. Wcześniejsze `available`, `active_operations=0`
-i puste `/api/ps` po próbach modułu potwierdzają ich cleanup, ale nie zastępują
-odpowiedzi zwykłego chatu. Nie oznaczamy tego kryterium jako PASS i nie zamykamy
-całego wydania przed rozstrzygnięciem.
+Cleanup typowanego błędu transportu naprawiono w [Venom #553](https://github.com/mpieniak01/Venom/pull/553),
+scalonym jako `7401493f73db98dcdf2cb39503fca57eb2cbe421`. Rzeczywiste próby poniżej
+wykonano na kandydacie `efc3e6856ea04df85f5b62730bc18405200a113e` przed squash
+merge; kanoniczny core jest już na scalonym main `7401493`. To osobne rewizje od
+historycznej kwalifikacji GPU C0/L2 i macierzy v1, których SHA nie zmieniono.
+
+Kontrolowane recovery PASS: znane PID/cgroups/usługi/porty poprzedniego workera
+nie były aktywne; publiczny callback potwierdził fizyczny koniec pracy,
+`force=false`. Runtime następnie available, 0 aktywnych operacji.
+
+Jeden ponowny rzeczywisty host smoke nadal **HTTP 400 w 0,032 s, bez treści/done
+— nie CHAT PASS**. Jednocześnie **C0 CLEANUP PASS**: busy 1→available/0 w 0,002 s,
+`/api/ps=[]` przed/po, konfiguracja i wybór operatora `gemma2:2b` (legacy
+completion-only) bez zmian. Diagnostyka ograniczona do 117 B i stałego powodu
+`unspecified`, bez ujawnienia upstream body.
+
+Ograniczenie parametru legacy adaptera ma osobny [Venom #554](https://github.com/mpieniak01/Venom/issues/554).
+Nie jest dowodem odpowiedzi zwykłego chatu i nie blokuje odebranych,
+zakwalifikowanych modeli laboratorium. Dostępność zasobu potwierdza cleanup;
+odpowiedź modelu wymaga własnego dowodu — tych wyników nie utożsamiamy.
 
 ## Testy regresji i niezależne przeglądy
 
 | Zakres i dowód | Wynik |
 | --- | --- |
-| Pełna lokalna integracja przed końcowym wydaniem | `make check`: 252 testy Python PASS, coverage 97% (1993 statements / 55 miss); mypy 20 źródeł; 15 testów frontendowych PASS, line coverage 96,02%; TS/lint i kontrakty hosta PASS |
+| Pełna lokalna integracja przed końcowym wydaniem | Na core `7401493`, `make check`: 252 testy Python PASS, coverage 97,24% (1993 statements / 55 miss); mypy 20 źródeł; 15 testów frontendowych PASS, line coverage 96,02%; TS/lint i kontrakty hosta PASS |
 | L4, końcowy kod `6fb7613` | CI/contracts, Sonar, Snyk i GitGuardian PASS; niezależny review PASS. PL/EN/DE: 97 kluczy na język i 0 różnic tekstów przed/po refaktorze; bounded replay i dotychczasowe testy zachowane |
+| L5 [PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) | Odebrany head `4ef1898`: CI/contracts, Snyk, Sonar i GitGuardian PASS; niezależny review PASS. CodeRabbit rate-limited, bez pełnej recenzji. Finalny commit ponawia CI przed merge |
+| Core cleanup [PR #553](https://github.com/mpieniak01/Venom/pull/553) | Fast suite 3997 PASS / 8 SKIP, 100% zmienionych linii i 14 progów; targeted 250 PASS, mypy 439 źródeł, niezależne 27 testów PASS. Sonar PASS: 100% new coverage / 0 duplikacji; dwa smells: redundantny except MINOR oraz false positive dla koniecznych nawiasów. Nie deklarujemy 0 issues |
 | L3 po integracji z C0, `ee3b34afdc2a0a60bd2c3c3630c947b7f08c7852` | Pełne `make check`: 168 pytest PASS, coverage 96.95%, mypy 19 źródeł, Ruff/format, TS/lint, 4 testy webowe i kontrakty opcjonalnego modułu PASS |
 | Niezależny L5 po `c9fcb8b28516795685290a36788655dd2daf85d4` | 60 targeted testów CPU PASS; powtórzone konkretne repro uwag przeglądu |
 | C0/L2 — niezależny przegląd | Zweryfikowane admission/cancel/cleanup oraz tożsamość artefaktów i izolacja; brak deklaracji skanów jako dowodu inferencji |
@@ -262,7 +278,7 @@ C0; nie zastępują testu GPU/przeglądarki.
 | OFF i zachowanie bazy/Ridera | Rzeczywisty odbiór API/danych |
 | Crash/interrupted bez auto-resume | Testy fixture; bez celowego crash procesu podczas realnej inferencji |
 | Retencja, limity dysku/runów, storage-full i OOM | Testy fixture; bez zapychania dysku lub wymuszania realnego GPU OOM |
-| Zwykła rozmowa hosta po laboratorium | Jedna rzeczywista próba FAILED: HTTP 400 przed pierwszą treścią; wybór operatora niezmieniony. Body błędu utracono, przyczyna nieustalona; cleanup transportu i ponowny odbiór pozostają otwarte |
+| Zwykła rozmowa hosta po laboratorium | Ponowny rzeczywisty probe HTTP 400 bez treści/done, nie CHAT PASS. C0 cleanup po poprawce PASS; legacy adapter osobno w [Venom #554](https://github.com/mpieniak01/Venom/issues/554), bez blokowania zakwalifikowanych modeli |
 
 ## Stan końcowego odbioru i pozostałe potwierdzenia
 
@@ -274,10 +290,12 @@ C0; nie zastępują testu GPU/przeglądarki.
 | Pełna macierz 30 przypadków | WYKONANA; wyniki powyżej i w zredagowanym JSON; bez zmiany zamrożonej rubryki v1 |
 | OFF → restart: API nieobecne, baza bez zmian, Rider obecny, Ollama puste | PASS — realny off-acceptance.json |
 | Panel ON oraz menu OFF | Panel ON/START/STOP PASS; ukrycie menu OFF ma kontrakt/fixture, nie osobne potwierdzenie DOM |
-| Zwykła rozmowa hosta po laboratorium | BLOCKER — rzeczywisty probe HTTP 400 przed pierwszą treścią; po nim quarantine=1, poprawka core i ponowny odbiór pending. Brak body uniemożliwia pewne przypisanie przyczyny |
+| Recovery/cleanup C0 po błędzie zwykłego chatu | PASS — fizyczny dowód i force=false; ponowny HTTP 400 zwalnia busy 1→available/0, ps[] i konfiguracja bez zmian |
+| Treść zwykłego legacy chatu | Osobne ograniczenie [Venom #554](https://github.com/mpieniak01/Venom/issues/554): nadal HTTP 400 bez treści/done. Nie CHAT PASS ani blocker zakwalifikowanych modeli |
 | Eksport i usunięcie własnej anulowanej próby | PASS — rzeczywiste pobranie przez przeglądarkę i potwierdzenie usunięcia HTTP 404 |
-| Pełny lokalny `make check` i kontrole wydania | Lokalny gate 252 Python / 15 frontend PASS, mypy/TS/lint/host contracts PASS. L4 scalony z CI/contracts/Sonar/Snyk/GitGuardian i niezależnym review PASS; L5 PR #13 do main wymaga końcowych kontroli i scalenia |
-| Dokładne SHA końcowego core/module/deployment i decyzja ryzyka | PENDING — uzupełnia koordynator przed zamknięciem odbioru |
+| Pełny lokalny `make check` i kontrole wydania | Na core `7401493`: 252 Python / 15 frontend PASS, mypy/TS/lint/host contracts PASS. L4 scalony; odebrany L5 ma CI/contracts/Sonar/Snyk/GitGuardian i niezależny review PASS. Świeży wynik finalnego commita w [Checks PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13/checks) przed merge |
+| Host baseline i aktualna zgodność | Minimum ABI 1.0.0 z C0 `aa2d6124` zachowane; aktualny przypięty/scalony core `7401493f73db98dcdf2cb39503fca57eb2cbe421`. Historyczne GPU/macierz SHA bez zmian |
+| Końcowy merge modułu i deployment | Koordynator wykona po świeżym CI; trwały punkt odniesienia [PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13). Gotowość techniczna nie jest deklaracją wykonanego merge/deploymentu |
 
 Sposób uruchomienia, retencja, OFF i rollback:
 [RUNBOOK](RUNBOOK.md). Kryteria pełnego MVP: [ACCEPTANCE](ACCEPTANCE.md).

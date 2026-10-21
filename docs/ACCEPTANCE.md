@@ -3,7 +3,9 @@
 Lokalny odbiór techniczny GPU, macierzy 30, browser/SSE/STOP i OFF jest wykonany.
 L1–L4 i C0 są scalone; wydanie pozostaje otwarte do kontroli/scalenia
 [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13),
-ponownego odbioru zwykłego chatu i potwierdzenia końcowych SHA/deploymentu. [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md) podaje rzeczywiste wyniki,
+świeżego CI finalnego commita i potwierdzenia deploymentu. Cleanup C0 po
+ponownym rzeczywistym HTTP 400 odebrany; brak treści legacy chatu pozostaje
+osobnym [Venom #554](https://github.com/mpieniak01/Venom/issues/554). [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md) podaje rzeczywiste wyniki,
 [EXPERIMENTS](EXPERIMENTS.md) metodologię, a [RUNBOOK](RUNBOOK.md) uruchomienie/OFF.
 Zaznaczenia opisują dowód i jego granicę; fixture nie staje się testem GPU.
 
@@ -43,8 +45,11 @@ Zaznaczenia opisują dowód i jego granicę; fixture nie staje się testem GPU.
 - [x] L1 PR #9, Venom C0 PR #552, L2 PR #10, L3 PR #11 i L4 PR #12 scalone; rewizje zapisane w RELEASE_ACCEPTANCE.
 - [x] Końcowy kod L4 `6fb7613`: CI/contracts, Sonar, Snyk, GitGuardian i niezależny review PASS.
 - [x] L5 opublikowany jako [PR #13 do main](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13).
-- [ ] L5: recenzja, końcowe kontrole i scalenie, następnie końcowe SHA/deployment.
-- [ ] Zwykły chat po laboratorium: jedna rzeczywista próba FAILED — HTTP 400 przed pierwszą treścią. Wybór operatora `gemma2:2b` (legacy completion-only) pozostał bez zmian. Oryginalne body błędu utracono; przyczyna nie jest ustalona. Cleanup typowanego błędu transportu po zaobserwowanym quarantine=1 wymaga poprawki core i ponownego odbioru. Wolny lease po wcześniejszych próbach nie jest dowodem odpowiedzi chatu.
+- [x] L5 PR #13: CI/contracts, Snyk, Sonar i GitGuardian PASS dla odebranej rewizji; niezależny review PASS. CodeRabbit rate-limited nie jest pełną recenzją.
+- [x] C0 cleanup follow-up [Venom #553](https://github.com/mpieniak01/Venom/pull/553) scalony jako `7401493`; zgodność i CI modułu przypięte do tego hosta, ABI 1.0.0 bez zmian.
+- [x] Rzeczywisty ponowny probe legacy HTTP 400: C0 CLEANUP PASS — busy 1→available/0 w 0,002 s, ps[] przed/po, konfiguracja bez zmian. Recovery miało fizyczny dowód końca workera, force=false.
+- [x] Brak treści/done legacy chatu jawny: HTTP 400 w 0,032 s, nie CHAT PASS. Osobny [Venom #554](https://github.com/mpieniak01/Venom/issues/554), bez blokowania zakwalifikowanych modeli. Pierwsze utracone body nie jest retrospektywnie diagnozowane.
+- [ ] Scalenie [PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) po świeżym CI finalnego commita i deployment. Bieżący wynik w zakładce Checks tego PR, bez kołowego wskazywania własnego SHA dokumentacji.
 
 Snyk/Sonar/GitGuardian i review oceniamy dla właściwych SHA, bez ogłaszania braku
 skanu lub limitu jako PASS. Pięć odziedziczonych ID Torch pozostaje jawnie opisane;

@@ -17,5 +17,7 @@ zamknięcia odpowiadających im zgłoszeń GitHub.
 
 Kolejność: L1 i C0 → L2 → L3 → L4 → L5. L1–L4 i C0 są scalone;
 [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13)
-jest otwarty do main. Końcowy odbiór zwykłego chatu, kontrole L5 i deployment
-pozostają otwarte. Trening i dalsza rozbudowa są poza MVP.
+jest otwarty do main z zaliczonymi kontrolami i niezależnym review odebranej
+rewizji; finalny commit ponawia CI przed merge/deploymentem. Cleanup C0 po HTTP 400
+odebrany; legacy chat śledzi osobny [Venom #554](https://github.com/mpieniak01/Venom/issues/554), a nową metodologię
+[research #14](https://github.com/mpieniak01/venom-module-cooperation-lab/issues/14). Trening i dalsza rozbudowa są poza MVP.

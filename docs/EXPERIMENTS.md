@@ -5,9 +5,11 @@ Status: formalna kwalifikacja GPU C0/L2 i rzeczywista pełna macierz L5 wykonane
 Strict-v1: 30/30 unscorable z powodu formatu, accuracy=null (nie 0%). Realny OFF
 API/danych oraz rzeczywisty browser/SSE/STOP/layout/i18n PASS. L4 PR #12 scalony
 z kontrolami i niezależnym review PASS. [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13)
-ma bazę main; jego końcowe kontrole/scalenie oraz deployment pozostają pending.
-Jeden probe zwykłego chatu po laboratorium zwrócił HTTP 400 przed pierwszą treścią;
-ponowny odbiór jest otwartym blockerem. Crash/retencja/quotas mają dowody fixture.
+ma bazę main i zaliczone kontrole oraz niezależny review odebranej rewizji;
+finalny commit ponawia CI przed merge/deploymentem. Cleanup C0 po ponownym
+rzeczywistym HTTP 400 PASS. Brak treści legacy chatu to osobny [Venom #554](https://github.com/mpieniak01/Venom/issues/554),
+nie CHAT PASS ani blocker zakwalifikowanych modeli. Crash/retencja/quotas mają
+dowody fixture. Nową metodologię śledzi [research #14](https://github.com/mpieniak01/venom-module-cooperation-lab/issues/14).
 [Dokładne wyniki](RELEASE_ACCEPTANCE.md), [zredagowany JSON](EXPERIMENT_RESULTS_V1.json).
 Test fixture nie jest próbą modelu, a poprawny transport nie dowodzi nauki lub
 przewagi jakościowej.
