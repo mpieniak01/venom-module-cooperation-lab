@@ -18,7 +18,7 @@ class Source{
 }
 Object.defineProperty(globalThis,"EventSource",{value:Source,configurable:true});
 const caps={...metadata,ready:true,state:"ready",models:metadata.models.map((m)=>({...m,qualified:true}))};
-const run=(id:string,status:string):Run=>({id,status,created:1,last_seq:0,bytes:1,config:{model_id:id}});
+const run=(id:string,status:string):Run=>({id,status,created:1,last_seq:0,bytes:1,config:{model:{model_id:"rwkv7-g1d-0.4b"},scenario_id:"split_facts",mode:"dialog_encouraged",seed:0,budgets:{max_turns:8,max_new_tokens:128}}});
 const response=(body:unknown,status=200)=>({ok:status<400,status,json:async()=>body})as Response;
 const flush=()=>act(async()=>{await new Promise((r)=>setImmediate(r));});
 const button=(box:Element,text:string)=>[...box.querySelectorAll("button")].find((b)=>b.textContent===text)!;

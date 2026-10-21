@@ -28,3 +28,23 @@ Poza zakresem: dekoracyjny graf zastępujący dialog, nowy framework UI, automat
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
 
 Implementacja i użycie: [WORKSPACE](../WORKSPACE.md). Niezależny review poprawił wybranie archiwum podczas pracy, spóźnione odpowiedzi STOP, powiązanie potwierdzenia DELETE z ID, pending START/STOP i zgodność z rzeczywistym kontraktem L3.
+
+
+## Poprawka po rzeczywistym browser smoke
+
+Style krytyczne należą do modułu jako statyczny scoped CSS; zewnętrzna ścieżka
+modułu nie musi być skanowana przez Tailwind JIT hosta. Własna wysokość uwzględnia
+rzeczywisty top elementu w viewport, stałe kontrolki i notice są nad wewnętrznym
+scroll body. Desktop od1024px: settings6kolumn i main+aside; START zielony,
+STOP czerwony. Nie zmieniono globalnych stylów/layoutu core.
+
+Wybrana próba synchronizuje formularz przed kolejnym paint z immutable config
+(nested model.model_id i budgets), wyłącznie poprawne wartości. Test historii
+Qwen 4tury/32tokeny/seed17/no_contact/correction zabezpiecza regres domyślnego
+RWKV 8/128 w nieaktywnych polach. Node/JSDOM potwierdza kolory i overflow bez
+Tailwind; rzeczywiste bounding boxes i media queries odbiera koordynator.
+
+Node24 generuje rzeczywisty LCOV z tej samej sesji testów do
+`test-results/lcov.info`, wskazanego przez sonar.javascript.lcov.reportPaths.
+Bez wyłączeń pokrycia i zmiany progów. TS/lint oraz12testów PASS,95,28% line
+coverage. Wynik Sonara/i18n CPD należy ocenić po actual skanie.
