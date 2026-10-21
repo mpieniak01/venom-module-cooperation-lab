@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import Any
@@ -18,6 +19,10 @@ def setting_enabled(name: str) -> bool:
 
 def enabled() -> bool:
     return setting_enabled("FEATURE_COOPERATION_LAB")
+
+
+def admission_enabled() -> bool:
+    return setting_enabled("RUNTIME_ADMISSION_ENABLED")
 
 
 class LabLifecycle:
@@ -52,8 +57,10 @@ async def lifespan(app: Any):
     def factory() -> LabStore:
         # Lifecycle owns only schema recovery. Requests must supply a trusted host
         # access policy before persisted run data is exposed in the later runner.
-        def deny(_owner: str, _operation: str) -> None:
-            raise PermissionError("host_access_policy_required")
+        def deny(owner: str, _operation: str) -> None:
+            # Actor is selected by trusted host transport, never body/model JSON.
+            if owner != "local_operator":
+                raise PermissionError("host_access_policy_required")
 
         return LabStore.from_host(deny)
 
@@ -61,6 +68,23 @@ async def lifespan(app: Any):
     app.state.cooperation_lab = lifecycle
     try:
         await asyncio.wait_for(lifecycle.start(enabled()), timeout=1.5)
+        runner = None
+        if lifecycle.store and lifecycle.store.opened and admission_enabled():
+            from venom_core.services.runtime_admission import get_runtime_admission
+
+            from .adapters.registry import create_adapter, list_model_specs
+            from .runner import LabRunner
+
+            runner = LabRunner(
+                lifecycle.store,
+                get_runtime_admission(),
+                list_model_specs,
+                create_adapter,
+            )
+        app.state.cooperation_lab_runner = runner
         yield
     finally:
+        runner = getattr(app.state, "cooperation_lab_runner", None)
+        if runner is not None:
+            await runner.close()
         await asyncio.wait_for(lifecycle.close(), timeout=1.5)

@@ -1,6 +1,6 @@
 # L3 — dwie sesje i runner komunikacji
 
-Status: PLAN, nie istniejący numer PR. Repo: venom-module-cooperation-lab. Zależności: L1, C0, L2.
+Status: ZAIMPLEMENTOWANY LOKALNIE, oczekuje integracji zależności i przeglądu. Repo: venom-module-cooperation-lab. Zależności: L1, C0, L2.
 
 ## Problem i wynik
 
@@ -26,3 +26,16 @@ Poza zakresem: GUI, kolejne modele, więcej uczestników i trening.
 - [ ] Review i wymagane bramki zakończone; dokumentacja i rollback.
 
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
+
+
+## Implementacja
+
+Kod i zamrożony protokół opisuje [RUNNER](../RUNNER.md). Publiczny JSON pochodzi
+z rzeczywistego backendu, nie wymyślonej makiety. Scenariusze mają scenario_id i
+wersję string "1"; kwalifikacje live pozostają osobną procedurą hosta.
+
+Lokalna pełna regresja L1/L2/L3: 129 pytest PASS, coverage 97.07%; Ruff PASS,
+mypy 18 źródeł PASS (po końcowej korekcie typu receipt). Testy używają bounded CPU
+fixtures i realnego C0 ledgeru, nie twierdzą, że wykonano inferencję GPU. Pełna
+integracja frontu/CI/Sonar i realny odbiór L5 pozostają do wykonania przez
+koordynatora po scaleniu C0 oraz L2. Nie uruchamiano urządzenia ani modeli.

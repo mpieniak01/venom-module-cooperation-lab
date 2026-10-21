@@ -1,0 +1,113 @@
+"""Immutable, versioned experiment config and effective hard budgets."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import asdict, dataclass
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from .scenarios import get_scenario
+
+Mode = Literal["single", "self_correction", "no_contact", "dialog", "dialog_encouraged"]
+MODES = ("single", "self_correction", "no_contact", "dialog", "dialog_encouraged")
+
+
+class RunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    model_id: str = Field(
+        min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    )
+    scenario_id: str = Field(min_length=1, max_length=128)
+    mode: Mode = "dialog_encouraged"
+    seed: int = Field(default=0, ge=0, le=2**31 - 1)
+    max_turns: int = Field(default=8, ge=1, le=8)
+    max_new_tokens: int = Field(default=128, ge=1, le=256)
+    temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
+    top_p: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
+
+
+@dataclass(frozen=True)
+class Budgets:
+    max_turns: int = 8
+    max_new_tokens: int = 128
+    max_context_tokens: int = 2048
+    total_input_tokens: int = 16384
+    total_output_tokens: int = 2048
+    processing_steps: int = 18432
+    wall_seconds: int = 360
+
+
+@dataclass(frozen=True)
+class RunConfig:
+    model_json: str
+    scenario_id: str
+    scenario_version: str
+    scenario_goal: str
+    mode: str
+    prompts: tuple[str, str]
+    budgets: Budgets
+    seed: int
+    temperature: float
+    top_p: float
+    schema_version: int = 1
+    participant_count: int = 2
+    scheduler: str = "alternating-v1"
+
+    @classmethod
+    def build(cls, request: RunRequest, model: dict[str, Any]) -> RunConfig:
+        scenario = get_scenario(request.scenario_id)
+        instructions = (
+            "You are participant {participant}. Work on the common goal. "
+            "Only your own private information is given. "
+            "Return a concise answer or a message for the other participant. "
+            "Optional JSON: kind(message/proposal/accept/ask/evidence/complete), "
+            "recipient(A/B/all), content(string), in_reply_to(message id or null). "
+            "Never include sender identity or tools."
+        )
+        encouragement = (
+            " You may organize your work together: ask for missing information, "
+            "propose a division of work, agree or revise your plan. "
+            "No role is assigned."
+            if request.mode == "dialog_encouraged"
+            else ""
+        )
+        prompts = []
+        for participant, private in (
+            ("A", scenario.private_a),
+            ("B", scenario.private_b),
+        ):
+            if request.mode in {"single", "self_correction"}:
+                private = scenario.private_a + " " + scenario.private_b
+            prompts.append(
+                instructions.format(participant=participant)
+                + encouragement
+                + "\nGoal: "
+                + scenario.goal
+                + "\nPrivate information: "
+                + private
+            )
+        return cls(
+            model_json=json.dumps(model, sort_keys=True, ensure_ascii=False),
+            scenario_id=scenario.scenario_id,
+            scenario_version=scenario.version,
+            scenario_goal=scenario.goal,
+            mode=request.mode,
+            prompts=(prompts[0], prompts[1]),
+            budgets=Budgets(
+                max_turns=request.max_turns, max_new_tokens=request.max_new_tokens
+            ),
+            seed=request.seed,
+            temperature=request.temperature,
+            top_p=request.top_p,
+        )
+
+    def public(self) -> dict[str, Any]:
+        result = asdict(self)
+        result["model"] = json.loads(result.pop("model_json"))
+        result["prompts"] = list(self.prompts)
+        canonical = json.dumps(result, sort_keys=True, ensure_ascii=False)
+        result["config_hash"] = hashlib.sha256(canonical.encode()).hexdigest()
+        return result
