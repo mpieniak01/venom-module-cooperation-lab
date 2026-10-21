@@ -120,3 +120,9 @@ owned completion callback performs idempotent final release and writes a durable
 `run` event with unchanged terminal status, `quiescent=true`, `cleanup_late=true`.
 The failed experiment never resumes. Failed close can be retried only after its
 previous task has actually completed, without concurrent close workers.
+
+
+Cancellation of the owned asyncio runner task is propagated to its caller only
+after the finally block attempts bounded cleanup and records the result. It does
+not cancel the retained real thread. An uncooperative worker keeps its lease
+busy until verified late cleanup; the failed run never resumes.
