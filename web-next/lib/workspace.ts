@@ -79,7 +79,7 @@ function record(value: Json | undefined): Record<string, Json> {
 export function savedSettings(config: Record<string, Json>): Partial<SavedSettings> {
   const result: Partial<SavedSettings> = {};
   const model = record(config.model).model_id ?? config.model_id;
-  if (typeof model === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(model)) result.model = model;
+  if (typeof model === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(model)) result.model = model;
   if (typeof config.scenario_id === "string" && ["split_facts", "organization", "correction"].includes(config.scenario_id)) result.scenario = config.scenario_id;
   if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged"].includes(config.mode)) result.mode = config.mode;
   const budgets = record(config.budgets);

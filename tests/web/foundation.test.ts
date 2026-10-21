@@ -43,9 +43,11 @@ test("known readiness/error codes are translated in PL/EN/DE and future codes us
 
 
 test("saved form settings use immutable nested model/budgets and reject invalid values", () => {
+  assert.deepEqual(savedSettings({model:{model_id:"rwkv7-g1d-0.4b"}}), {model:"rwkv7-g1d-0.4b"});
   assert.deepEqual(savedSettings({model:{model_id:"qwen3-4b-control"}, scenario_id:"correction", mode:"no_contact", seed:17, budgets:{max_turns:4,max_new_tokens:32}}),
     {model:"qwen3-4b-control",scenario:"correction",mode:"no_contact",seed:17,turns:4,tokens:32});
   assert.deepEqual(savedSettings({model:[],scenario_id:"unexpected",mode:"shell",seed:-1,budgets:{max_turns:9,max_new_tokens:0}}),{});
   assert.deepEqual(savedSettings({scenario_id:["split_facts"],mode:["dialog"]}),{});
   assert.deepEqual(savedSettings({model:{model_id:"/private/path"},seed:1.5,budgets:{max_turns:true,max_new_tokens:257}}),{});
+  assert.deepEqual(savedSettings({model:{model_id:".hidden"}}), {});
 });
