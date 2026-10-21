@@ -20,3 +20,18 @@ Istniejący Qwen/Gemma jest kontrolą infrastruktury. Odbiór MVP wymaga także 
 Nie dodawać research requirements do Full. Reużyć istniejący silnik; jeśli architektura wymaga komponentu, mieć jedno izolowane przypięte środowisko na ten runtime, nie venv na każde wagi. Moduł korzysta z ograniczonego protokołu generate/cancel/status/reset/state. Artefakty, receipt, komenda rollback/cleanup są częścią L2. Nie usuwać istniejących modeli użytkownika ani oryginalnych adapterów.
 
 Źródła: [RWKV](https://github.com/BlinkDL/RWKV-LM), [G1](https://huggingface.co/BlinkDL/rwkv7-g1), [Huginn](https://huggingface.co/tomg-group-umd/huginn-0125), [HRM-Text](https://huggingface.co/sapientinc/HRM-Text-1B), [Qwen3.5-2B](https://huggingface.co/Qwen/Qwen3.5-2B).
+
+
+## Lokalna kontrola modeli już zainstalowanych w Ollamie
+
+[L6](prs/L6-shared-model-catalog-local.md) dodaje przycisk **Sprawdź model**
+dla kandydatów w istniejącym adapterze Ollamy. To krótki test techniczny dwóch
+kontekstów z resetem i cleanup, z trwałym receipt powiązanym z tożsamością wag,
+szablonu i runtime. Nie zastępuje powyższego pełnego odbioru nowej architektury.
+Nieznane metryki RAM/VRAM i jakość pozostają niezmierzone. Pozostałe silniki
+są widoczne, lecz zablokowane do czasu dodania i odbioru ich adaptera.
+
+
+Poprawka odbiorowa L6: powyższe sprawdzenie Ollamy jest **opcjonalne**. Zwykły
+START nie wymaga receipt; model musi być lokalny, dostępny i obsługiwany przez
+adapter z weryfikacją tożsamości. Anulowana diagnostyka nie blokuje użycia modelu.

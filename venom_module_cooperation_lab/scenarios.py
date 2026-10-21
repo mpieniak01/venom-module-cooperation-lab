@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from typing import Literal
 
 from .errors import LabError
 
@@ -26,6 +27,26 @@ class Scenario:
 
 
 SCENARIOS = (
+    Scenario(
+        "peer_review",
+        "1",
+        "Draft, review, revise",
+        "Answer the operator task through a draft, a peer review, and a revision. "
+        "A drafts, B reviews, A revises. The operator judges the final result.",
+        "",
+        "",
+        "",
+    ),
+    Scenario(
+        "operator_conversation",
+        "1",
+        "Operator conversation",
+        "Follow the operator conversation. The operator supplies the topic. "
+        "Do not invent an operator message.",
+        "",
+        "",
+        "",
+    ),
     Scenario(
         "split_facts",
         "1",
@@ -53,6 +74,20 @@ SCENARIOS = (
         "Your private number is 25.",
         "42",
     ),
+    Scenario(
+        "tic_tac_toe",
+        "1",
+        "Tic-tac-toe",
+        "Play tic-tac-toe on a 3x3 board. A is X and starts; B is O. "
+        "Rows are A, B, C and columns are 1, 2, 3. "
+        "Take turns placing one mark on an empty square. "
+        "Three marks in a row, column or diagonal win; a full board is a draw. "
+        "Return only the coordinate of your move, e.g. B2. "
+        "The host validates moves and decides when the game ends.",
+        "You play X. Try to win, or prevent losing.",
+        "You play O. Try to win, or prevent losing.",
+        "",
+    ),
 )
 
 
@@ -61,3 +96,65 @@ def get_scenario(scenario_id: str) -> Scenario:
         if scenario.scenario_id == scenario_id:
             return scenario
     raise LabError("scenario_not_allowed", 422)
+
+
+DialogueLanguage = Literal["pl", "en"]
+
+# Localized dialogue profiles are separate from the frozen benchmark v1.
+_POLISH_SCENARIOS = {
+    "peer_review": (
+        "Propozycja, recenzja, poprawa",
+        "Odpowiedz na zadanie operatora w trzech "
+        "etapach: propozycja A, recenzja B, poprawa A. Wynik ocenia operator.",
+        "",
+        "",
+    ),
+    "operator_conversation": (
+        "Rozmowa operatora",
+        "Prowadź rozmowę według wpisów operatora. "
+        "Operator podaje temat. Nie wymyślaj wiadomości operatora.",
+        "",
+        "",
+    ),
+    "tic_tac_toe": (
+        "Kółko i krzyżyk",
+        "Zagraj w kółko i krzyżyk na planszy 3x3. A gra X i zaczyna; B gra O. "
+        "Wiersze to A, B, C, a kolumny 1, 2, 3. "
+        "Wykonujcie na zmianę po jednym ruchu na wolnym polu. "
+        "Trzy znaki w wierszu, kolumnie lub przekątnej oznaczają wygraną; "
+        "pełna plansza oznacza remis. "
+        "Zwróć wyłącznie współrzędne ruchu, np. B2. "
+        "Host sprawdza ruchy i rozstrzyga zakończenie partii.",
+        "Grasz X. Spróbuj wygrać lub zapobiec przegranej.",
+        "Grasz O. Spróbuj wygrać lub zapobiec przegranej.",
+    ),
+    "split_facts": (
+        "Rozdzielone informacje",
+        "Ustal dwuliterowy kod.",
+        "Pierwsza litera to R.",
+        "Druga litera to K.",
+    ),
+    "organization": (
+        "Wspólne obliczenie",
+        "Oblicz sumę dwóch prywatnych liczb.",
+        "Twoja prywatna liczba to 17.",
+        "Twoja prywatna liczba to 25.",
+    ),
+    "correction": (
+        "Sprawdzenie i poprawa propozycji",
+        "Zaproponowana suma to 41. Sprawdź ją lub popraw, "
+        "korzystając z obu prywatnych liczb.",
+        "Twoja prywatna liczba to 17.",
+        "Twoja prywatna liczba to 25.",
+    ),
+}
+
+
+def get_dialogue_scenario(scenario_id: str, language: DialogueLanguage) -> Scenario:
+    scenario = get_scenario(scenario_id)
+    if language == "pl":
+        title, goal, private_a, private_b = _POLISH_SCENARIOS[scenario_id]
+        scenario = replace(
+            scenario, title=title, goal=goal, private_a=private_a, private_b=private_b
+        )
+    return replace(scenario, version=f"{scenario.version}-dialogue-{language}-1")

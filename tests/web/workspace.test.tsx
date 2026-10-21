@@ -51,10 +51,15 @@ test("workspace has no automatic generation, double start uses one request, SSE 
   try {
     await act(async()=>root.render(<CooperationLabPage/>)); await settle();
     assert.equal(calls.filter((c)=>c.init?.method==="POST").length,0);
+    const languageSelect=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Język rozmowy modeli"))!;
+    assert.equal(languageSelect.value,"pl");
+    assert.match(box.textContent??"",/Rozdzielone informacje/);
+    await act(async()=>{languageSelect.value="en";languageSelect.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
     const start=findButton(box,"Rozpocznij eksperyment"); assert.equal(start.disabled,false);
     await act(async()=>{start.click();start.click();}); await settle();
     const posts=calls.filter((c)=>c.init?.method==="POST" && c.url.endsWith("/runs"));
     assert.equal(posts.length,1); assert.ok((posts[0].init?.headers as Record<string,string>)["Idempotency-Key"]);
+    assert.equal(JSON.parse(String(posts[0].init?.body)).communication_language,"en");
     assert.equal(Stream.instances.length,1);
     const stream=Stream.instances[0]; assert.match(stream.url,/after=0/);
     const first:LabEvent={run_id:"r1",seq:1,kind:"message",timestamp:1,payload:{sender:"A",recipient:"B",kind:"proposal",content:"I can collect facts."}};
@@ -93,10 +98,11 @@ test("reloaded selected run replays persisted events; disconnect never cancels c
     assert.equal(findButton(box,"Zatrzymaj").disabled,false);
     assert.ok(calls.every((c)=>c.startsWith("GET ")));
     await act(async()=>findButton(box,"Odśwież").click());await settle();
+    assert.equal(Stream.instances.length,2);
+    await act(async()=>{const stream=Stream.instances[1];stream.onerror?.();stream.onerror?.();stream.onerror?.();});
     assert.match(box.textContent??"",/Połączenie przerwane/);
-    assert.equal(Stream.instances.length,1);
     await act(async()=>findButton(box,"Połącz ponownie").click());await settle();
-    assert.equal(Stream.instances.length,2);assert.equal(box.querySelectorAll("ol li").length,1);
+    assert.equal(Stream.instances.length,3);assert.equal(box.querySelectorAll("ol li").length,1);
   }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=oldFetch;localStorage.clear();}
 });
 
@@ -173,7 +179,7 @@ test("selected Qwen history shows its actual immutable settings and module style
     await act(async () => root.render(<CooperationLabPage/>)); await settle();
     const settings = box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")!;
     assert.equal(settings.disabled,true);
-    assert.deepEqual([...settings.querySelectorAll("select")].map((select) => select.value),["qwen3-4b-control","correction","no_contact"]);
+    assert.deepEqual([...settings.querySelectorAll("select")].map((select) => select.value),["correction","no_contact","ollama","qwen3-4b-control","en"]);
     assert.deepEqual([...settings.querySelectorAll("input")].map((input) => input.value),["4","32","17"]);
     const view = box.querySelector<HTMLElement>(".coop-workspace")!;
     const body = box.querySelector<HTMLElement>(".coop-body")!;
@@ -210,7 +216,7 @@ test("switching Qwen history to RWKV replaces the model with its dotted immutabl
   try {
     await act(async () => root.render(<CooperationLabPage/>)); await settle();
     const settings = box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")!;
-    const model = settings.querySelector("select")!;
+    const model = [...settings.querySelectorAll("select")].find(select=>select.parentElement?.textContent?.startsWith("Model"))!;
     assert.equal(model.value,"qwen3-4b-control");
     const history = [...box.querySelectorAll("select")].find((select) => select.parentElement?.textContent?.startsWith("Historia prób"))!;
     assert.equal(history.disabled,false);
@@ -221,4 +227,46 @@ test("switching Qwen history to RWKV replaces the model with its dotted immutabl
   } finally {
     await act(async () => root.unmount()); box.remove(); globalThis.fetch=oldFetch; localStorage.clear();
   }
+});
+
+
+test("tic-tac-toe selects dialog and nine moves and live game events update the board",async()=>{
+ const old=globalThis.fetch;localStorage.clear();Stream.instances=[];
+ const game:Run={...aRun(),config:{model_id:"rwkv7-g1d-0.4b",scenario_id:"tic_tac_toe",mode:"dialog",communication_language:"pl",budgets:{max_turns:9,max_new_tokens:128}}};
+ let posted:Record<string,unknown>|null=null;
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(path.endsWith("/capabilities"))return response(caps);
+  if(init?.method==="POST"&&path.endsWith("/runs")){posted=JSON.parse(String(init.body));return response({run:game,created:true},202);}
+  if(path.endsWith("/events"))return response({events:[],last_seq:0});
+  if(path.endsWith("/runs/r1"))return response({run:game});
+  return response({runs:[]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await settle();
+  const selector=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Scenariusz"))!;
+  const variants=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Wariant"))!;
+  await act(async()=>{selector.value="peer_review";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  assert.equal(selector.value,"peer_review");
+  assert.equal(variants.value,"operator_review");assert.equal(variants.options.length,1);assert.equal(variants.disabled,true);
+  assert.ok([...selector.options].some(option=>option.value==="tic_tac_toe"));
+  await act(async()=>{selector.value="operator_conversation";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  assert.equal(variants.value,"operator_chat");
+  await act(async()=>{selector.value="split_facts";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  assert.equal(variants.value,"dialog_encouraged");
+  await act(async()=>{selector.value="tic_tac_toe";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  const mode=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Wariant"))!;
+  assert.equal(mode.value,"dialog");assert.equal(mode.options.length,1);assert.equal(mode.options[0].textContent,"Gra naprzemienna");
+  const turns=box.querySelector<HTMLInputElement>('input[type="number"]')!;
+  assert.equal(turns.value,"9");assert.equal(turns.max,"9");assert.equal(posted,null);
+  assert.equal(box.querySelectorAll(".coop-game-board tbody td").length,9);
+  await act(async()=>findButton(box,"Rozpocznij eksperyment").click());await settle();
+  assert.equal((posted as unknown as Record<string,unknown>).scenario_id,"tic_tac_toe");
+  assert.equal((posted as unknown as Record<string,unknown>).max_turns,9);
+  assert.ok(Stream.instances[0].listeners.has("game"));
+  await act(async()=>Stream.instances[0].emit({run_id:"r1",seq:1,kind:"game",timestamp:1,payload:{board:["X","X","X","O","O","","","",""],winner:"A",finished:true,draw:false,next_player:null}}));
+  assert.match(box.querySelector(".coop-game-state")?.textContent??"",/Wygrywa: A/);
+  assert.equal(box.querySelector('[aria-label="A1"]')?.textContent,"X");
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });

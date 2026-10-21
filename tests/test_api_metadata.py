@@ -10,9 +10,12 @@ def test_public_contract_is_serialized_real_backend_metadata():
     assert metadata == expected
     assert all(model["qualified"] is False for model in metadata["models"])
     assert {scenario["scenario_id"] for scenario in metadata["scenarios"]} == {
+        "peer_review",
+        "operator_conversation",
         "split_facts",
         "organization",
         "correction",
+        "tic_tac_toe",
     }
     assert all(scenario["version"] == "1" for scenario in metadata["scenarios"])
     assert all(

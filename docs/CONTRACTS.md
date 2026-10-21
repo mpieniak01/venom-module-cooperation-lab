@@ -41,3 +41,43 @@ Proponowany preset: max8 tur łącznie, do256 output tokenów/turę, do2048 toke
 ## Anulowanie i zasób
 
 Cancel idempotentnie blokuje kolejną turę. Cancelling trwa do potwierdzenia rzeczywistego końca inferencji. Zamknięcie socketu nie dowodzi końca GPU. Lease zwalniany po potwierdzonym quiescence; late worker oznacza busy/quarantine i kontrolowane recovery. Brak ślepego release po TTL przy aktywnym workerze. Nie zatrzymujemy cudzej pracy ani całego serwera. Shutdown ma bounded cleanup i jawny wynik niezakończonych obliczeń. C0 definiuje spójność również względem pozostałych konsumentów hosta i nieobsługiwanej topologii wielu workerów.
+
+
+## Lokalny L6: katalog i techniczne sprawdzenie Ollamy
+
+`GET /capabilities` dodaje `engines`, `catalog_error`, a do modeli `engine_id`,
+`display_name`, `can_run`, `can_qualify` i konkretny `availability_reason`. Odczyt nie generuje,
+nie pobiera, nie uruchamia auto-heal i nie aktywuje globalnego silnika.
+Nieobsługiwane silniki są widoczne z `adapter_not_supported`.
+
+`POST /qualifications` przyjmuje wyłącznie `model_id` i nagłówek `Idempotency-Key`;
+obowiązują te same polityki hosta, lokalność i ochrona cross-site co dla `/runs`.
+Zwraca `202 {run, created}`. Próba `model_qualification` korzysta z normalnego
+journalu, STOP i cleanup oraz przypiętej konfiguracji; nie jest publicznym
+scenariuszem benchmarku. Receipt powstaje dopiero po dwóch niepustych generacjach
+w niezależnych kontekstach i zwolnieniu zasobów. Błąd lub cancel nie nadaje gotowości.
+Nowy model musi pochodzić z aktualnego lokalnego katalogu completion/template.
+Tożsamość obejmuje digest wag, hash template i wersję runtime; adapter weryfikuje
+je ponownie przy wykonaniu. Zakres receipt to technika, nie jakość współpracy.
+
+
+Aktualizacja L6: `can_run` jest niezależne od `qualified`. Dostępny lokalny model
+Ollamy z completion/template może wejść bezpośrednio przez `POST /runs`;
+przypięcie digest/template/runtime oraz admission nadal obowiązują przy wykonaniu.
+Brak lub anulowanie opcjonalnego receipt nie blokuje zwykłego eksperymentu.
+RWKV zachowuje odbiór własnego komponentu. Silniki bez adaptera mają `can_run=false`.
+`generation`/`ready` odzwierciedlają dostępne adaptery, a `qualified_models` wyłącznie
+aktualne receipt. Nie raportujemy wszystkich dostępnych modeli jako sprawdzonych.
+
+
+Idempotency L6 po recenzji: START najpierw odczytuje trwały rekord klucza i
+porównuje znormalizowany request z zapisanymi parametrami, zanim odświeży katalog
+lub sprawdzi dostępność modelu. Zaginiona odpowiedź może być odzyskana po zmianie
+wag, braku modelu, błędzie katalogu albo restarcie bez ponownej generacji. Inny
+request z tym samym kluczem nadal jest konfliktem. Diagnostyka ma osobny typ próby.
+
+Wiadomość operatora przechowuje SHA256 klucza w payloadzie trwałego zdarzenia,
+atomowo z samą wiadomością. Ponowienie odczytuje journal przed wymaganiem aktywnego
+jobu, również po jego zwolnieniu i restarcie. Treść musi być identyczna; klucz jest
+ograniczony do danego runu. Surowy klucz nie trafia do eksportu. Bez migracji DB;
+starym zdarzeniom sprzed tej zmiany nie da się odtworzyć niezapisanego klucza.

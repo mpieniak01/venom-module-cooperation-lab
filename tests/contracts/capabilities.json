@@ -45,6 +45,18 @@
   ],
   "scenarios": [
     {
+      "scenario_id": "peer_review",
+      "version": "1",
+      "title": "Draft, review, revise",
+      "goal": "Answer the operator task through a draft, a peer review, and a revision. A drafts, B reviews, A revises. The operator judges the final result."
+    },
+    {
+      "scenario_id": "operator_conversation",
+      "version": "1",
+      "title": "Operator conversation",
+      "goal": "Follow the operator conversation. The operator supplies the topic. Do not invent an operator message."
+    },
+    {
       "scenario_id": "split_facts",
       "version": "1",
       "title": "Split facts",
@@ -61,6 +73,12 @@
       "version": "1",
       "title": "Correct a proposal",
       "goal": "A proposed sum is 41. Verify or correct it using both private numbers."
+    },
+    {
+      "scenario_id": "tic_tac_toe",
+      "version": "1",
+      "title": "Tic-tac-toe",
+      "goal": "Play tic-tac-toe on a 3x3 board. A is X and starts; B is O. Rows are A, B, C and columns are 1, 2, 3. Take turns placing one mark on an empty square. Three marks in a row, column or diagonal win; a full board is a draw. Return only the coordinate of your move, e.g. B2. The host validates moves and decides when the game ends."
     }
   ],
   "modes": [
@@ -68,7 +86,10 @@
     "self_correction",
     "no_contact",
     "dialog",
-    "dialog_encouraged"
+    "dialog_encouraged",
+    "operator_chat",
+    "operator_relay",
+    "operator_review"
   ],
   "preset": {
     "max_turns": 8,

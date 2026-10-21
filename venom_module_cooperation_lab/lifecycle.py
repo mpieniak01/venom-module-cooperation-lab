@@ -95,14 +95,16 @@ async def lifespan(app: Any):
         if lifecycle.store and lifecycle.store.opened and admission_enabled():
             from venom_core.services.runtime_admission import get_runtime_admission
 
-            from .adapters.registry import create_adapter, list_model_specs
+            from .catalog import ModelCatalog
             from .runner import LabRunner
 
+            catalog = ModelCatalog()
             runner = LabRunner(
                 lifecycle.store,
                 get_runtime_admission(),
-                list_model_specs,
-                create_adapter,
+                catalog.specs,
+                catalog.adapter,
+                catalog_service=catalog,
             )
         app.state.cooperation_lab_runner = runner
         yield

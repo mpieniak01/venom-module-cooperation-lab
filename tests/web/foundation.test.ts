@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { diagnosticCode, messages, reasonLabel, texts } from "../../web-next/lib/i18n";
+import { diagnosticCode, messages, reasonLabel, scenarioLabel, texts } from "../../web-next/lib/i18n";
 import { healthState } from "../../web-next/lib/health";
 import { savedSettings } from "../../web-next/lib/workspace";
 
@@ -50,4 +50,23 @@ test("saved form settings use immutable nested model/budgets and reject invalid 
   assert.deepEqual(savedSettings({scenario_id:["split_facts"],mode:["dialog"]}),{});
   assert.deepEqual(savedSettings({model:{model_id:"/private/path"},seed:1.5,budgets:{max_turns:true,max_new_tokens:257}}),{});
   assert.deepEqual(savedSettings({model:{model_id:".hidden"}}), {});
+});
+
+
+test("scenario labels are Polish while conversation language restores independently", () => {
+  assert.deepEqual(["split_facts", "organization", "correction"].map(id => scenarioLabel(texts("pl"), id)),
+    ["Rozdzielone informacje", "Wspólne obliczenie", "Sprawdzenie i poprawa propozycji"]);
+  assert.equal(scenarioLabel(texts("en"), "split_facts"), "Split facts");
+  assert.equal(scenarioLabel(texts("pl"), "future", "New task"), "New task");
+  assert.equal(savedSettings({communication_language:"pl"}).communicationLanguage, "pl");
+  assert.equal(savedSettings({communication_language:"en"}).communicationLanguage, "en");
+  assert.equal(savedSettings({schema_version:1}).communicationLanguage, "en");
+  assert.equal(savedSettings({communication_language:"fr"}).communicationLanguage, undefined);
+});
+
+
+test("tic-tac-toe labels and nine-move history remain scenario scoped",()=>{
+ assert.equal(scenarioLabel(texts("pl"),"tic_tac_toe"),"Kółko i krzyżyk");
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",budgets:{max_turns:9}}).turns,9);
+ assert.equal(savedSettings({scenario_id:"split_facts",budgets:{max_turns:9}}).turns,undefined);
 });

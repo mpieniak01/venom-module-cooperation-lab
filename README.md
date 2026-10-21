@@ -20,3 +20,18 @@ C0 oraz L1–L5 są ID etapów implementacji; status kodu, odbioru i scalenia op
 ## Fundament L1
 
 Opcjonalny pakiet i niezależny ekran pozostają domyślnie wyłączone. Implementację, testy i ograniczenia opisuje [FOUNDATION](docs/FOUNDATION.md). `make check HOST=/home/ubuntu/venom` korzysta z istniejącego stosu hosta, bez pobierania modeli.
+
+## Rozszerzone laboratorium (L6)
+
+Formularz laboratorium pokazuje
+rzeczywiste modele katalogu Venoma, również modele bez funkcji treningu.
+Wybierz **Silnik**, potem **Model** i od razu **Rozpocznij eksperyment**.
+Zainstalowane modele Ollamy z szablonem completion nie wymagają dodatkowego testu.
+**Sprawdź model (opcjonalnie)** to odrębna diagnostyka dwóch krótkich odpowiedzi;
+anulowanie jej nie blokuje zwykłego START. Działa wspólny STOP i historia. Sam wybór modelu
+lub odświeżenie nie uruchamia obliczeń ani nie przełącza globalnego chatu.
+
+Silniki bez adaptera Lab pozostają widoczne z powodem blokady. Nie pobieramy modeli.
+Szczegółowy [zakres lokalnego PR i dowody](docs/prs/L6-shared-model-catalog-local.md).
+Pełny [zakres wydania L6, dowody i ograniczenia](docs/RELEASE_L6.md).
+Opis historycznego wydania powyżej dotyczy scalonych L1–L5.

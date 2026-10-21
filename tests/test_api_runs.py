@@ -44,7 +44,7 @@ async def test_operator_can_discover_start_observe_export_and_delete(client, rig
     caps = (await client.get("/api/v1/cooperation-lab/capabilities")).json()
     assert caps["ready"] and caps["generation"]
     assert caps["qualified_models"] == [SPEC.model_id]
-    assert len(caps["scenarios"]) == 3
+    assert len(caps["scenarios"]) == 6
     assert adapters == []
     started = await client.post(
         "/api/v1/cooperation-lab/runs",
@@ -234,3 +234,128 @@ async def test_remote_api_access_is_denied_before_run_data(client, rig):
         assert (
             await remote.get("/api/v1/cooperation-lab/capabilities")
         ).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_operator_input_api_validation_delivery_idempotency_and_access(
+    client, rig
+):
+    from test_operator_chat import waiting
+
+    runner, _ = rig
+    result = await client.post(
+        "/api/v1/cooperation-lab/runs",
+        json=payload()
+        | {"mode": "operator_chat", "scenario_id": "operator_conversation"},
+        headers={"Idempotency-Key": "operator-api"},
+    )
+    row = result.json()["run"]
+    await waiting(runner, row)
+    url = f"/api/v1/cooperation-lab/runs/{row['id']}/messages"
+    headers = {"Idempotency-Key": "prompt"}
+    for body in (
+        {"content": " "},
+        {"content": "x" * 2001},
+        {"content": 123},
+        {"content": "test", "sender": "A"},
+    ):
+        assert (await client.post(url, json=body, headers=headers)).status_code == 422
+    assert (await client.post(url, json={"content": "test"})).status_code == 422
+    assert (
+        await client.post(
+            url,
+            json={"content": "test"},
+            headers=headers | {"Sec-Fetch-Site": "cross-site"},
+        )
+    ).status_code == 403
+    accepted = await client.post(
+        url, json={"content": "<b>Wiadomość</b>"}, headers=headers
+    )
+    assert accepted.status_code == 202
+    assert accepted.json()["event"]["payload"]["sender"] == "operator"
+    repeated = await client.post(
+        url, json={"content": "<b>Wiadomość</b>"}, headers=headers
+    )
+    assert not repeated.json()["created"]
+    assert (
+        await client.post(url, json={"content": "changed"}, headers=headers)
+    ).status_code == 409
+    await asyncio.wait_for(runner.jobs[row["id"]].task, 2)
+    replay = (await client.get(url.removesuffix("/messages") + "/events")).json()
+    assert sum(e["kind"] == "message" for e in replay["events"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_catalog_qualification_api_and_denial(client, rig):
+    from test_catalog import install
+
+    runner, _ = rig
+    catalog, spec, adapters = install(runner)
+    caps = (await client.get("/api/v1/cooperation-lab/capabilities")).json()
+    assert len(caps["engines"]) == 3
+    assert next(m for m in caps["models"] if m["model_id"] == spec.model_id)[
+        "can_qualify"
+    ]
+    assert not adapters
+    path = "/api/v1/cooperation-lab/qualifications"
+    body = {"model_id": spec.model_id}
+    denied = await client.post(
+        path,
+        json=body,
+        headers={"Idempotency-Key": "cross", "Sec-Fetch-Site": "cross-site"},
+    )
+    assert denied.status_code == 403
+    invalid = await client.post(
+        path, json={**body, "endpoint": "remote"}, headers={"Idempotency-Key": "bad"}
+    )
+    assert invalid.status_code == 422
+    result = await client.post(
+        path, json=body, headers={"Idempotency-Key": "check-api"}
+    )
+    assert result.status_code == 202
+    run_id = result.json()["run"]["id"]
+    await runner.jobs[run_id].task
+    caps = (await client.get("/api/v1/cooperation-lab/capabilities")).json()
+    assert spec.model_id in caps["qualified_models"]
+    started = await client.post(
+        "/api/v1/cooperation-lab/runs",
+        json={**body, "scenario_id": "split_facts", "max_turns": 1},
+        headers={"Idempotency-Key": "after-check"},
+    )
+    assert started.status_code == 202
+    await runner.jobs[started.json()["run"]["id"]].task
+    runner.catalog_service = None
+    result = await client.post(
+        path, json=body, headers={"Idempotency-Key": "no-catalog"}
+    )
+    assert result.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_installed_ollama_starts_directly_without_qualification_receipt(
+    client, rig
+):
+    from test_catalog import install
+
+    runner, _ = rig
+    _, spec, _ = install(runner)
+    caps = (await client.get("/api/v1/cooperation-lab/capabilities")).json()
+    model = next(m for m in caps["models"] if m["model_id"] == spec.model_id)
+    assert model["can_run"] and not model["qualified"]
+    assert caps["ready"]
+    for index in range(2):
+        result = await client.post(
+            "/api/v1/cooperation-lab/runs",
+            json={
+                "model_id": spec.model_id,
+                "scenario_id": "split_facts",
+                "max_turns": 1,
+            },
+            headers={"Idempotency-Key": "direct-api-" + str(index)},
+        )
+        assert result.status_code == 202
+        await runner.jobs[result.json()["run"]["id"]].task
+        assert runner.admission.snapshot()["status"] == "available"
+    assert (
+        runner.store.get_document("qualifications", spec.model_id, owner=OWNER) is None
+    )

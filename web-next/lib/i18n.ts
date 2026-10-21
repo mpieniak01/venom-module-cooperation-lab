@@ -1,5 +1,47 @@
 // Each key has one PL/EN/DE row; translation completeness is structural.
 const translations = {
+  engine: ["Silnik", "Engine", "Laufzeit"],
+  qualify: ["Sprawdź model (opcjonalnie)", "Check model (optional)", "Modell prüfen (optional)"],
+  qualification: ["Sprawdzenie techniczne modelu", "Technical model check", "Technische Modellprüfung"],
+  qualificationHint: ["Opcjonalnie: 2 krótkie odpowiedzi. Nie jest wymagane do rozpoczęcia eksperymentu.", "Optional: 2 short replies. Not required to start an experiment.", "Optional: 2 kurze Antworten. Für den Start eines Experiments nicht erforderlich."],
+  modelReady: ["Gotowy", "Ready", "Bereit"],
+  modelPending: ["Wymaga sprawdzenia", "Needs checking", "Prüfung erforderlich"],
+  modelUnsupported: ["Brak adaptera laboratorium", "No laboratory adapter", "Kein Laboradapter"],
+  modelOffline: ["Model lub silnik niedostępny", "Model or engine unavailable", "Modell oder Laufzeit nicht verfügbar"],
+  catalogError: ["Nie udało się odświeżyć katalogu. Modele Ollamy są zablokowane.", "Catalog refresh failed. Ollama models are disabled.", "Katalogaktualisierung fehlgeschlagen. Ollama-Modelle sind gesperrt."],
+  scenarioOperator: ["Rozmowa operatora", "Operator conversation", "Bedienergespräch"],
+  scenarioPeerReview: ["Propozycja, recenzja, poprawa", "Draft, review, revise", "Entwurf, Prüfung, Überarbeitung"],
+  operator_review: ["Autor A → recenzent B → poprawa A", "Author A → reviewer B → revision A", "Autor A → Prüfer B → Überarbeitung A"],
+  reviewLimit: ["Jeden wpis = 3 etapy: propozycja A, recenzja B, poprawa A. Do 2 niezależnych zadań / 6 min.", "One message = 3 phases: A drafts, B reviews, A revises. Up to 2 independent tasks / 6 min.", "Eine Nachricht = 3 Phasen: A entwirft, B prüft, A überarbeitet. Bis 2 unabhängige Aufgaben / 6 Min."],
+  reviewSend: ["Wyślij zadanie", "Send task", "Aufgabe senden"],
+  phaseDraft: ["Propozycja", "Draft", "Entwurf"],
+  phaseCritique: ["Recenzja", "Review", "Prüfung"],
+  phaseRevision: ["Poprawa", "Revision", "Überarbeitung"],
+  setupTask: ["1. Zadanie i przebieg", "1. Task and workflow", "1. Aufgabe und Ablauf"],
+  setupRuntime: ["2. Model i język", "2. Model and language", "2. Modell und Sprache"],
+  setupLimits: ["3. Limity próby", "3. Run limits", "3. Versuchslimits"],
+  fixedWorkflow: ["Przebieg wynika ze scenariusza.", "Workflow is fixed by the scenario.", "Der Ablauf wird durch das Szenario festgelegt."],
+  startsAutomatic: ["Po starcie modele rozpoczynają zadanie automatycznie.", "Models begin the task automatically after Start.", "Nach Start beginnen die Modelle automatisch."],
+  startsWithInput: ["Po starcie wpisz zadanie w czacie i wyślij.", "After Start, enter a task in chat and send it.", "Nach Start eine Aufgabe im Chat eingeben und senden."],
+  roundsCount: ["Zadania operatora", "Operator tasks", "Bedieneraufgaben"],
+  gameMoves: ["Ruchy gry", "Game moves", "Spielzüge"],
+  sameWeights: ["Jeden model, oddzielne konteksty A i B.", "One model, separate A and B contexts.", "Ein Modell, getrennte Kontexte A und B."],
+  awaitOperator: ["Czeka na Twój wpis", "Waiting for your message", "Wartet auf Ihre Nachricht"],
+  operatorInputHint: ["Wpisz wiadomość w czacie i kliknij Wyślij. Obliczenia ruszą po wysłaniu.", "Enter a chat message and click Send. Computation starts after sending.", "Geben Sie eine Chat-Nachricht ein und klicken Sie auf Senden. Danach beginnt die Berechnung."],
+  operatorInactive: ["Czat nieaktywny. Rozpocznij nową próbę.", "Chat inactive. Start a new run.", "Chat inaktiv. Starten Sie einen neuen Versuch."],
+  operator: ["Operator", "Operator", "Bediener"],
+  operator_relay: ["Głuchy telefon: Operator → A → B", "Telephone game: Operator → A → B", "Stille Post: Bediener → A → B"],
+  operatorRelayPrompt: ["Opowieść dla modelu A", "Story for model A", "Geschichte für Modell A"],
+  operatorRelaySend: ["Wyślij tylko do A", "Send only to A", "Nur an A senden"],
+  operatorRelayHint: ["B zobaczy wyłącznie przekaz A, bez Twojego oryginału.", "B sees only A's retelling, never your original.", "B sieht nur die Erzählung von A, niemals Ihr Original."],
+  operator_chat: ["Rozmowa z operatorem", "Conversation with operator", "Gespräch mit Bediener"],
+  operatorPrompt: ["Wiadomość do obu modeli", "Message to both models", "Nachricht an beide Modelle"],
+  operatorSend: ["Wyślij do A i B", "Send to A and B", "An A und B senden"],
+  operatorWaiting: ["Czat czeka na Twój wpis.", "Chat is waiting for your message.", "Der Chat wartet auf Ihre Nachricht."],
+  operatorResponding: ["Poczekaj na odpowiedzi A i B.", "Wait for replies from A and B.", "Warten Sie auf Antworten von A und B."],
+  operatorSetup: ["Aby pisać do modeli, wybierz wariant „Rozmowa z operatorem” i rozpocznij próbę.", "To message the models, select Conversation with operator and start a run.", "Wählen Sie Gespräch mit Bediener und starten Sie einen Versuch."],
+  operatorLimit: ["Jeden wpis = dwie tury modeli. Limit sesji: 6 min.", "One message = two model turns. Session limit: 6 min.", "Eine Nachricht = zwei Modellrunden. Sitzungslimit: 6 Min."],
+  problemOperatorWait: ["Czat nie czeka teraz na wpis. Sprawdź odpowiedzi lub odśwież połączenie.", "Chat is not waiting for input. Check replies or reconnect.", "Der Chat wartet nicht auf Eingabe. Antworten prüfen oder neu verbinden."],
   diagnosticCode: ["Kod diagnostyczny", "Diagnostic code", "Diagnosecode"],
   problemUnknown: ["Nie udało się wykonać operacji.", "The operation could not be completed.", "Der Vorgang konnte nicht abgeschlossen werden."],
   problemConnection: ["Brak połączenia z laboratorium.", "The laboratory connection is unavailable.", "Die Verbindung zum Labor ist nicht verfügbar."],
@@ -36,6 +78,7 @@ const translations = {
   notReady: ["Niegotowe", "Not ready", "Nicht bereit"],
   disabled: ["Moduł wyłączony", "Module disabled", "Modul deaktiviert"],
   unavailable: ["Połączenie niedostępne", "Connection unavailable", "Verbindung nicht verfügbar"],
+  refreshing: ["Odświeżanie…", "Refreshing…", "Aktualisieren…"],
   refresh: ["Odśwież", "Refresh", "Aktualisieren"],
   limits: ["Limity zapisu", "Storage limits", "Speicherlimits"],
   runs: ["Próby", "Runs", "Versuche"],
@@ -47,6 +90,37 @@ const translations = {
   loading: ["Sprawdzanie gotowości", "Checking readiness", "Bereitschaft wird geprüft"],
   model: ["Model", "Model", "Modell"],
   scenario: ["Scenariusz", "Scenario", "Szenario"],
+  communicationLanguage: ["Język rozmowy modeli", "Model conversation language", "Gesprächssprache der Modelle"],
+  polish: ["Polski", "Polish", "Polnisch"],
+  english: ["Angielski", "English", "Englisch"],
+  scenarioTicTacToe: ["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],
+  gameAlternating: ["Gra naprzemienna", "Alternating play", "Abwechselndes Spiel"],
+  gameBoard: ["Plansza", "Board", "Spielfeld"],
+  gameNext: ["Następny ruch", "Next move", "Nächster Zug"],
+  gameWinner: ["Wygrywa", "Winner", "Gewinner"],
+  gameDraw: ["Remis", "Draw", "Unentschieden"],
+  gameIncomplete: ["Partia nierozstrzygnięta", "Game unfinished", "Partie nicht entschieden"],
+  gameStateUnknown: ["Stan planszy nieznany", "Board state unknown", "Spielfeldzustand unbekannt"],
+  problemGameMove: ["Model podał nieprawidłowy ruch. Wymagane jedno pole, np. B2.", "The model returned an invalid move. One square is required, e.g. B2.", "Das Modell hat einen ungültigen Zug ausgegeben. Ein Feld ist erforderlich, z. B. B2."],
+  problemGameSquare: ["Model wybrał zajęte pole.", "The model chose an occupied square.", "Das Modell hat ein belegtes Feld gewählt."],
+  scenarioSplitFacts: ["Rozdzielone informacje", "Split facts", "Verteilte Informationen"],
+  scenarioOrganization: ["Wspólne obliczenie", "Shared calculation", "Gemeinsame Berechnung"],
+  scenarioCorrection: ["Sprawdzenie i poprawa propozycji", "Correct a proposal", "Vorschlag überprüfen und korrigieren"],
+  kindMessage: ["Wiadomość", "Message", "Nachricht"],
+  kindProposal: ["Propozycja", "Proposal", "Vorschlag"],
+  kindAccept: ["Akceptacja", "Acceptance", "Zustimmung"],
+  kindAsk: ["Pytanie", "Question", "Frage"],
+  kindEvidence: ["Dane do uzasadnienia", "Evidence", "Beleg"],
+  kindComplete: ["Deklaracja zakończenia", "Completion claim", "Abschlussbehauptung"],
+  everyone: ["Wszyscy", "Everyone", "Alle"],
+  delivered: ["Przekazano do", "Delivered to", "Übermittelt an"],
+  notDelivered: ["Nie przekazano w tym wariancie", "Not forwarded in this condition", "In dieser Bedingung nicht weitergeleitet"],
+  deliveryUnknown: ["Brak potwierdzenia przekazania", "Delivery unconfirmed", "Übermittlung unbestätigt"],
+  recordedAt: ["Czas zapisu", "Recorded at", "Aufgezeichnet am"],
+  unknownTime: ["Czas nieznany", "Time unknown", "Zeit unbekannt"],
+  replyTo: ["Odpowiedź na", "Reply to", "Antwort auf"],
+  replyOutside: ["Odpowiedź na wcześniejszą wiadomość", "Reply to an earlier message", "Antwort auf eine frühere Nachricht"],
+
   mode: ["Wariant", "Condition", "Bedingung"],
   turns: ["Maks. tur", "Maximum turns", "Maximale Runden"],
   tokens: ["Tokenów na turę", "Tokens per turn", "Token pro Runde"],
@@ -116,6 +190,10 @@ export function modeLabel(t: ReturnType<typeof texts>, mode: string) { return st
 
 // Backend codes stay stable; operator text is translated independently.
 const reasonKeys: Record<string, keyof typeof messages.en> = {
+  operator_chat_unavailable: "problemOperatorWait",
+  operator_chat_not_waiting: "problemOperatorWait",
+  invalid_game_move: "problemGameMove",
+  occupied_game_square: "problemGameSquare",
   connection_unavailable: "problemConnection",
   runtime_transport_failed: "problemConnection",
   invalid_response: "problemResponse",
@@ -208,4 +286,18 @@ export function diagnosticCode(code: unknown): string | undefined {
 export function reasonLabel(t: ReturnType<typeof texts>, code: unknown): string {
   const safe = diagnosticCode(code);
   return safe && Object.hasOwn(reasonKeys, safe) ? t[reasonKeys[safe]] : t.problemUnknown;
+}
+
+
+export function scenarioLabel(t: ReturnType<typeof texts>, id: string, fallback?: string) {
+  const labels: Record<string, string> = { peer_review:t.scenarioPeerReview, operator_conversation:t.scenarioOperator, split_facts:t.scenarioSplitFacts, organization:t.scenarioOrganization, correction:t.scenarioCorrection, tic_tac_toe:t.scenarioTicTacToe };
+  return Object.hasOwn(labels, id) ? labels[id] : fallback || id;
+}
+export function messageKindLabel(t: ReturnType<typeof texts>, kind: string) {
+  const labels: Record<string, string> = { message:t.kindMessage, proposal:t.kindProposal, accept:t.kindAccept, ask:t.kindAsk, evidence:t.kindEvidence, complete:t.kindComplete };
+  return Object.hasOwn(labels, kind) ? labels[kind] : t.unknown;
+}
+
+export function phaseLabel(t: ReturnType<typeof texts>, phase:string) {
+  return ({draft:t.phaseDraft,critique:t.phaseCritique,revision:t.phaseRevision} as Record<string,string>)[phase] ?? "";
 }

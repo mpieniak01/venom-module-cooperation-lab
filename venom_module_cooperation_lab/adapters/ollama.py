@@ -82,7 +82,7 @@ class OllamaAdapter(ModelAdapter):
                     raise LabError("artifact_missing")
                 if (
                     match.get("digest") != self.spec.digest
-                    or version.get("version") != "0.40.6"
+                    or "ollama==" + str(version.get("version")) != self.spec.runtime
                 ):
                     raise LabError("model_identity_changed")
                 show = self._json(

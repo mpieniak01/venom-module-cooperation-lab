@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from collections.abc import Callable
@@ -12,8 +13,10 @@ from typing import Any
 from uuid import uuid4
 
 from .errors import LabError
-from .run_config import RunConfig, RunRequest
+from .peer_review import review_step
+from .run_config import OPERATOR_MODES, Budgets, RunConfig, RunRequest
 from .storage import TERMINAL, LabStore, _identifier
+from .tic_tac_toe import TicTacToe
 
 OWNER = "local_operator"
 _ALLOWED_KINDS = {"message", "proposal", "accept", "ask", "evidence", "complete"}
@@ -42,6 +45,8 @@ class _Job:
     work: asyncio.Task[Any] | None = None
     closing: asyncio.Task[bool] | None = None
     watched_work: asyncio.Task[Any] | None = None
+    game: TicTacToe | None = None
+    qualifying: bool = False
     cleanup_pending: bool = False
     late_cleanup_recorded: bool = False
     cancelled: bool = False
@@ -53,6 +58,10 @@ class _Job:
     last_delivered: dict[str, str | None] = field(
         default_factory=lambda: {"A": None, "B": None}
     )
+    operator_waiting: bool = False
+    operator_signal: asyncio.Event = field(default_factory=asyncio.Event)
+    operator_submissions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    operator_message_id: str | None = None
     input_tokens: int = 0
     output_tokens: int = 0
     processing_steps: int = 0
@@ -67,10 +76,12 @@ class LabRunner:
         adapter_factory: Callable[[str, Any], Any],
         *,
         cleanup_seconds: float = 10.0,
+        catalog_service: Any = None,
     ) -> None:
         self.store, self.admission = store, admission
         self.model_catalog, self.adapter_factory = model_catalog, adapter_factory
         self.cleanup_seconds = cleanup_seconds
+        self.catalog_service = catalog_service
         self.jobs: dict[str, _Job] = {}
         self._lock = asyncio.Lock()
         self._closed = False
@@ -88,6 +99,10 @@ class LabRunner:
         return task
 
     def _qualified_model(self, model_id: str) -> dict[str, Any]:
+        if self.catalog_service is not None and not self.catalog_service.available(
+            model_id
+        ):
+            raise LabError("model_unavailable", 409)
         for spec in self.model_catalog():
             if spec.model_id != model_id:
                 continue
@@ -113,24 +128,53 @@ class LabRunner:
             return result
         raise LabError("model_not_allowed", 422)
 
+    def _runnable_model(self, model_id: str) -> dict[str, Any]:
+        try:
+            return self._qualified_model(model_id)
+        except LabError as exc:
+            if exc.code != "model_not_qualified" or self.catalog_service is None:
+                raise
+            spec = self.catalog_service.candidate(model_id)
+            return {
+                **asdict(spec),
+                "can_run": True,
+                "availability_reason": "available_unchecked",
+            }
+
     def models(self) -> list[dict[str, Any]]:
         result = []
         for spec in self.model_catalog():
             try:
                 result.append(self._qualified_model(spec.model_id))
-            except LabError:
-                result.append(asdict(spec))
+            except LabError as exc:
+                result.append({**asdict(spec), "availability_reason": exc.code})
+        if self.catalog_service is not None:
+            for model in result:
+                model["can_run"] = self.catalog_service.available(
+                    model["model_id"]
+                ) and (model["provider"] == "ollama" or model["qualified"])
         return result
 
     async def start(
-        self, request: RunRequest, idempotency_key: str
+        self, request: RunRequest, idempotency_key: str, *, qualification: bool = False
     ) -> tuple[dict[str, Any], bool]:
         started = time.monotonic()
         _identifier(idempotency_key)
         async with self._lock:
             if self._closed:
                 raise LabError("module_stopping", 503)
-            config = RunConfig.build(request, self._qualified_model(request.model_id))
+            previous = self.store.find_run_by_key(idempotency_key, owner=OWNER)
+            if previous is not None:
+                if not self._same_request(previous["config"], request, qualification):
+                    raise LabError("idempotency_conflict", 409)
+                return previous, False
+            if self.catalog_service is not None:
+                await self.catalog_service.refresh()
+            config = (
+                self._qualification_config(request.model_id)
+                if qualification
+                else RunConfig.build(request, self._runnable_model(request.model_id))
+            )
             run_id = uuid4().hex
             row = self.store.create_run(
                 run_id, config.public(), owner=OWNER, idempotency_key=idempotency_key
@@ -159,6 +203,9 @@ class LabRunner:
                 )
                 raise LabError(getattr(exc, "code", "runtime_busy")) from exc
             job = _Job(run_id, config, lease, started + config.budgets.wall_seconds)
+            job.qualifying = qualification
+            if config.scenario_id == "tic_tac_toe":
+                job.game = TicTacToe()
             self.jobs[run_id] = job
             try:
                 self.store.set_run_status(run_id, "queued", owner=OWNER)
@@ -184,6 +231,78 @@ class LabRunner:
                     self.jobs.pop(old_id)
             return self.store.get_run(run_id, owner=OWNER), True
 
+    @staticmethod
+    def _same_request(
+        config: dict[str, Any], request: RunRequest, qualification: bool
+    ) -> bool:
+        # Compare the normalized operator input, never a rebuilt config using
+        # today's weights, templates, prompts or qualification receipt.
+        model_id = config["model"]["model_id"]
+        if qualification:
+            return (
+                config["scenario_id"] == "model_qualification"
+                and model_id == request.model_id
+            )
+        stored = {
+            name: config.get(name)
+            for name in (
+                "scenario_id",
+                "communication_language",
+                "mode",
+                "seed",
+                "temperature",
+                "top_p",
+            )
+        }
+        stored.update(
+            model_id=model_id,
+            max_turns=config["budgets"]["max_turns"],
+            max_new_tokens=config["budgets"]["max_new_tokens"],
+        )
+        return stored == request.model_dump()
+
+    def _qualification_config(self, model_id: str) -> RunConfig:
+        if self.catalog_service is None:
+            raise LabError("model_unavailable", 409)
+        spec = self.catalog_service.candidate(model_id)
+        return RunConfig(
+            model_json=json.dumps(asdict(spec), sort_keys=True),
+            scenario_id="model_qualification",
+            scenario_version="1",
+            scenario_goal="Reply with a short greeting.",
+            mode="no_contact",
+            prompts=("You are A. Answer briefly.", "You are B. Answer briefly."),
+            budgets=Budgets(
+                max_turns=2,
+                max_new_tokens=32,
+                total_input_tokens=4096,
+                total_output_tokens=64,
+                processing_steps=4160,
+                wall_seconds=120,
+            ),
+            seed=0,
+            temperature=0.0,
+            top_p=1.0,
+            schema_version=3,
+            scheduler="technical-qualification-v1",
+        )
+
+    def _record_qualification(self, job: _Job) -> None:
+        model = job.config.public()["model"]
+        self.store.put_document(
+            "qualifications",
+            model["model_id"],
+            {
+                **model,
+                "qualified": True,
+                "receipt_id": job.run_id,
+                "qualification_run_id": job.run_id,
+                "timestamp": time.time(),
+                "scope": "two_generations_reset_cleanup_not_quality",
+            },
+            owner=OWNER,
+        )
+
     def _emit(self, job: _Job, kind: str, payload: dict[str, Any]) -> dict[str, Any]:
         return self.store.append_event(job.run_id, kind, payload, owner=OWNER)
 
@@ -193,6 +312,58 @@ class LabRunner:
         if job and job.failure:
             row["failure_code"] = job.failure
         return {"run": row}
+
+    def operator_message(
+        self, run_id: str, content: str, idempotency_key: str
+    ) -> dict[str, Any]:
+        _identifier(idempotency_key)
+        row = self.store.get_run(run_id, owner=OWNER)
+        key_hash = hashlib.sha256(idempotency_key.encode()).hexdigest()
+        previous = self.store.find_operator_submission(run_id, key_hash, owner=OWNER)
+        if previous is not None:
+            if previous["payload"]["content"] != content:
+                raise LabError("idempotency_conflict", 409)
+            return {"event": previous, "created": False}
+        job = self.jobs.get(run_id)
+        if job is None or job.config.mode not in OPERATOR_MODES:
+            raise LabError("operator_chat_unavailable", 409)
+        self._check(job)
+        if row["status"] != "running" or not job.operator_waiting:
+            raise LabError("operator_chat_not_waiting", 409)
+        from .adapters.base import ChatMessage
+
+        recipients = ["A"] if job.config.mode == "operator_relay" else ["A", "B"]
+        message_id = uuid4().hex
+        message = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "message_id": message_id,
+            "sender": "operator",
+            "submission_key_hash": key_hash,
+            "recipient": "A" if job.config.mode == "operator_relay" else "all",
+            "kind": "message",
+            "content": content,
+            "delivered_to": recipients,
+            "timestamp": time.time(),
+            "in_reply_to": None,
+            "sequence": row["last_seq"] + 1,
+        }
+        # Persist before acknowledging or exposing the text to either context.
+        event = self._emit(job, "message", message)
+        for participant in recipients:
+            prefix = (
+                "Wiadomość operatora: "
+                if job.config.communication_language == "pl"
+                else "Operator message: "
+            )
+            job.histories[participant].append(ChatMessage("user", prefix + content))
+            job.last_delivered[participant] = message_id
+        job.messages.add(message_id)
+        job.operator_message_id = message_id
+        job.operator_submissions[idempotency_key] = event
+        job.operator_waiting = False
+        job.operator_signal.set()
+        return {"event": event, "created": True}
 
     async def cancel(self, run_id: str) -> dict[str, Any]:
         row = self.store.get_run(run_id, owner=OWNER)
@@ -256,7 +427,12 @@ class LabRunner:
             self._prepare_histories(job)
             self.store.set_run_status(job.run_id, "running", owner=OWNER)
             self._emit(job, "run", {"status": "running"})
-            await self._turns(job)
+            if job.game is not None:
+                self._emit(job, "game", job.game.public())
+            if job.config.mode in OPERATOR_MODES:
+                await self._operator_turns(job)
+            else:
+                await self._turns(job)
             outcome = "completed"
         except LabError as exc:
             job.failure = exc.code
@@ -279,6 +455,11 @@ class LabRunner:
                 outcome = "cancelled"
             if not clean:
                 outcome, job.failure = "failed", "runtime_quiescence_unconfirmed"
+            if job.qualifying and outcome == "completed" and clean:
+                try:
+                    self._record_qualification(job)
+                except (LabError, PermissionError):
+                    outcome, job.failure = "failed", "storage_unavailable"
             self._finish(job, outcome)
             job.histories.clear()
 
@@ -286,10 +467,11 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         for participant, prompt in zip(("A", "B"), job.config.prompts, strict=True):
-            job.histories[participant] = [
-                ChatMessage("system", prompt),
-                ChatMessage("user", job.config.scenario_goal),
-            ]
+            job.histories[participant] = [ChatMessage("system", prompt)]
+            if job.config.mode != "operator_review" and job.game is None:
+                job.histories[participant].append(
+                    ChatMessage("user", job.config.scenario_goal)
+                )
 
     def _charge(self, job: _Job, result: Any) -> dict[str, Any]:
         budgets = job.config.budgets
@@ -378,18 +560,53 @@ class LabRunner:
 
     @staticmethod
     def _participant(mode: str, index: int) -> str:
+        if mode == "operator_review":
+            return review_step(index, None).participant
         return "A" if mode in {"single", "self_correction"} else ("A", "B")[index % 2]
 
     def _turn_context(self, job: _Job, participant: str) -> list[Any]:
         from .adapters.base import ChatMessage
 
         history = job.histories[participant]
+        if job.game is not None:
+            # The authoritative board already contains every accepted move.
+            # Keep the last actual peer message for causal delivery/reply tracing,
+            # but never append obsolete full boards to the next request.
+            last_id = job.last_delivered[participant]
+            incoming = next(
+                (
+                    message
+                    for message in reversed(history)
+                    if last_id and message.role == "user" and last_id in message.content
+                ),
+                None,
+            )
+            compact = [history[0]]
+            if incoming is not None:
+                compact.append(incoming)
+            compact.append(
+                ChatMessage(
+                    "user",
+                    job.game.prompt(participant, job.config.communication_language),
+                )
+            )
+            job.histories[participant] = compact
+            return compact
         if history[-1].role != "user":
             followup = (
                 "Verify your previous answer."
                 if job.config.mode == "self_correction"
                 else "Continue using only the information in your own context."
             )
+            if job.config.communication_language == "pl":
+                followup = (
+                    "Sprawdź swoją poprzednią odpowiedź."
+                    if job.config.mode == "self_correction"
+                    else (
+                        "Kontynuuj, korzystając wyłącznie z informacji "
+                        "we własnym kontekście."
+                    )
+                )
             history.append(ChatMessage("user", followup))
         return history
 
@@ -407,38 +624,94 @@ class LabRunner:
         completed: set[str] = set()
         turns = 1 if config.mode == "single" else config.budgets.max_turns
         for index in range(turns):
-            self._check(job)
-            self._reserve_turn(job)
-            participant = self._participant(config.mode, index)
-            history = self._turn_context(job, participant)
-            turn_id = f"turn-{index + 1:04d}"
-            self._emit(
-                job,
-                "turn",
-                {
-                    "turn_id": turn_id,
-                    "participant_id": participant,
-                    "status": "generating",
-                },
-            )
-            result = await self._work(
-                job,
-                partial(
-                    job.adapter.generate,
-                    participant,
-                    tuple(history),
-                    parameters,
-                    job.deadline,
-                ),
-            )
-            message = self._publish_result(job, participant, turn_id, result)
+            message = await self._generate_turn(job, parameters, index)
+            if job.game is not None:
+                if job.game.finished:
+                    break
+                continue
             if message["kind"] == "complete":
-                completed.add(participant)
+                completed.add(message["sender"])
                 if config.mode in {"single", "self_correction"} or completed == {
                     "A",
                     "B",
                 }:
                     break
+
+    async def _operator_turns(self, job: _Job) -> None:
+        from .adapters.base import GenerationParameters
+
+        config = job.config
+        parameters = GenerationParameters(
+            max_new_tokens=config.budgets.max_new_tokens,
+            max_context_tokens=config.budgets.max_context_tokens,
+            temperature=config.temperature,
+            top_p=config.top_p,
+            seed=config.seed,
+        )
+        round_size = 3 if config.mode == "operator_review" else 2
+        for index in range(0, config.budgets.max_turns, round_size):
+            self._check(job)
+            if index and config.mode == "operator_review":
+                # Each new review task is independent; keep the journal, not
+                # the previous task's KV/history in this bounded context.
+                await self._work(job, lambda: job.adapter.reset())
+                self._prepare_histories(job)
+                job.last_delivered = {"A": None, "B": None}
+            job.operator_signal.clear()
+            job.operator_waiting = True
+            self._emit(
+                job, "operator", {"waiting": True, "round": index // round_size + 1}
+            )
+            while not job.operator_signal.is_set():
+                # Bounded wait keeps STOP and the original wall deadline effective.
+                try:
+                    await asyncio.wait_for(job.operator_signal.wait(), timeout=0.1)
+                except TimeoutError:
+                    pass
+                self._check(job)
+            self._emit(
+                job, "operator", {"waiting": False, "round": index // round_size + 1}
+            )
+            for turn in range(index, index + round_size):
+                await self._generate_turn(job, parameters, turn)
+        job.operator_waiting = False
+
+    async def _generate_turn(
+        self, job: _Job, parameters: Any, index: int
+    ) -> dict[str, Any]:
+        self._check(job)
+        self._reserve_turn(job)
+        participant = self._participant(job.config.mode, index)
+        history = self._turn_context(job, participant)
+        turn_id = f"turn-{index + 1:04d}"
+        phase = None
+        if job.config.mode == "operator_review":
+            from .adapters.base import ChatMessage
+
+            step = review_step(index, job.config.communication_language)
+            phase = step.phase
+            history = [*history, ChatMessage("user", step.instruction)]
+        self._emit(
+            job,
+            "turn",
+            {
+                "turn_id": turn_id,
+                "participant_id": participant,
+                "status": "generating",
+                **({"phase": phase} if phase else {}),
+            },
+        )
+        result = await self._work(
+            job,
+            partial(
+                job.adapter.generate,
+                participant,
+                tuple(history),
+                parameters,
+                job.deadline,
+            ),
+        )
+        return self._publish_result(job, participant, turn_id, result)
 
     def _publish_result(
         self, job: _Job, participant: str, turn_id: str, result: Any
@@ -451,13 +724,29 @@ class LabRunner:
         usage = self._charge(job, result)
         self._emit(job, "usage", {"turn_id": turn_id, **usage})
         message = self._message(job, participant, turn_id, result.text)
+        board = None
+        if job.game is not None:
+            try:
+                board = job.game.play(participant, message["content"])
+            except LabError:
+                message["delivered_to"] = []
+                self._emit(job, "message", message)
+                raise
         self._emit(job, "message", message)
+        if board is not None:
+            self._emit(job, "game", board)
         job.histories[participant].append(ChatMessage("assistant", message["content"]))
         for recipient in message["delivered_to"]:
+            if recipient == "operator":
+                continue
             job.histories[recipient].append(
                 ChatMessage(
                     "user",
-                    f"Message {message['message_id']} from {participant}: "
+                    (
+                        f"Wiadomość {message['message_id']} od {participant}: "
+                        if job.config.communication_language == "pl"
+                        else f"Message {message['message_id']} from {participant}: "
+                    )
                     + message["content"],
                 )
             )
@@ -495,7 +784,11 @@ class LabRunner:
         if not isinstance(text, str) or not text.strip():
             raise LabError("empty_model_output")
         content, kind = text.strip(), "message"
-        recipient = "B" if sender == "A" else "A"
+        recipient = (
+            "operator"
+            if job.config.mode in OPERATOR_MODES
+            else ("B" if sender == "A" else "A")
+        )
         in_reply_to = job.last_delivered[sender]
         reply_source = "host_context" if in_reply_to else None
         if content.startswith(("{", "[")):
@@ -507,7 +800,12 @@ class LabRunner:
                 not isinstance(payload, dict)
                 or set(payload) - {"kind", "recipient", "content", "in_reply_to"}
                 or payload.get("kind") not in _ALLOWED_KINDS
-                or payload.get("recipient") not in {"A", "B", "all"}
+                or payload.get("recipient")
+                not in (
+                    {"A", "B", "all", "operator"}
+                    if job.config.mode in OPERATOR_MODES
+                    else {"A", "B", "all"}
+                )
                 or payload.get("recipient") == sender
                 or not isinstance(payload.get("content"), str)
                 or not payload["content"].strip()
@@ -523,7 +821,25 @@ class LabRunner:
                 not isinstance(in_reply_to, str) or in_reply_to not in job.messages
             ):
                 raise LabError("unknown_reply")
+        if job.config.mode == "operator_relay":
+            recipient = "B" if sender == "A" else "operator"
+        phase_fields = {}
+        if job.config.mode == "operator_review":
+            step = review_step(
+                int(turn_id.removeprefix("turn-")) - 1,
+                job.config.communication_language,
+            )
+            recipient = step.recipient
+            in_reply_to = job.last_delivered[sender]
+            reply_source = "host_review_context" if in_reply_to else None
+            phase_fields = {"phase": step.phase}
         delivered = self._delivery_recipients(job.config.mode, sender, recipient)
+        if (
+            job.config.mode == "operator_chat"
+            or (job.config.mode == "operator_relay" and sender == "B")
+            or (job.config.mode == "operator_review" and recipient == "operator")
+        ):
+            delivered.append("operator")
         sequence = self.store.get_run(job.run_id, owner=OWNER)["last_seq"] + 1
         return {
             "schema_version": 1,
@@ -539,6 +855,12 @@ class LabRunner:
             "kind": kind,
             "content": content,
             "delivered_to": delivered,
+            **phase_fields,
+            **(
+                {"operator_message_id": job.operator_message_id}
+                if job.config.mode in OPERATOR_MODES
+                else {}
+            ),
         }
 
     def _schedule_late_cleanup(self, job: _Job) -> None:

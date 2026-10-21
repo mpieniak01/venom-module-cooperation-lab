@@ -8,8 +8,9 @@ export function noticePresentation(t: Texts, capabilities: Capabilities | null, 
   if (reason) return { code: diagnosticCode(reason), text: reasonLabel(t, reason) };
   return { code: undefined, text: capabilities ? "" : t.loading };
 }
-export function computationLabel(t: Texts, capabilities: Capabilities | null, run: Run | null, stopQueued: boolean): string {
+export function computationLabel(t: Texts, capabilities: Capabilities | null, run: Run | null, stopQueued: boolean, operatorWaiting = false): string {
   if (stopQueued) return t.cancelPending;
+  if (run?.status === "running" && operatorWaiting) return t.awaitOperator;
   if (run) return statusLabel(t, run.status);
   return capabilities?.ready ? t.ready : t.notReady;
 }

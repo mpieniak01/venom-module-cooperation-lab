@@ -11,6 +11,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..errors import LabError
 from ..lifecycle import LabLifecycle, admission_enabled, enabled, lifespan
@@ -87,7 +88,9 @@ def state(request: Request) -> dict[str, Any]:
             "ready": False,
         }
     runner = getattr(request.app.state, "cooperation_lab_runner", None)
-    if runner and any(model["qualified"] for model in runner.models()):
+    if runner and any(
+        model.get("can_run", model["qualified"]) for model in runner.models()
+    ):
         return {
             "state": "ready",
             "reason_code": "qualified",
@@ -124,9 +127,15 @@ def catalog_metadata() -> dict[str, Any]:
 @router.get("/capabilities")
 async def capabilities(request: Request) -> dict[str, Any]:
     runner = getattr(request.app.state, "cooperation_lab_runner", None)
+    catalog = runner.catalog_service if runner is not None else None
+    if catalog is not None:
+        await catalog.refresh()
     current = state(request)
     metadata = catalog_metadata()
     models = runner.models() if runner is not None else metadata["models"]
+    if catalog is not None:
+        models = catalog.public_models(models)
+        metadata.update(engines=catalog.engines, catalog_error=catalog.error)
     return {
         **metadata,
         **current,
@@ -142,8 +151,56 @@ async def create_run(
     payload: RunRequest,
     idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
 ) -> dict[str, Any]:
-    row, created = await require_runner(request).start(payload, idempotency_key)
+    runner = require_runner(request)
+    row, created = await runner.start(payload, idempotency_key)
     return {"run": row, "created": created}
+
+
+class QualificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    model_id: str = Field(
+        min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    )
+
+
+@router.post("/qualifications", status_code=202)
+async def qualify_model(
+    request: Request,
+    payload: QualificationRequest,
+    idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
+) -> dict[str, Any]:
+    runner = require_runner(request)
+    row, created = await runner.start(
+        RunRequest(model_id=payload.model_id, scenario_id="split_facts"),
+        idempotency_key,
+        qualification=True,
+    )
+    return {"run": row, "created": created}
+
+
+class OperatorMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    content: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("content")
+    @classmethod
+    def nonempty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("empty_operator_message")
+        return value
+
+
+@router.post("/runs/{run_id}/messages", status_code=202)
+async def operator_message(
+    request: Request,
+    run_id: str,
+    payload: OperatorMessage,
+    idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
+) -> dict[str, Any]:
+    _identifier(run_id)
+    return require_runner(request).operator_message(
+        run_id, payload.content, idempotency_key
+    )
 
 
 @router.get("/runs")
