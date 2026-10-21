@@ -2,7 +2,7 @@
 
 Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie.
 
-**Stan: gotowe miejsce do rzeczywistych eksperymentów.** Kwalifikacja GPU C0/L2, macierz 30 prób, OFF i browser/SSE/STOP/layout/i18n/export/Delete wykonane. Macierz: 30/30 technicznie completed, 12/12 komunikacji, strict-v1 unscorable i accuracy=null. L1–L4, C0 i [cleanup follow-up Venom #553](https://github.com/mpieniak01/Venom/pull/553) scalone. [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) ma zaliczone kontrole i niezależny review odebranej rewizji; finalny commit przechodzi świeże CI przed scaleniem/deploymentem. Cleanup C0 po rzeczywistym HTTP 400 PASS; brak treści legacy chatu to [osobne ograniczenie #554](https://github.com/mpieniak01/Venom/issues/554), bez twierdzenia o CHAT PASS. [Wyniki i ograniczenia](docs/RELEASE_ACCEPTANCE.md).
+**Stan: gotowe miejsce do rzeczywistych eksperymentów.** Kwalifikacja GPU C0/L2, macierz 30 prób, OFF i browser/SSE/STOP/layout/i18n/export/Delete wykonane. Macierz: 30/30 technicznie completed, 12/12 komunikacji, strict-v1 unscorable i accuracy=null. L1–L5, C0 i [cleanup follow-up Venom #553](https://github.com/mpieniak01/Venom/pull/553) scalone. [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) scalono jako `4346a66`; lokalne wdrożenie na core `7401493` i module main potwierdzono w API oraz DOM. Kontrole PR i niezależny review odebranego kodu PASS. Cleanup C0 po rzeczywistym HTTP 400 PASS; brak treści legacy chatu to [osobne ograniczenie #554](https://github.com/mpieniak01/Venom/issues/554), bez twierdzenia o CHAT PASS. [Wyniki i ograniczenia](docs/RELEASE_ACCEPTANCE.md).
 
 - [Plan i kolejność PR](docs/PLAN.md)
 - [Zadania GitHub i PR planu](docs/ISSUES.md)
