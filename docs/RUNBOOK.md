@@ -40,6 +40,36 @@ Nie tworzyć następnej kopii Full/venv ani nie ładować dwóch engine LLM nara
 6. Sprawdzić `/cooperation-lab` oraz same-origin `/api/v1/cooperation-lab/health` i
    `/capabilities`. HTTP 200 strony głównej nie potwierdza działania modułu.
 
+## Wdrożenie aktualizacji frontendu modułu
+
+Host nie importuje frontendu modułu bezpośrednio z aktualizowanego repozytorium.
+`modules/venom-module-cooperation-lab/web-next` jest źródłem; działający frontend
+używa przygotowanej **kopii** pod
+`web-next/optional-modules/venom-module-cooperation-lab`. Sam fast-forward lub
+cherry-pick modułu nie potwierdza aktualizacji tej kopii ani kodu w przeglądarce.
+
+Po aktualizacji kanonicznych źródeł modułu, **przed kontrolowanym restartem UI**,
+uruchomić oficjalny helper Venoma w terminalu projektu Ubuntu-Venom:
+
+```sh
+cd /home/ubuntu/venom/web-next
+node scripts/prepare-optional-module-node-paths.mjs
+diff -qr ../modules/venom-module-cooperation-lab/web-next optional-modules/venom-module-cooperation-lab
+```
+
+Sprawdzić wynik helpera dla synchronizacji mirrorów oraz zgodność źródeł i kopii
+(`diff` bez różnic). Helper czyta kanoniczny katalog `modules`; commit pozostający
+wyłącznie w innym worktree nie trafi przez to do wdrożenia. Kopii nie edytować
+jako źródła poprawki — następna synchronizacja ją odtworzy.
+
+Dopiero potem odtworzyć właściwy proces UI zgodnie z profilem hosta i sprawdzić
+rzeczywisty DOM/zachowanie poprawionego elementu. Sam aktualny SHA źródeł lub
+HTTP 200 nie potwierdza świeżego mirrora. Rozbieżność source/mirror wystąpiła przy
+odbiorze L4 i ustąpiła po wykonaniu powyższego helpera.
+
+To etap budowania aplikacji Venom, nie konfiguracja narzędzi Codex. Przeglądarka,
+komputer i Node Codex nadal korzystają ze swojego środowiska Windows 11.
+
 ## Operator i mała próba
 
 Wybrać qualified model/scenę/tryb, obejrzeć efektywne parametry, uruchomić jeden
