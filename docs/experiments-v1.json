@@ -1,0 +1,31 @@
+{
+  "dataset_version": "cooperation-synthetic-v1",
+  "rubric_version": "strict-final-and-delivery-v1",
+  "classification": "explicitly_public_synthetic",
+  "scenarios": [
+    {
+      "scenario_id": "split_facts",
+      "version": "1",
+      "goal": "Find the two-letter code.",
+      "private_a": "The first letter is R.",
+      "private_b": "The second letter is K.",
+      "expected": "RK"
+    },
+    {
+      "scenario_id": "organization",
+      "version": "1",
+      "goal": "Find the sum of the two private numbers.",
+      "private_a": "Your private number is 17.",
+      "private_b": "Your private number is 25.",
+      "expected": "42"
+    },
+    {
+      "scenario_id": "correction",
+      "version": "1",
+      "goal": "A proposed sum is 41. Verify or correct it using both private numbers.",
+      "private_a": "Your private number is 17.",
+      "private_b": "Your private number is 25.",
+      "expected": "42"
+    }
+  ]
+}

@@ -8,7 +8,9 @@ truthful unavailable/not-ready workspace until C0 and L2–L4 are qualified.
 
 ## Host and activation
 
-Host qualification: `aa2d612434949f1149d27f64ff10e5dd05334e8e`, module API **1.0.0**,
+Original ABI baseline: `aa2d612434949f1149d27f64ff10e5dd05334e8e`; current
+qualified host/CI pin: `7401493f73db98dcdf2cb39503fca57eb2cbe421` after cleanup
+follow-up. Historical GPU/matrix revisions remain unchanged. Module API **1.0.0**,
 minimum runtime **1.6.0**, Python 3.12+, Node 24.22.0. See
 [host-compatibility.json](../host-compatibility.json). These two version numbers
 must not be conflated. CI checks this exact source SHA; updating it is a reviewed
@@ -74,10 +76,11 @@ The Sonar project `mpieniak01_venom-module-cooperation-lab` and CI credentials
 were configured by the coordinator in organization `mpieniak01`; Snyk is pinned
 to organization `fcc7b7c7-65c1-46dc-b715-c9de506a1942`. A real local Snyk scan of
 requirements.txt examined 10 dependencies with zero vulnerable paths. This does
-not replace the pending SCM/CI scan or Sonar quality gate. GitGuardian app/review
-availability must be confirmed on the PR. No secrets are stored in source; missing
-secrets are not reported as successful scans. The React workspace has meaningful
-DOM tests and LCOV. L4 adds real browser/proxy tests; this foundation does not
-claim a working live dialogue or operator acceptance.
+not by itself replace SCM/CI, Sonar or review. Those later gates and the real
+browser/proxy acceptance are now recorded in [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md),
+including the passed reviewed PR #13 revision and the fresh final-commit CI
+requirement before merge. This section describes the L1 slice, not the later
+operator acceptance. No secrets are stored in source; missing secrets are never
+reported as successful scans. The React workspace has meaningful DOM tests and LCOV.
 
 Flagi backendu są odczytywane z host SETTINGS (Pydantic), także gdy plik .env nie jest eksportowany do os.environ. Limit busy_timeout SQLite ogranicza czekanie na blokadę; timeout async lifecycle nie przerywa synchronicznego I/O systemu plików.

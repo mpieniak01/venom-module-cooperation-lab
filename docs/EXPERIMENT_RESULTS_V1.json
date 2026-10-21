@@ -1,0 +1,1110 @@
+{
+  "schema_version": 1,
+  "dataset_version": "cooperation-synthetic-v1",
+  "rubric_version": "strict-final-and-delivery-v1",
+  "classification": "public_synthetic_aggregate_no_prompts_or_responses",
+  "capture_label": "matrix-cleanup-fixed-2026-10-21",
+  "started_utc": "2026-10-21T08:27:23.311271+00:00",
+  "source_receipts_digest_sha256": "193225cb6a49c19ef03393e6134bd0940cadcf10f7b266c8f84b131485482dbc",
+  "exact_execution_deployment_sha": null,
+  "configuration": {
+    "model_count": 2,
+    "scenario_count": 3,
+    "mode_count": 5,
+    "seed": 17,
+    "max_turns": 2,
+    "max_new_tokens": 32,
+    "max_context_tokens": 2048,
+    "temperature": 0.0,
+    "top_p": 0.0
+  },
+  "models": [
+    {
+      "model_id": "rwkv7-g1d-0.4b",
+      "digest": "947cb9b8013224e06b112b72204256bec65096cc935a7767ce63d8e3ddef83bb",
+      "revision": "2a17e911155a5be23a4ed2792e978c77038f14e2",
+      "runtime": "rwkv==0.8.32;torch==2.13.0;cuda13.0;certifi==2026.10.19;filelock==4.2.1",
+      "quantization": "float16",
+      "template_hash": "319c9360535a42f56157584680f2fb8fa173f4fbf44c30c17e80a11b05507f47",
+      "tokenizer_hash": "8324476023347dec2964625ccb2075c864d250a9c6d9a74f36daba628de8c008"
+    },
+    {
+      "model_id": "qwen3-4b-control",
+      "digest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+      "revision": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+      "runtime": "ollama==0.40.6",
+      "quantization": "Q4_K_M",
+      "template_hash": "2d54db2b9bb29ce7db54fea63a891f5859603813c555b1f88b5e0994652897f9",
+      "tokenizer_hash": "bundled-in-gguf-covered-by-model-digest"
+    }
+  ],
+  "summary": {
+    "runs": 30,
+    "technical_completed": 30,
+    "technical_failed": 0,
+    "quiescence_confirmed": 30,
+    "communication_eligible_runs": 12,
+    "communication_observed_runs": 12,
+    "scorable_runs": 0,
+    "correct": 0,
+    "incorrect": 0,
+    "unscorable": 30,
+    "accuracy": null,
+    "turns": 54,
+    "truncation_count": 33,
+    "input_tokens": 7371,
+    "output_tokens": 1293,
+    "generation_s": 146.36520420605666,
+    "wall_s": 221.3886969089508
+  },
+  "by_model_mode": [
+    {
+      "model_id": "rwkv7-g1d-0.4b",
+      "mode": "single",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 0,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 0,
+      "input_tokens": 380,
+      "output_tokens": 29,
+      "generation_s": 8.227387100021588,
+      "charged_input_tokens": 380,
+      "charged_output_tokens": 29
+    },
+    {
+      "model_id": "rwkv7-g1d-0.4b",
+      "mode": "self_correction",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 0,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 0,
+      "input_tokens": 416,
+      "output_tokens": 61,
+      "generation_s": 10.18741787201725,
+      "charged_input_tokens": 416,
+      "charged_output_tokens": 61
+    },
+    {
+      "model_id": "rwkv7-g1d-0.4b",
+      "mode": "no_contact",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 0,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 0,
+      "input_tokens": 724,
+      "output_tokens": 61,
+      "generation_s": 12.527934271027334,
+      "charged_input_tokens": 724,
+      "charged_output_tokens": 61
+    },
+    {
+      "model_id": "rwkv7-g1d-0.4b",
+      "mode": "dialog",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 3,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 3,
+      "input_tokens": 849,
+      "output_tokens": 139,
+      "generation_s": 15.714455968991388,
+      "charged_input_tokens": 849,
+      "charged_output_tokens": 139
+    },
+    {
+      "model_id": "rwkv7-g1d-0.4b",
+      "mode": "dialog_encouraged",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 3,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 3,
+      "input_tokens": 1028,
+      "output_tokens": 139,
+      "generation_s": 17.062211377022322,
+      "charged_input_tokens": 1028,
+      "charged_output_tokens": 139
+    },
+    {
+      "model_id": "qwen3-4b-control",
+      "mode": "single",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 0,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 3,
+      "input_tokens": 378,
+      "output_tokens": 96,
+      "generation_s": 15.272072726977058,
+      "charged_input_tokens": 378,
+      "charged_output_tokens": 96
+    },
+    {
+      "model_id": "qwen3-4b-control",
+      "mode": "self_correction",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 0,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 6,
+      "input_tokens": 896,
+      "output_tokens": 192,
+      "generation_s": 22.43695481400937,
+      "charged_input_tokens": 896,
+      "charged_output_tokens": 192
+    },
+    {
+      "model_id": "qwen3-4b-control",
+      "mode": "no_contact",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 0,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 6,
+      "input_tokens": 712,
+      "output_tokens": 192,
+      "generation_s": 15.282754477055278,
+      "charged_input_tokens": 712,
+      "charged_output_tokens": 192
+    },
+    {
+      "model_id": "qwen3-4b-control",
+      "mode": "dialog",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 3,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 6,
+      "input_tokens": 904,
+      "output_tokens": 192,
+      "generation_s": 14.893483970983652,
+      "charged_input_tokens": 904,
+      "charged_output_tokens": 192
+    },
+    {
+      "model_id": "qwen3-4b-control",
+      "mode": "dialog_encouraged",
+      "runs": 3,
+      "correct": 0,
+      "incorrect": 0,
+      "unscorable": 3,
+      "communication_observed": 3,
+      "technical_failed": 0,
+      "late_cleanup_confirmed": 0,
+      "truncation_count": 6,
+      "input_tokens": 1084,
+      "output_tokens": 192,
+      "generation_s": 14.760531627951423,
+      "charged_input_tokens": 1084,
+      "charged_output_tokens": 192
+    }
+  ],
+  "cases": [
+    {
+      "case": 1,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "single",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 1,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 120,
+      "output_tokens": 8,
+      "charged_input_tokens": 120,
+      "charged_output_tokens": 8,
+      "generation_s": 2.7897307090170216,
+      "wall_s": 5.630228519439697,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "eos"
+      ],
+      "ttft_s": [
+        2.5368335180100985
+      ]
+    },
+    {
+      "case": 2,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "self_correction",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 132,
+      "output_tokens": 17,
+      "charged_input_tokens": 132,
+      "charged_output_tokens": 17,
+      "generation_s": 3.1915456999849994,
+      "wall_s": 5.984522104263306,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "eos",
+        "stop_sequence"
+      ],
+      "ttft_s": [
+        2.400011742982315,
+        0.3306573950103484
+      ]
+    },
+    {
+      "case": 3,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "no_contact",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 228,
+      "output_tokens": 17,
+      "charged_input_tokens": 228,
+      "charged_output_tokens": 17,
+      "generation_s": 3.8653100940282457,
+      "wall_s": 6.6835548877716064,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "eos",
+        "eos"
+      ],
+      "ttft_s": [
+        2.242518549988745,
+        1.1704192140023224
+      ]
+    },
+    {
+      "case": 4,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "dialog",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 266,
+      "output_tokens": 41,
+      "charged_input_tokens": 266,
+      "charged_output_tokens": 41,
+      "generation_s": 4.773047395021422,
+      "wall_s": 11.12967038154602,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "eos",
+        "length"
+      ],
+      "ttft_s": [
+        2.2025037319981493,
+        1.5396385389904026
+      ]
+    },
+    {
+      "case": 5,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "dialog_encouraged",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 324,
+      "output_tokens": 41,
+      "charged_input_tokens": 324,
+      "charged_output_tokens": 41,
+      "generation_s": 5.542268842051271,
+      "wall_s": 8.358105659484863,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "eos",
+        "length"
+      ],
+      "ttft_s": [
+        2.733337592013413,
+        1.769173626002157
+      ]
+    },
+    {
+      "case": 6,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "single",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 1,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 124,
+      "output_tokens": 9,
+      "charged_input_tokens": 124,
+      "charged_output_tokens": 9,
+      "generation_s": 2.7053896260040347,
+      "wall_s": 5.551220178604126,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "eos"
+      ],
+      "ttft_s": [
+        2.3572061030135956
+      ]
+    },
+    {
+      "case": 7,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "self_correction",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 136,
+      "output_tokens": 19,
+      "charged_input_tokens": 136,
+      "charged_output_tokens": 19,
+      "generation_s": 3.3828757800220046,
+      "wall_s": 6.302425146102905,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "eos",
+        "stop_sequence"
+      ],
+      "ttft_s": [
+        2.485023918998195,
+        0.18269998001051135
+      ]
+    },
+    {
+      "case": 8,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "no_contact",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 236,
+      "output_tokens": 15,
+      "charged_input_tokens": 236,
+      "charged_output_tokens": 15,
+      "generation_s": 3.8893032160121948,
+      "wall_s": 6.875977277755737,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "eos",
+        "eos"
+      ],
+      "ttft_s": [
+        2.3620256379945204,
+        1.1323443820001557
+      ]
+    },
+    {
+      "case": 9,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "dialog",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 274,
+      "output_tokens": 42,
+      "charged_input_tokens": 274,
+      "charged_output_tokens": 42,
+      "generation_s": 5.465457751968643,
+      "wall_s": 12.793663024902344,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "eos",
+        "length"
+      ],
+      "ttft_s": [
+        2.5667040800035466,
+        1.803012491989648
+      ]
+    },
+    {
+      "case": 10,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "dialog_encouraged",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 333,
+      "output_tokens": 42,
+      "charged_input_tokens": 333,
+      "charged_output_tokens": 42,
+      "generation_s": 5.449408732994925,
+      "wall_s": 9.581688642501831,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "eos",
+        "length"
+      ],
+      "ttft_s": [
+        2.5848180759930983,
+        1.8288984279788565
+      ]
+    },
+    {
+      "case": 11,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "single",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 1,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 136,
+      "output_tokens": 12,
+      "charged_input_tokens": 136,
+      "charged_output_tokens": 12,
+      "generation_s": 2.7322667650005314,
+      "wall_s": 5.663366079330444,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "eos"
+      ],
+      "ttft_s": [
+        2.403371441003401
+      ]
+    },
+    {
+      "case": 12,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "self_correction",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 148,
+      "output_tokens": 25,
+      "charged_input_tokens": 148,
+      "charged_output_tokens": 25,
+      "generation_s": 3.6129963920102455,
+      "wall_s": 6.535931825637817,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "eos",
+        "stop_sequence"
+      ],
+      "ttft_s": [
+        2.5291794080112595,
+        0.3912226739921607
+      ]
+    },
+    {
+      "case": 13,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "no_contact",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 260,
+      "output_tokens": 29,
+      "charged_input_tokens": 260,
+      "charged_output_tokens": 29,
+      "generation_s": 4.773320960986894,
+      "wall_s": 11.146631956100464,
+      "truncation_count": 0,
+      "stop_reasons": [
+        "stop_sequence",
+        "eos"
+      ],
+      "ttft_s": [
+        2.610968344990397,
+        1.3415653679985553
+      ]
+    },
+    {
+      "case": 14,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "dialog",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 309,
+      "output_tokens": 56,
+      "charged_input_tokens": 309,
+      "charged_output_tokens": 56,
+      "generation_s": 5.475950822001323,
+      "wall_s": 8.372375965118408,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "stop_sequence",
+        "length"
+      ],
+      "ttft_s": [
+        2.3923716270073783,
+        1.8058887019869871
+      ]
+    },
+    {
+      "case": 15,
+      "model_id": "rwkv7-g1d-0.4b",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "dialog_encouraged",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 371,
+      "output_tokens": 56,
+      "charged_input_tokens": 371,
+      "charged_output_tokens": 56,
+      "generation_s": 6.070533801976126,
+      "wall_s": 8.839600086212158,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "stop_sequence",
+        "length"
+      ],
+      "ttft_s": [
+        2.6066097959992476,
+        2.1295456509978976
+      ]
+    },
+    {
+      "case": 16,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "single",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 1,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 114,
+      "output_tokens": 32,
+      "charged_input_tokens": 114,
+      "charged_output_tokens": 32,
+      "generation_s": 10.020306200982304,
+      "wall_s": 14.162760496139526,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "length"
+      ],
+      "ttft_s": [
+        9.685483589972137
+      ]
+    },
+    {
+      "case": 17,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "self_correction",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 275,
+      "output_tokens": 64,
+      "charged_input_tokens": 275,
+      "charged_output_tokens": 64,
+      "generation_s": 12.783300039009191,
+      "wall_s": 13.392809867858887,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        6.186931097006891,
+        5.952125690004323
+      ]
+    },
+    {
+      "case": 18,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "no_contact",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 216,
+      "output_tokens": 64,
+      "charged_input_tokens": 216,
+      "charged_output_tokens": 64,
+      "generation_s": 5.3461574890243355,
+      "wall_s": 5.940538167953491,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.2819974739977624,
+        2.415392499009613
+      ]
+    },
+    {
+      "case": 19,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "dialog",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 280,
+      "output_tokens": 64,
+      "charged_input_tokens": 280,
+      "charged_output_tokens": 64,
+      "generation_s": 5.308348685008241,
+      "wall_s": 5.900676012039185,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.54152596698259,
+        2.117691349994857
+      ]
+    },
+    {
+      "case": 20,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "split_facts",
+      "scenario_version": "1",
+      "mode": "dialog_encouraged",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 340,
+      "output_tokens": 64,
+      "charged_input_tokens": 340,
+      "charged_output_tokens": 64,
+      "generation_s": 5.213994255987927,
+      "wall_s": 9.371906757354736,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.453805035998812,
+        2.117310445988551
+      ]
+    },
+    {
+      "case": 21,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "single",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 1,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 124,
+      "output_tokens": 32,
+      "charged_input_tokens": 124,
+      "charged_output_tokens": 32,
+      "generation_s": 2.375780238013249,
+      "wall_s": 2.9090993404388428,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "length"
+      ],
+      "ttft_s": [
+        2.0579947929945774
+      ]
+    },
+    {
+      "case": 22,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "self_correction",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 294,
+      "output_tokens": 64,
+      "charged_input_tokens": 294,
+      "charged_output_tokens": 64,
+      "generation_s": 4.76901162599097,
+      "wall_s": 5.365886449813843,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.065979128004983,
+        2.068082129000686
+      ]
+    },
+    {
+      "case": 23,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "no_contact",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 232,
+      "output_tokens": 64,
+      "charged_input_tokens": 232,
+      "charged_output_tokens": 64,
+      "generation_s": 4.927242309000576,
+      "wall_s": 5.500945091247559,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.318076534982538,
+        1.978469601017423
+      ]
+    },
+    {
+      "case": 24,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "dialog",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 296,
+      "output_tokens": 64,
+      "charged_input_tokens": 296,
+      "charged_output_tokens": 64,
+      "generation_s": 4.749458204983966,
+      "wall_s": 5.307853937149048,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.0997677269915584,
+        2.014179771998897
+      ]
+    },
+    {
+      "case": 25,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "organization",
+      "scenario_version": "1",
+      "mode": "dialog_encouraged",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 357,
+      "output_tokens": 64,
+      "charged_input_tokens": 357,
+      "charged_output_tokens": 64,
+      "generation_s": 4.726279576978413,
+      "wall_s": 5.28734564781189,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.063564131996827,
+        2.028973289998248
+      ]
+    },
+    {
+      "case": 26,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "single",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 1,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 140,
+      "output_tokens": 32,
+      "charged_input_tokens": 140,
+      "charged_output_tokens": 32,
+      "generation_s": 2.8759862879815046,
+      "wall_s": 3.442077875137329,
+      "truncation_count": 1,
+      "stop_reasons": [
+        "length"
+      ],
+      "ttft_s": [
+        2.561071105999872
+      ]
+    },
+    {
+      "case": 27,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "self_correction",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 327,
+      "output_tokens": 64,
+      "charged_input_tokens": 327,
+      "charged_output_tokens": 64,
+      "generation_s": 4.884643149009207,
+      "wall_s": 9.00383973121643,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.2155660840217024,
+        2.0394797810004093
+      ]
+    },
+    {
+      "case": 28,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "no_contact",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": false,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 264,
+      "output_tokens": 64,
+      "charged_input_tokens": 264,
+      "charged_output_tokens": 64,
+      "generation_s": 5.009354679030366,
+      "wall_s": 5.572959661483765,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.2587081440142356,
+        2.109218335011974
+      ]
+    },
+    {
+      "case": 29,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "dialog",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 328,
+      "output_tokens": 64,
+      "charged_input_tokens": 328,
+      "charged_output_tokens": 64,
+      "generation_s": 4.835677080991445,
+      "wall_s": 5.397172212600708,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.143134509009542,
+        2.0565517809882294
+      ]
+    },
+    {
+      "case": 30,
+      "model_id": "qwen3-4b-control",
+      "scenario_id": "correction",
+      "scenario_version": "1",
+      "mode": "dialog_encouraged",
+      "technical_status": "completed",
+      "quiescent": true,
+      "turns": 2,
+      "communication_observed": true,
+      "task_outcome": "unscorable",
+      "task_success": null,
+      "scoring_reason": "ambiguous_format",
+      "input_tokens": 387,
+      "output_tokens": 64,
+      "charged_input_tokens": 387,
+      "charged_output_tokens": 64,
+      "generation_s": 4.820257794985082,
+      "wall_s": 5.383863925933838,
+      "truncation_count": 2,
+      "stop_reasons": [
+        "length",
+        "length"
+      ],
+      "ttft_s": [
+        2.14788180400501,
+        2.0258676550001837
+      ]
+    }
+  ],
+  "off_acceptance": {
+    "api_routes_absent": true,
+    "rider_routes_present": true,
+    "database_unchanged": true,
+    "host_health_http": 200,
+    "ollama_loaded_models": 0,
+    "initial_10s_probe_insufficient": true
+  },
+  "quality_gain_claim": false,
+  "limitations": [
+    "Thirty technically completed runs do not establish answer accuracy or learning.",
+    "All thirty strict-v1 task outcomes are unscorable; the accuracy denominator is zero, so accuracy is null.",
+    "The v1 prompt does not require the final-answer format used by the strict rubric.",
+    "All twenty-seven Qwen generations reached the thirty-two-token limit; six RWKV generations were truncated too.",
+    "Communication confirms delivery and a subsequent response, not semantic agreement or executed commitments.",
+    "Single/self_correction receive full information; other modes receive partitioned information.",
+    "Keep v1 frozen; an explicit final-answer contract requires a separate version-two dataset/prompt/rubric, not retrospective parsing."
+  ]
+}

@@ -1,6 +1,6 @@
 # L4 — ekran obserwacji i kontroli współpracy
 
-Status: kod lokalny L4, odbiór hosta i CI przed wydaniem. Repo: venom-module-cooperation-lab. Zależność: L3; projektowanie po zamrożeniu API może zacząć się wcześniej.
+Status: [PR #12](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/12) SCALONY jako `1021bb3a37bde64ca286b83607abae0109c408bf`. Końcowy kod `6fb7613`: CI/contracts, Sonar, Snyk, GitGuardian i niezależny review PASS. Lokalny rzeczywisty browser/SSE/STOP/layout/i18n PASS. Nie oznacza to zakończenia wydania L5 PR #13 ani odbioru zwykłego chatu. Repo: venom-module-cooperation-lab. Zależność: L3.
 
 ## Problem i wynik
 
@@ -42,13 +42,18 @@ Wybrana próba synchronizuje formularz przed kolejnym paint z immutable config
 (nested model.model_id i budgets), wyłącznie poprawne wartości. Test historii
 Qwen 4tury/32tokeny/seed17/no_contact/correction zabezpiecza regres domyślnego
 RWKV 8/128 w nieaktywnych polach. Node/JSDOM potwierdza kolory i overflow bez
-Tailwind; rzeczywiste bounding boxes i media queries odbiera koordynator.
+Tailwind. Rzeczywisty odbiór potwierdził stałe bounding boxes przed/przy pracy,
+desktop 1366×900 i mobile 390×844 bez poziomego overflow, START/STOP/reload/SSE
+oraz PL/EN/DE w DOM. Regresja Qwen→RWKV obejmuje ID modelu z kropkami.
 
 Node24 generuje rzeczywisty LCOV z tej samej sesji testów do
 `test-results/lcov.info`, wskazanego przez sonar.javascript.lcov.reportPaths.
-Bez wyłączeń pokrycia i zmiany progów. TS/lint oraz12testów PASS,95,28% line
-coverage. Wynik Sonara/i18n CPD należy ocenić po actual skanie.
+Bez wyłączeń pokrycia i zmiany progów. Wcześniejszy gate przed poprawką Sonara:
+TS/lint oraz 13 testów React PASS, 95.28% line coverage. Końcowy odbiór po
+refaktorze, 15 testów i status kontroli konkretnego SHA opisano poniżej.
 
+
+Aktualny odbiór i granice dowodów: [RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md).
 ## Naprawa rzeczywistej bramki PR #12
 
 Dla SHA971720b SonarCloud wykazał13,7% duplikacji nowych linii (146/1064),
@@ -60,6 +65,9 @@ zachowanie wszystkich tekstów/kluczy. Bez exclusions, ignorowania CPD lub prog�
 Dwanaście uwag utrzymaniowych obsłużono przez helpery prezentacji i bounded
 replay, findLast, typowany status bez String(object) oraz natywne fieldset/output.
 Zachowano limity4stron/256zdarzeń, kontrolę disposal i wcześniejsze regresje STOP.
-TS/lint i15testów PASS; rzeczywisty LCOV96,02%. Dodatkowe testy sprawdzają błędny
-obiekt statusu i skończony catch-up. Końcowy status Sonara wymaga nowego skanu CI,
-nie jest wywnioskowany z lokalnych testów.
+TS/lint i 15 testów PASS; rzeczywisty LCOV 96,02%. Dodatkowe testy sprawdzają błędny
+obiekt statusu i skończony catch-up. Dla końcowego kodu `6fb7613` CI/contracts,
+Sonar, Snyk i GitGuardian zakończone PASS; PR #12 scalony. Niezależny review
+potwierdził dokładnie 97 kluczy PL/EN/DE i 0 zmian tekstów, zachowany bounded
+replay/disposal oraz brak osłabienia testów. Status skanów pochodzi z kontroli
+konkretnego SHA, nie jest wywnioskowany z lokalnych testów.

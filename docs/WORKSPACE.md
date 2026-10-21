@@ -20,3 +20,14 @@ PL/EN/DE mają te same klucze; model/scenario ID pozostają identyfikatorami tec
 `make check-web HOST=/home/ubuntu/venom` działa również w odrębnym worktree: pomocnik generuje ignorowaną konfigurację wskazującą istniejący host/node_modules, nie instaluje pakietów ani nie zmienia konfiguracji hosta. TypeScript i ESLint PASS; 7 testów React/Node PASS, pokrycie frontendowe 95,7%. Fixture metadanych pochodzi z rzeczywistej serializacji L3 i ma test wykrywający zmianę kontraktu w Pythonie.
 
 Odbiór rzeczywistego hosta, streaming przez proxy i responsive pozostają osobnym krokiem przed wydaniem, wraz z CI/Sonar. Fixture i JSDOM nie są dowodem współpracy modeli.
+
+
+## Rzeczywisty odbiór pulpitu
+
+START/RWKV i wiadomości A/B, odtworzenie tej samej próby po reload, SSE proxy,
+STOP/quiescence i dostępny zasób hosta potwierdzono lokalnie. Przed i podczas
+pracy kontrolki miały ten sam prostokąt. Desktop/mobile bez poziomego overflow;
+PL/EN/DE sprawdzone w DOM, powrót do PL. Konsola bez błędów, z jawnymi
+ostrzeżeniami wykresów hosta. Przełączanie historii Qwen→RWKV ma regresję ID
+z kropkami. Właściwe rewizje i granice testów:
+[RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md). Wydanie L4/L5 pozostaje odrębne.
