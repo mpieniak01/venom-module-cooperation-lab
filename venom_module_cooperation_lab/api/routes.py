@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from dataclasses import asdict
 from typing import Annotated, Any
 
@@ -189,6 +190,28 @@ async def events(
     return replay(require_runner(request), run_id, after, limit)
 
 
+async def _journal(
+    request: Request, runner: LabRunner, run_id: str, cursor: int
+) -> AsyncIterator[str]:
+    position = cursor
+    idle = 0
+    while not await request.is_disconnected():
+        page = replay(runner, run_id, position)
+        for event in page["events"]:
+            position = event["seq"]
+            yield (
+                f"id: {position}\nevent: {event['kind']}\n"
+                f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            )
+        row = runner.store.get_run(run_id, owner=OWNER)
+        if row["status"] in TERMINAL and position >= row["last_seq"]:
+            return
+        idle += 1
+        if idle % 50 == 0:
+            yield ": keepalive\n\n"
+        await asyncio.sleep(0.1)
+
+
 @router.get("/runs/{run_id}/events/stream")
 async def stream(
     request: Request,
@@ -205,27 +228,8 @@ async def stream(
     runner = require_runner(request)
     replay(runner, run_id, cursor)
 
-    async def journal():
-        position = cursor
-        idle = 0
-        while not await request.is_disconnected():
-            page = replay(runner, run_id, position)
-            for event in page["events"]:
-                position = event["seq"]
-                yield (
-                    f"id: {position}\nevent: {event['kind']}\n"
-                    f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                )
-            row = runner.store.get_run(run_id, owner=OWNER)
-            if row["status"] in TERMINAL and position >= row["last_seq"]:
-                return
-            idle += 1
-            if idle % 50 == 0:
-                yield ": keepalive\n\n"
-            await asyncio.sleep(0.1)
-
     return StreamingResponse(
-        journal(),
+        _journal(request, runner, run_id, cursor),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
     )

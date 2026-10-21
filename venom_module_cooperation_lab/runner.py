@@ -266,6 +266,9 @@ class LabRunner:
             job.cancelled = True
             job.failure = "run_interrupted"
             job.lease.cancel()
+            # Propagate task cancellation after the finally block owns cleanup;
+            # the actual worker is retained until its quiescence is confirmed.
+            raise
         except Exception:
             job.failure = "generation_failed"
         finally:
@@ -478,6 +481,14 @@ class LabRunner:
         )
         return message
 
+    @staticmethod
+    def _delivery_recipients(mode: str, sender: str, recipient: str) -> list[str]:
+        if mode in {"single", "self_correction", "no_contact"}:
+            return []
+        return [
+            name for name in ("A", "B") if name != sender and recipient in {name, "all"}
+        ]
+
     def _message(
         self, job: _Job, sender: str, turn_id: str, text: str
     ) -> dict[str, Any]:
@@ -512,15 +523,7 @@ class LabRunner:
                 not isinstance(in_reply_to, str) or in_reply_to not in job.messages
             ):
                 raise LabError("unknown_reply")
-        delivered = (
-            []
-            if job.config.mode in {"single", "self_correction", "no_contact"}
-            else [
-                name
-                for name in ("A", "B")
-                if name != sender and recipient in {name, "all"}
-            ]
-        )
+        delivered = self._delivery_recipients(job.config.mode, sender, recipient)
         sequence = self.store.get_run(job.run_id, owner=OWNER)["last_seq"] + 1
         return {
             "schema_version": 1,
