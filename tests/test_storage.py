@@ -203,3 +203,50 @@ def test_documents_quota_and_upsert(store):
     }
     store.put_document("settings", "a", {}, owner="operator")
     assert store.get_document("settings", "a", owner="operator") == {}
+
+
+def test_reclaim_overlimit_and_low_space_without_new_writes(store, monkeypatch):
+    create(store)
+    store.set_run_status("r1", "completed", owner="operator")
+    store.limits = replace(store.limits, database_bytes=1)
+    monkeypatch.setattr("shutil.disk_usage", lambda _root: Mock(free=2 * 1024 * 1024))
+    store.close()
+    store.open()
+    assert store.get_run("r1", owner="operator")["status"] == "completed"
+    with pytest.raises(LabError, match="storage_full"):
+        store.append_event("r1", "message", {}, owner="operator")
+    store.delete_run("r1", owner="operator")
+    assert store.list_runs(owner="operator") == []
+    assert (store.root / "lab.sqlite3-wal").stat().st_size == 0
+
+
+def test_namespace_parent_symlink_is_rejected_before_writes(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = tmp_path / "scope"
+    link.symlink_to(outside, target_is_directory=True)
+    store = LabStore(link / "cooperation_lab", Mock(), Mock())
+    with pytest.raises(LabError, match="unsafe_storage"):
+        store.open()
+    assert list(outside.iterdir()) == []
+
+
+def test_export_has_explicit_limit(store):
+    create(store)
+    store.limits = replace(store.limits, run_bytes=1)
+    with pytest.raises(LabError, match="export_too_large"):
+        store.export_run("r1", owner="operator")
+
+
+def test_checkpoint_failure_is_sanitized(store):
+    class FailingDatabase:
+        def execute(self, _sql):
+            raise sqlite3.OperationalError("private path")
+
+    original = store._db
+    store._db = FailingDatabase()
+    try:
+        with pytest.raises(LabError, match="storage_unavailable"):
+            store._checkpoint()
+    finally:
+        store._db = original

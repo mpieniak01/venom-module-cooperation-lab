@@ -15,3 +15,7 @@ Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie
 Core zapewnia kontrakty hosta. Własny ekran nie zastępuje Council, Academy, Inspector ani THE HIVE. Wyłączenie modułu ma zwalniać jego zasoby i nie blokować core. MVP nie obejmuje treningu i płatnej infrastruktury.
 
 C0 oraz L1–L5 są ID planowanych implementacyjnych PR; numery GH powstaną przy kodzie. Nie tworzymy pustych PR udających realizację. Repo na razie prywatne; licencję ustalić przed publicznym wydaniem kodu.
+
+## Fundament L1
+
+Opcjonalny pakiet i niezależny ekran pozostają domyślnie wyłączone. Implementację, testy i ograniczenia opisuje [FOUNDATION](docs/FOUNDATION.md). `make check HOST=/home/ubuntu/venom` korzysta z istniejącego stosu hosta, bez pobierania modeli.

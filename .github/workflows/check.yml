@@ -1,0 +1,78 @@
+name: Cooperation Lab checks
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FEATURE_COOPERATION_LAB: "false"
+      NEXT_PUBLIC_FEATURE_COOPERATION_LAB: "false"
+      API_OPTIONAL_MODULES: ""
+      ENV_FILE: /dev/null
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: mpieniak01/Venom
+          ref: af81e32279186203ea812cc114b3c09d345c826a
+          path: host
+          persist-credentials: false
+      - uses: actions/checkout@v5
+        with:
+          path: host/modules/venom-module-cooperation-lab
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14.8"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.22.0"
+      - name: Install pinned host CI profile, no ML runtime
+        working-directory: host
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements-ci-lite.txt
+          cd web-next
+          npm ci --ignore-scripts
+      - name: Verify pinned host and module package installation
+        working-directory: host/modules/venom-module-cooperation-lab
+        run: |
+          python -c "import json,subprocess; p=json.load(open('host-compatibility.json')); assert subprocess.check_output(['git','-C','../..','rev-parse','HEAD'],text=True).strip()==p['core_sha']"
+          ../../.venv/bin/python -m pip install --no-deps --no-build-isolation .
+          ln -s ../../web-next/node_modules node_modules
+      - name: Run Python, frontend and optional-module contracts
+        working-directory: host/modules/venom-module-cooperation-lab
+        run: make check
+      - name: Upload actual coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: host/modules/venom-module-cooperation-lab/test-results/coverage.xml
+          if-no-files-found: ignore
+
+      - name: Snyk application dependencies (mpieniak01)
+        working-directory: host/modules/venom-module-cooperation-lab
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          test -n "$SNYK_TOKEN" || { echo "SNYK_TOKEN is not configured"; exit 1; }
+          npm install --global snyk@1.1302.0
+          snyk test --org=fcc7b7c7-65c1-46dc-b715-c9de506a1942 --file=requirements.txt --package-manager=pip --command=../../.venv/bin/python --severity-threshold=low
+      - name: SonarCloud analysis and quality gate
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9
+        with:
+          projectBaseDir: host/modules/venom-module-cooperation-lab
+          args: -Dsonar.qualitygate.wait=true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -81,7 +81,11 @@ class LabStore:
             raise LabError("storage_not_ready", 503)
         return self._db
 
-    def _space(self, reserve: int = 0) -> None:
+    def _safe_root(self) -> None:
+        if any(path.is_symlink() for path in (self.root, *self.root.parents)):
+            raise LabError("unsafe_storage", 503)
+
+    def _space(self, reserve: int = 0, *, reclaim: bool = False) -> None:
         probe = self.root
         while not probe.exists():
             probe = probe.parent
@@ -90,9 +94,10 @@ class LabStore:
             for name in STATE_FILES
             if (item := self.root / name).exists()
         )
-        if used + reserve > self.limits.database_bytes:
+        if not reclaim and used + reserve > self.limits.database_bytes:
             raise LabError("storage_full", 507)
-        if shutil.disk_usage(probe).free < self.limits.minimum_free_bytes + reserve:
+        minimum = 1024 * 1024 if reclaim else self.limits.minimum_free_bytes
+        if shutil.disk_usage(probe).free < minimum + reserve:
             raise LabError("disk_space_low", 507)
 
     def open(self) -> None:
@@ -100,8 +105,10 @@ class LabStore:
             if self.opened:
                 return
             self._guard("storage.open")
-            self._space()
+            self._safe_root()
+            self._space(reclaim=(self.root / STATE_FILES[0]).is_file())
             self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            self.root.chmod(0o700)
             # Avoid following a replaced namespaced state file outside the scope.
             if self.root.is_symlink() or any(
                 (self.root / name).is_symlink() for name in STATE_FILES
@@ -118,7 +125,7 @@ class LabStore:
                 db.execute("PRAGMA wal_autocheckpoint=32")
                 db.execute("PRAGMA journal_size_limit=1048576")
                 self._migrate()
-                with self._transaction("restart.recover"):
+                with self._transaction("restart.recover", reclaim=True):
                     db.execute(
                         "UPDATE runs SET status='interrupted' "
                         "WHERE status IN ('created','queued','preparing',"
@@ -128,7 +135,9 @@ class LabStore:
                 db.close()
                 self._db = None
                 raise
-            (self.root / STATE_FILES[0]).chmod(0o600)
+            for name in STATE_FILES:
+                if (state_file := self.root / name).exists():
+                    state_file.chmod(0o600)
 
     def _migrate(self) -> None:
         db = self._connection()
@@ -159,14 +168,17 @@ class LabStore:
         )
 
     @contextmanager
-    def _transaction(self, operation: str, reserve: int = 0) -> Iterator[None]:
+    def _transaction(
+        self, operation: str, reserve: int = 0, *, reclaim: bool = False
+    ) -> Iterator[None]:
         self._guard(operation)
-        self._space(reserve)
+        self._safe_root()
+        self._space(reserve, reclaim=reclaim)
         db = self._connection()
         try:
             db.execute("BEGIN IMMEDIATE")
             yield
-            self._space()
+            self._space(reclaim=reclaim)
             db.commit()
         except sqlite3.OperationalError as exc:
             db.rollback()
@@ -297,7 +309,7 @@ class LabStore:
     ) -> dict[str, Any]:
         _identifier(kind)
         encoded = _json(payload, self.limits.event_bytes)
-        size = len(encoded.encode("utf-8")) + len(kind) + 64
+        size = len(encoded.encode("utf-8")) + len(kind) + 256
         with self._lock:
             row = self._row(run_id, owner)
             self._access(owner, "events.append")
@@ -354,8 +366,9 @@ class LabStore:
             self._access(owner, "runs.delete")
             if row["status"] in ACTIVE:
                 raise LabError("run_active")
-            with self._transaction("runs.delete"):
+            with self._transaction("runs.delete", reclaim=True):
                 self._connection().execute("DELETE FROM runs WHERE id=?", (run_id,))
+            self._checkpoint()
 
     def export_run(self, run_id: str, *, owner: str) -> bytes:
         with self._lock:
@@ -367,10 +380,13 @@ class LabStore:
             while page := self.events(run_id, owner=owner, after=cursor):
                 events.extend(page)
                 cursor = page[-1]["seq"]
-            return _json(
-                {"schema_version": 1, "run": self._run(row), "events": events},
-                self.limits.run_bytes * 2,
-            ).encode("utf-8")
+            try:
+                return _json(
+                    {"schema_version": 1, "run": self._run(row), "events": events},
+                    self.limits.run_bytes * 2,
+                ).encode("utf-8")
+            except LabError as exc:
+                raise LabError("export_too_large", 413) from exc
 
     def cleanup(self, *, now: float | None = None) -> int:
         with self._lock:
@@ -378,13 +394,23 @@ class LabStore:
             cutoff = (time.time() if now is None else now) - (
                 self.limits.retention_days * 86400
             )
-            with self._transaction("retention.cleanup"):
+            with self._transaction("retention.cleanup", reclaim=True):
                 count = db.execute(
                     "DELETE FROM runs WHERE created<? AND status IN "
                     "('completed','failed','cancelled','interrupted')",
                     (cutoff,),
                 ).rowcount
+            if count:
+                self._checkpoint()
             return count
+
+    def _checkpoint(self) -> None:
+        self._guard("storage.checkpoint")
+        self._safe_root()
+        try:
+            self._connection().execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except sqlite3.OperationalError as exc:
+            raise LabError("storage_unavailable", 507) from exc
 
     def put_document(
         self, kind: str, key: str, value: dict[str, Any], *, owner: str

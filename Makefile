@@ -1,4 +1,5 @@
 HOST ?= ../..
+HOST := $(abspath $(HOST))
 PYTHON ?= $(HOST)/.venv/bin/python
 RUFF ?= $(HOST)/.venv/bin/ruff
 WEB_BIN = $(HOST)/web-next/node_modules/.bin
@@ -13,6 +14,6 @@ check-python:
 check-web:
 	$(WEB_BIN)/tsc --project web-next/tsconfig.json --noEmit
 	$(WEB_BIN)/eslint web-next tests/web --max-warnings 0 --config web-next/eslint.config.mjs
-	node --import $(HOST)/web-next/node_modules/tsx/dist/loader.mjs --test tests/web/*.test.ts
+	TSX_TSCONFIG_PATH=web-next/tsconfig.json node --import $(HOST)/web-next/node_modules/tsx/dist/loader.mjs --experimental-test-coverage --test-coverage-include="web-next/**" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=test-results/web-lcov.info --test tests/web/*.test.ts tests/web/*.test.tsx
 check-host:
 	PYTHONPATH=$(HOST):. $(PYTHON) $(HOST)/scripts/check_optional_modules_contracts.py --manifest $(CURDIR)/module.json

@@ -4,7 +4,7 @@ Specyfikacja do implementacji. API nie istnieje jeszcze.
 
 ## Host
 
-Manifest: cooperation_lab, module_api_version i min_core_version zgodne z zakwalifikowanym hostem; bazą planu jest module ABI1.6.0 na Venom main af81e322, nie numer wersji aplikacji. Backend FEATURE_COOPERATION_LAB, frontend NEXT_PUBLIC_FEATURE_COOPERATION_LAB, enabled_by_default=false. Async bounded lifecycle i własne i18n. Błędy manifestu kwarantannują moduł.
+Manifest: cooperation_lab, module_api_version i min_core_version zgodne z zakwalifikowanym hostem; zakwalifikowany host af81e32279186203ea812cc114b3c09d345c826a ma module_api_version=1.0.0 i min_core_version=1.6.0. To różne kontrakty, nie jeden numer ABI. Backend FEATURE_COOPERATION_LAB, frontend NEXT_PUBLIC_FEATURE_COOPERATION_LAB, enabled_by_default=false. Async bounded lifecycle i własne i18n. Błędy manifestu kwarantannują moduł.
 
 Wszystkie mutacje respektują host environment policy, odczyty/eksport/usuwanie jego politykę dostępu. Actor i owner/runtime pochodzą z hosta, nie od modelu lub niezaufanego JSON. Endpoint wybierany przez prekonfigurowane ID; brak dowolnych URL/redirectów z przeglądarki lub LLM. Zdalne API poza MVP. Brak własnego systemu kont.
 
@@ -12,7 +12,7 @@ Wszystkie mutacje respektują host environment policy, odczyty/eksport/usuwanie 
 
 SQLite w resolve_module_data_root, np. data/modules/<scope>/cooperation_lab. state_files: lab.sqlite3, lab.sqlite3-wal, lab.sqlite3-shm. Core mutation guard przed utworzeniem/mutacją. W jednej bazie config, model qualification, runs i events; jawne transakcyjne migracje. Wagi poza bazą, w zarządzanym magazynie modeli, bez pobrań przez startup/web request.
 
-Proponowane limity do zamrożenia w L1: 100 runów, 14 dni retencji, 512MiB bazy wraz z WAL/SHM, max2MiB/run oraz ograniczony rozmiar zdarzenia. Sprawdzać także wolne miejsce. Cleanup usuwa tylko zakończone runy, nigdy aktywny. Storage full ma jawny wynik, nie ciche braki logów. Eksport jednego runu ma limit i nie tworzy drugiej trwałej kopii. Bez wielkich blobów/sekretów w Git i bez pełnych promptów w logach core. VACUUM wymaga własnego budżetu wolnego miejsca.
+Zamrożone limity v1 w L1: 100 runów, 14 dni retencji, 512MiB bazy wraz z WAL/SHM, max2MiB/run 64KiB/zdarzenie i 64MiB minimalnie wolnego miejsca. Metadata config/qualification maksymalnie 100 rekordów na kategorię i 64KiB na rekord. Eksport ma twardy limit 4MiB; budżet runu liczy UTF-8 i narzut zdarzeń. Sprawdzać także wolne miejsce. Cleanup usuwa tylko zakończone runy, nigdy aktywny. Storage full ma jawny wynik, nie ciche braki logów. Eksport jednego runu ma limit i nie tworzy drugiej trwałej kopii. Bez wielkich blobów/sekretów w Git i bez pełnych promptów w logach core. VACUUM wymaga własnego budżetu wolnego miejsca.
 
 ## Model i niezależność
 
