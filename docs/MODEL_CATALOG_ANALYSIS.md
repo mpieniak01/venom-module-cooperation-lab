@@ -61,3 +61,57 @@ oddzielnym zakresem: adapter, koszty, poświadczenia i decyzja o wysyłaniu tre�
 
 Na tym etapie wykonano wyłącznie analizę/metadane. Nie włączono dodatkowych
 modeli, nie uruchamiano inferencji i nie zmieniano rejestru ani katalogu core.
+
+## Doprecyzowanie po sprawdzeniu plików i selektora czatu
+
+Nie utożsamiać cache z odpadami. W cache potwierdzono rzeczywiste wagi Gemma 2
+(około 5,23 GB), MiniLM (dwa snapshoty po około 91 MB), Depth Anything V2 i
+SegFormer. Sam katalog cache jest kontenerem, nie modelem vLLM do uruchomienia.
+`research` zawiera zakwalifikowany RWKV, więc również nie jest katalogiem do
+usunięcia. Żadnych danych w tej analizie nie kasowano.
+
+Potwierdzono kompletne pliki wymagane przez indeks wag i tokenizer dla trzech
+checkpointów: Gemma 3 bazowa, checkpoint training_20260314 (Gemma 3) oraz
+self_learning (Gemma 2). To pełne checkpointy, mimo nazwy venom-adapter;
+nie same pliki adapterów LoRA. Shardy mają różne inode i nlink=1, nie są tymi
+samymi plikami przez hardlink. Nie liczono pełnych hashy wielu GB i nie badano,
+jak duże są różnice wytrenowanych wag. ONNX Gemma 3 ma dekoder oraz około
+5,38 GB danych zewnętrznych. Piper i rider-floor mają realne wagi, innej modalności.
+
+Brak wag potwierdzono w preprod, sonar-regression-20261018, metadata,
+manifests-v2, pustym gemma-3-4b-it-onnx-cpu-int4 i good--model-onnx z samymi
+metadanymi. Brak wag nie dowodzi, że każdy plik pomocniczy jest zbędny.
+
+### Co już ma czat Venoma
+
+Czat `/chat` używa `getUnifiedModelCatalog()` z
+`GET /api/v1/system/llm-runtime/options`, a nie wyłącznie surowego `/models`.
+Ten katalog prawidłowo odfiltrował opisane pomocnicze foldery:
+
+- Ollama: online, 10 unikalnych zestawów wag, adapter self_learning oznaczony
+  jako adapter_artifact; widoczne pozostałe modele bazowe.
+- vLLM: inactive; trzy rzeczywiste checkpointy tekstowe.
+- multi_runtime: inactive; skonfigurowany google/gemma-4-E2B-it. Sama deklaracja
+  katalogowa nie stanowi testu ładowania tego silnika/modelu.
+- ONNX: offline/runtime_not_installed, bez modeli w zunifikowanym selektorze.
+  Istnienie plików ONNX nie potwierdza gotowości tego runtime.
+- Dostawcy chmurowi: disabled/configured=false; lista nazw to nie dostępność.
+
+Komponent ChatComposer w cockpit-chat-thread.tsx jest powiązany z trybami czatu,
+adapterami Academy, wdrożeniem adaptera, aktywacją modelu i globalnymi setterami
+silnika. Hook use-cockpit-model-activation może wywołać setActiveLlmServerFn lub
+setActiveLlmRuntimeFn. Tego zachowania laboratorium nie powinno dziedziczyć.
+Wspólny SelectMenu jest natomiast elementem prezentacyjnym sterowanym propsami.
+
+### Decyzja projektowa
+
+Najmniejszy spójny zakres: **reuse zunifikowanego katalogu i małych kontrolek,
+prosty selektor laboratorium Silnik → Model**. Nie kopiować całego ChatComposer
+ani nie tworzyć drugiego skanera wszystkich katalogów. Wybór zapisuje tylko
+konfigurację próby; uruchomienie nadal przechodzi przez admission laboratorium,
+adapter, przypiętą tożsamość modelu i jawny stan gotowości. Pozycje bez adaptera
+lub działającego silnika mają wyjaśniony stan zamiast obietnicy działania.
+Nie filtrujemy modeli po trainable: inference-only również jest właściwe.
+Dla osobnych wag A/B potrzebny byłby osobny zakres zmiany runnera.
+
+Ta część jest analizą bez zmiany selektorów, usług i aktywnego modelu.
