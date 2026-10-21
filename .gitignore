@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules
+.next/
+test-results/
+data/
+.env*
