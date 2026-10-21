@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from venom_core.config import SETTINGS
 from venom_core.services import runtime_admission
 
 from venom_module_cooperation_lab.lifecycle import LabLifecycle
@@ -17,7 +18,7 @@ from venom_module_cooperation_lab.storage import LabStore
 
 @pytest.mark.asyncio
 async def test_off_does_not_acquire_namespace_or_open_storage(monkeypatch):
-    monkeypatch.setenv("RUNTIME_ADMISSION_ENABLED", "true")
+    monkeypatch.setattr(SETTINGS, "RUNTIME_ADMISSION_ENABLED", True)
     admission = Mock(side_effect=AssertionError("OFF must not touch admission"))
     monkeypatch.setattr(runtime_admission, "get_runtime_admission", admission)
     factory = Mock()
@@ -30,7 +31,7 @@ async def test_off_does_not_acquire_namespace_or_open_storage(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_c0_disabled_preserves_storage_only_startup(tmp_path, monkeypatch):
-    monkeypatch.setenv("RUNTIME_ADMISSION_ENABLED", "false")
+    monkeypatch.setattr(SETTINGS, "RUNTIME_ADMISSION_ENABLED", False)
     admission = Mock(side_effect=AssertionError("disabled C0 must not be acquired"))
     monkeypatch.setattr(runtime_admission, "get_runtime_admission", admission)
     store = LabStore(tmp_path / "lab", Mock(), Mock())
@@ -98,7 +99,7 @@ print(json.dumps({'opened':store.opened,'state':lifecycle.state,'reason':lifecyc
 async def test_enabled_startup_holds_namespace_before_every_storage_mutation(
     tmp_path, monkeypatch
 ):
-    monkeypatch.setenv("RUNTIME_ADMISSION_ENABLED", "true")
+    monkeypatch.setattr(SETTINGS, "RUNTIME_ADMISSION_ENABLED", True)
     admission = runtime_admission.RuntimeAdmission(
         tmp_path / "first.sqlite3", enabled=True
     )
@@ -121,7 +122,7 @@ async def test_enabled_startup_holds_namespace_before_every_storage_mutation(
 async def test_startup_rejects_stale_disabled_admission_before_open(
     tmp_path, monkeypatch
 ):
-    monkeypatch.setenv("RUNTIME_ADMISSION_ENABLED", "true")
+    monkeypatch.setattr(SETTINGS, "RUNTIME_ADMISSION_ENABLED", True)
     admission = runtime_admission.RuntimeAdmission(
         tmp_path / "disabled.sqlite3", enabled=False
     )

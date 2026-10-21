@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from collections.abc import Callable
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from typing import Any

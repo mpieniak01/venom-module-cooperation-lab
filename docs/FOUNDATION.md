@@ -8,12 +8,13 @@ truthful unavailable/not-ready workspace until C0 and L2–L4 are qualified.
 
 ## Host and activation
 
-Host qualification: `af81e32279186203ea812cc114b3c09d345c826a`, module API **1.0.0**,
+Host qualification: `aa2d612434949f1149d27f64ff10e5dd05334e8e`, module API **1.0.0**,
 minimum runtime **1.6.0**, Python 3.12+, Node 24.22.0. See
 [host-compatibility.json](../host-compatibility.json). These two version numbers
 must not be conflated. CI checks this exact source SHA; updating it is a reviewed
-compatibility change. C0 must declare `FEATURE_COOPERATION_LAB: bool = False`
-in the host Settings before enabling its manifest.
+compatibility change. This C0 host declares `FEATURE_COOPERATION_LAB: bool = False`
+and `RUNTIME_ADMISSION_ENABLED: bool = False` in its Settings. Settings is the
+single source of truth for backend flags, including values read from ENV_FILE.
 
 Install the module into the existing host environment without installing a
 second runtime: `HOST/.venv/bin/python -m pip install --no-deps --no-build-isolation .`.

@@ -163,3 +163,15 @@ def test_host_settings_are_the_only_feature_flag_truth(
     monkeypatch.delenv("FEATURE_COOPERATION_LAB")
     configured_host_settings.FEATURE_COOPERATION_LAB = True
     assert enabled()
+
+
+def test_admission_flag_uses_host_settings_without_process_override(
+    monkeypatch, configured_host_settings
+):
+    from venom_module_cooperation_lab.lifecycle import admission_enabled
+
+    monkeypatch.setenv("RUNTIME_ADMISSION_ENABLED", "true")
+    assert not admission_enabled()
+    monkeypatch.delenv("RUNTIME_ADMISSION_ENABLED")
+    configured_host_settings.RUNTIME_ADMISSION_ENABLED = True
+    assert admission_enabled()

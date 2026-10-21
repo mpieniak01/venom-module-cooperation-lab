@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: mpieniak01/Venom
-          ref: af81e32279186203ea812cc114b3c09d345c826a
+          ref: aa2d612434949f1149d27f64ff10e5dd05334e8e
           path: host
           persist-credentials: false
       - uses: actions/checkout@v5

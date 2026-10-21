@@ -4,7 +4,7 @@ Specyfikacja do implementacji. API nie istnieje jeszcze.
 
 ## Host
 
-Manifest: cooperation_lab, module_api_version i min_core_version zgodne z zakwalifikowanym hostem; zakwalifikowany host af81e32279186203ea812cc114b3c09d345c826a ma module_api_version=1.0.0 i min_core_version=1.6.0. To różne kontrakty, nie jeden numer ABI. Backend FEATURE_COOPERATION_LAB, frontend NEXT_PUBLIC_FEATURE_COOPERATION_LAB, enabled_by_default=false. Async bounded lifecycle i własne i18n. Błędy manifestu kwarantannują moduł.
+Manifest: cooperation_lab, module_api_version i min_core_version zgodne z zakwalifikowanym hostem; zakwalifikowany host aa2d612434949f1149d27f64ff10e5dd05334e8e ma module_api_version=1.0.0 i min_core_version=1.6.0. To różne kontrakty, nie jeden numer ABI. Backend FEATURE_COOPERATION_LAB, frontend NEXT_PUBLIC_FEATURE_COOPERATION_LAB, enabled_by_default=false. Async bounded lifecycle i własne i18n. Błędy manifestu kwarantannują moduł.
 
 Wszystkie mutacje respektują host environment policy, odczyty/eksport/usuwanie jego politykę dostępu. Actor i owner/runtime pochodzą z hosta, nie od modelu lub niezaufanego JSON. Endpoint wybierany przez prekonfigurowane ID; brak dowolnych URL/redirectów z przeglądarki lub LLM. Zdalne API poza MVP. Brak własnego systemu kont.
 
