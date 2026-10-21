@@ -180,6 +180,20 @@ class RunConfig:
             ("A", scenario.private_a),
             ("B", scenario.private_b),
         ):
+            if request.scenario_id == "tic_tac_toe":
+                symbol = "X" if participant == "A" else "O"
+                prompts.append(
+                    f"Jesteś {participant}, grasz {symbol} w kółko i krzyżyk 3x3. "
+                    "A/X zaczyna, B/O odpowiada. Trzy znaki w linii wygrywają. "
+                    "Używaj aktualnej planszy od hosta. Wybierz wolne pole. "
+                    "Odpowiedz tylko współrzędnymi, np. B2, bez JSON i komentarza."
+                    if language == "pl"
+                    else f"You are {participant}, playing {symbol} in 3x3 tic-tac-toe. "
+                    "A/X starts; B/O follows. Three marks in a line win. "
+                    "Use the current host board. Choose an empty square. "
+                    "Reply only with its coordinate, e.g. B2, no JSON or commentary."
+                )
+                continue
             if request.mode in {"single", "self_correction"}:
                 private = scenario.private_a + " " + scenario.private_b
             if request.mode == "operator_review":
@@ -217,7 +231,11 @@ class RunConfig:
         return cls(
             model_json=json.dumps(model, sort_keys=True, ensure_ascii=False),
             scenario_id=scenario.scenario_id,
-            scenario_version=scenario.version,
+            scenario_version=(
+                scenario.version + "-board-context-2"
+                if request.scenario_id == "tic_tac_toe"
+                else scenario.version
+            ),
             scenario_goal=scenario.goal,
             mode=request.mode,
             prompts=(prompts[0], prompts[1]),
@@ -239,10 +257,12 @@ class RunConfig:
             top_p=request.top_p,
             communication_language=language,
             schema_version=3
-            if request.mode in OPERATOR_MODES
+            if request.mode in OPERATOR_MODES or request.scenario_id == "tic_tac_toe"
             else (1 if language is None else 2),
             participant_count=3 if request.mode in OPERATOR_MODES else 2,
-            scheduler=(
+            scheduler="board-state-v2"
+            if request.scenario_id == "tic_tac_toe"
+            else (
                 "author-review-revise-v1"
                 if request.mode == "operator_review"
                 else "operator-relay-v1"

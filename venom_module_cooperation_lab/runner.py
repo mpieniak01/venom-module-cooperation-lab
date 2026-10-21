@@ -428,7 +428,7 @@ class LabRunner:
 
         for participant, prompt in zip(("A", "B"), job.config.prompts, strict=True):
             job.histories[participant] = [ChatMessage("system", prompt)]
-            if job.config.mode != "operator_review":
+            if job.config.mode != "operator_review" and job.game is None:
                 job.histories[participant].append(
                     ChatMessage("user", job.config.scenario_goal)
                 )
@@ -529,13 +529,29 @@ class LabRunner:
 
         history = job.histories[participant]
         if job.game is not None:
-            history.append(
+            # The authoritative board already contains every accepted move.
+            # Keep the last actual peer message for causal delivery/reply tracing,
+            # but never append obsolete full boards to the next request.
+            last_id = job.last_delivered[participant]
+            incoming = next(
+                (
+                    message
+                    for message in reversed(history)
+                    if last_id and message.role == "user" and last_id in message.content
+                ),
+                None,
+            )
+            compact = [history[0]]
+            if incoming is not None:
+                compact.append(incoming)
+            compact.append(
                 ChatMessage(
                     "user",
                     job.game.prompt(participant, job.config.communication_language),
                 )
             )
-            return history
+            job.histories[participant] = compact
+            return compact
         if history[-1].role != "user":
             followup = (
                 "Verify your previous answer."

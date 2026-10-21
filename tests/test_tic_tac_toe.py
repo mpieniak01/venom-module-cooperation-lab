@@ -143,6 +143,49 @@ async def test_game_runner_uses_authoritative_board_and_stops_on_actual_result(
     assert "A X . ." in prompt
     assert ("Aktualna plansza" if language == "pl" else "Current board") in prompt
     assert runner.admission.snapshot()["status"] == "available"
+    # Exercise the real Ollama context guard for every captured request, not a
+    # fixture that silently accepts arbitrary input. No server/weights involved.
+    import time
+
+    from test_adapters import configured_ollama, stream
+
+    config = row["config"]
+    assert config["scheduler"] == "board-state-v2"
+    assert config["scenario_version"].endswith("-board-context-2")
+    for index, (participant, history, parameters) in enumerate(adapters[0].recorded):
+        assert len(history) <= 3
+        assert (
+            sum(
+                "Aktualna plansza" in m.content or "Current board" in m.content
+                for m in history
+            )
+            == 1
+        )
+        ollama, _, _ = configured_ollama()
+        ollama.load(time.monotonic() + 2)
+        stream(
+            ollama,
+            [
+                {
+                    "message": {"content": moves[index]},
+                    "done": True,
+                    "prompt_eval_count": 100,
+                    "eval_count": 3,
+                }
+            ],
+        )
+        assert (
+            ollama.generate(participant, history, parameters, time.monotonic() + 2).text
+            == moves[index]
+        )
+        if index:
+            previous = next(
+                e["payload"]
+                for e in events
+                if e["kind"] == "message"
+                and e["payload"]["turn_id"] == f"turn-{index:04d}"
+            )
+            assert any(previous["message_id"] in m.content for m in history)
 
 
 @pytest.mark.asyncio
