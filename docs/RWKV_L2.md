@@ -129,8 +129,13 @@ Oba wheel pochodzą z oficjalnego PyPI; nie mają zależności `Requires-Dist`.
 Instalator zachowuje wheel do sprawdzania integralności rozpakowanych plików;
 nie nadpisuje innych istniejących plików. Parent weryfikuje overlay przed startem
 procesu, a izolowany child ponawia kontrolę i sprawdza faktyczną wersję/ścieżkę
-importu **przed** importem Torch. Nieskuteczny overlay blokuje load. Odkrywanie
-modeli nadal niczego nie pobiera ani nie importuje Torch.
+importu **przed** importem Torch. Nieskuteczny overlay blokuje load. Weryfikacja
+odrzuca także wszystkie pliki bytecode i dowiązania w pakietach overlay, w tym
+`__pycache__`; sam poprawny hash źródeł `.py` nie dowodzi integralności importu.
+Izolowany child wyłącza tworzenie bytecode przed importem pakietów. Istniejący
+niezweryfikowany cache wymaga usunięcia wyłącznie z wydzielonego komponentu,
+bez czyszczenia Full. Odkrywanie modeli nadal niczego nie pobiera ani nie
+importuje Torch.
 
 Oficjalne [GHSA certifi](https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2)
 wskazuje 2026.10.18 jako wersję naprawioną, podczas gdy dane Snyk 21280764
@@ -173,3 +178,15 @@ komponentu i jawnym manifestem unii. Prywatny raport: lokalny
 Wcześniejszą własną próbę bez wyniku przerwano z exit143; nie zastępuje ona tego
 końcowego raportu. Formalny odbiór i decyzja dotycząca inherited Torch pozostają
 jawnie odrębnym warunkiem.
+
+
+### Utrzymanie adaptera po przeglądzie Sonar
+
+Rozdzielono loader/dispatch/prefill/sample/decode i odczyt streamu Ollama na
+nazwane helpery. Bez zmiany checkpointu, template, seed/sampling, lease,
+limitów, CUDA synchronize lub kolejności commitowania prywatnego stanu.
+Jawna implementacja ModelAdapter zastępuje wyłącznie strukturalne rozpoznanie
+Protocol. Worker nie połyka SystemExit/KeyboardInterrupt; nadal zamyka IPC w
+finally, a host potwierdza rzeczywiste zakończenie procesu. Regresje fixture
+obejmują anulowanie w prefill/decode bez commitowania częściowego stanu.
+To refaktor z walidacją CPU, nie nowy benchmark ani nowa próba GPU.

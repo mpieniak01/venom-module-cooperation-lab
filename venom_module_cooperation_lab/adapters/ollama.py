@@ -18,6 +18,7 @@ from .base import (
     GenerationParameters,
     GenerationResult,
     Lease,
+    ModelAdapter,
     ModelSpec,
     remaining,
     validate_messages,
@@ -33,7 +34,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise LabError("runtime_redirect_rejected")
 
 
-class OllamaAdapter:
+class OllamaAdapter(ModelAdapter):
     def __init__(self, spec: ModelSpec, lease: Lease) -> None:
         self.spec, self._lease = spec, lease
         # A trusted local endpoint, never a request/model-controlled URL.
@@ -149,32 +150,11 @@ class OllamaAdapter:
                     "seed": parameters.seed,
                 },
             }
-            text, ttft, terminal, consumed = "", None, None, 0
+            terminal = None
             try:
-                with self._open(
-                    "/api/chat", payload, remaining(deadline_s, 360)
-                ) as response:
-                    while time.monotonic() < deadline_s:
-                        line = response.readline(MAX_RESPONSE_BYTES + 1)
-                        if not line:
-                            break
-                        consumed += len(line)
-                        if consumed > MAX_RESPONSE_BYTES:
-                            raise LabError("runtime_response_too_large")
-                        item = json.loads(line)
-                        if not isinstance(item, dict) or item.get("error"):
-                            raise LabError("generation_failed")
-                        chunk = item.get("message", {}).get("content", "")
-                        if not isinstance(chunk, str):
-                            raise LabError("malformed_model_output")
-                        if chunk and ttft is None:
-                            ttft = time.monotonic() - started
-                        text += chunk
-                        if len(text.encode()) > 16384:
-                            raise LabError("runtime_response_too_large")
-                        if item.get("done") is True:
-                            terminal = item
-                            break
+                text, ttft, terminal = self._consume_generation(
+                    payload, deadline_s, started
+                )
                 if terminal is None:
                     self._uncertain = True
                     raise LabError("runtime_not_quiescent")
@@ -222,6 +202,38 @@ class OllamaAdapter:
                 raise
             finally:
                 self._busy = False
+
+    @staticmethod
+    def _generation_chunk(item: Any) -> str:
+        if not isinstance(item, dict) or item.get("error"):
+            raise LabError("generation_failed")
+        chunk = item.get("message", {}).get("content", "")
+        if not isinstance(chunk, str):
+            raise LabError("malformed_model_output")
+        return chunk
+
+    def _consume_generation(
+        self, payload: dict[str, Any], deadline_s: float, started: float
+    ) -> tuple[str, float | None, dict[str, Any] | None]:
+        text, ttft, consumed = "", None, 0
+        with self._open("/api/chat", payload, remaining(deadline_s, 360)) as response:
+            while time.monotonic() < deadline_s:
+                line = response.readline(MAX_RESPONSE_BYTES + 1)
+                if not line:
+                    break
+                consumed += len(line)
+                if consumed > MAX_RESPONSE_BYTES:
+                    raise LabError("runtime_response_too_large")
+                item = json.loads(line)
+                chunk = self._generation_chunk(item)
+                if chunk and ttft is None:
+                    ttft = time.monotonic() - started
+                text += chunk
+                if len(text.encode()) > 16384:
+                    raise LabError("runtime_response_too_large")
+                if item.get("done") is True:
+                    return text, ttft, item
+        return text, ttft, None
 
     def cancel(self) -> None:
         self._lease.cancel()

@@ -49,7 +49,12 @@ def test_config_immutable_reproducible_and_private_information():
     first = RunConfig.build(request(), model)
     model["digest"] = "changed"
     assert first.public()["model"]["digest"] == "digest1"
-    assert first.public()["config_hash"] == first.public()["config_hash"]
+    same = RunConfig.build(request(), {"model_id": SPEC.model_id, "digest": "digest1"})
+    other_seed = RunConfig.build(
+        request(seed=1), {"model_id": SPEC.model_id, "digest": "digest1"}
+    )
+    assert first.public()["config_hash"] == same.public()["config_hash"]
+    assert first.public()["config_hash"] != other_seed.public()["config_hash"]
     assert "The first letter is R" in first.prompts[0]
     assert "The second letter is K" not in first.prompts[0]
     assert "The second letter is K" in first.prompts[1]
@@ -513,3 +518,106 @@ def test_runtime_receipt_retains_security_overlay_versions_without_private_field
             "model_prompts": ["must not journal"],
         }
     ) == {"certifi_version": "2026.10.19", "filelock_version": "4.2.1"}
+
+
+@pytest.mark.asyncio
+async def test_default_cleanup_grace_accepts_close_after_two_seconds(rig, monkeypatch):
+    import threading
+
+    fixture, adapters = rig
+    # Use the production default, not the short injected timeout of the fixture.
+    runner = LabRunner(
+        fixture.store, fixture.admission, fixture.model_catalog, fixture.adapter_factory
+    )
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def close_after_release():
+        calls.append("close")
+        adapters[0].busy = True
+        entered.set()
+        try:
+            return release.wait(1)
+        finally:
+            adapters[0].busy = False
+
+    configure(runner, close=close_after_release)
+    loop = asyncio.get_running_loop()
+    actual_clock = loop.time
+    elapsed = [0.0]
+    monkeypatch.setattr(loop, "time", lambda: actual_clock() + elapsed[0])
+    try:
+        row, _ = await runner.start(request(mode="single"), "normal-close-grace")
+        job = runner.jobs[row["id"]]
+        generation_deadline = job.deadline
+        async with asyncio.timeout(1):
+            while not entered.is_set():
+                await asyncio.sleep(0.001)
+        # Advance asyncio's real timeout scheduler past the observed 2.16 s close
+        # without sleeping two seconds or completing/cancelling the owned thread.
+        elapsed[0] = 2.16
+        await asyncio.sleep(0.01)
+        assert job.task is not None and not job.task.done()
+        assert not job.cleanup_complete
+        assert runner.admission.snapshot()["status"] != "available"
+        assert job.deadline == generation_deadline
+        release.set()
+        result = await finish(runner, row)
+        assert result["status"] == "completed"
+        assert job.cleanup_complete
+        assert runner.admission.snapshot()["status"] == "available"
+        assert calls == ["close"]
+        events = runner.store.events(row["id"], owner=OWNER)
+        assert events[-1]["kind"] == "end"
+        assert events[-1]["payload"]["quiescent"] is True
+        assert not any(event["payload"].get("cleanup_late") for event in events)
+    finally:
+        release.set()
+        await runner.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ignore_cancel", [False, True])
+async def test_owned_task_cancellation_propagates_after_bounded_cleanup(
+    rig, ignore_cancel
+):
+    runner, adapters = rig
+    runner.cleanup_seconds = 0.02 if ignore_cancel else 0.3
+    configure(runner, block=True, ignore_cancel=ignore_cancel)
+    row, _ = await runner.start(request(), "cancel-owned-task")
+    adapter = await adapter_ready(adapters)
+    async with asyncio.timeout(1):
+        while not adapter.entered.is_set():
+            await asyncio.sleep(0.001)
+    job = runner.jobs[row["id"]]
+    assert job.task is not None
+    job.task.cancel()
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(asyncio.shield(job.task), timeout=1)
+        assert job.task.cancelled()
+        assert job.cancelled
+        assert job.work is not None and not job.work.cancelled()
+        assert len(adapter.recorded) == 1
+        assert job.histories == {}
+        if ignore_cancel:
+            assert not job.cleanup_complete
+            assert not job.work.done()
+            assert runner.store.get_run(row["id"], owner=OWNER)["status"] == "failed"
+            assert runner.admission.snapshot()["status"] != "available"
+            events = runner.store.events(row["id"], owner=OWNER)
+            assert events[-1]["kind"] == "end"
+            assert events[-1]["payload"]["quiescent"] is False
+            adapter.released.set()
+            async with asyncio.timeout(1):
+                while not job.cleanup_complete:
+                    await asyncio.sleep(0.001)
+            assert runner.store.get_run(row["id"], owner=OWNER)["status"] == "failed"
+        else:
+            assert job.cleanup_complete
+            assert adapter.closed
+            assert runner.store.get_run(row["id"], owner=OWNER)["status"] == "cancelled"
+        assert runner.admission.snapshot()["status"] == "available"
+    finally:
+        adapter.released.set()
