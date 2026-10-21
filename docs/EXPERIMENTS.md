@@ -76,3 +76,20 @@ Agregat grupuje wyniki według trybu oraz model+tryb; małe zadania i jeden seed
 uzasadniają rankingu. `quality_gain_claim=false` jest celowe. Ujemny lub nieznany
 wynik jest poprawnym wynikiem eksperymentu. Publikować tylko agregaty lub jawne
 syntetyczne przypadki; prywatne prompty/eksporty zostają lokalnie poza Git.
+
+
+### Spójność transportu i ograniczenie odpowiedzi
+
+Evaluator sprawdza zgodność `recipient` z faktycznym `delivered_to`, rozwiązuje
+`all` wyłącznie do drugiego uczestnika i odrzuca self-recipient. Wynik tasku nie
+jest scorable bez pełnej relacji generating-turn → usage → message z tym samym
+turn_id, właściwym nadawcą i kolejnością seq. Sama wiadomość z poprawnym tekstem
+nie potwierdza wykonania generacji. Niepotwierdzona relacja ma
+`turn_evidence_verified=false` i nie daje `communication_observed=true`.
+
+`usage.per_turn` zachowuje do ośmiu wpisów: turn_id, stop_reason, actual/charged,
+TTFT/generation i ograniczoną whitelistę skalarnych effective_parameters.
+`truncation_count` liczy jawny limit długości (`length` i pokrewne kody), a
+nieznane przyczyny pozostają `truncated=null` oraz są osobno zliczane. Przy limicie
+32 tokenów obcięcie Qwen/RWKV musi być widoczne w interpretacji jakości, zamiast
+zniknąć w sumie kosztów. Nie zmieniamy limitu po wyniku, aby uzyskać sukces.

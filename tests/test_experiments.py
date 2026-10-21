@@ -65,10 +65,23 @@ def exported(
     for index, answer in enumerate(answers):
         sender = "A" if mode in {"single", "self_correction"} else ("A", "B")[index % 2]
         recipient = "B" if sender == "A" else "A"
-        emit("turn", {"participant_id": sender, "status": "generating"})
+        turn_id = f"turn-{index + 1:04d}"
+        emit(
+            "turn",
+            {"turn_id": turn_id, "participant_id": sender, "status": "generating"},
+        )
         emit(
             "usage",
             {
+                "turn_id": turn_id,
+                "stop_reason": "stop",
+                "effective_parameters": {
+                    "max_new_tokens": 32,
+                    "max_context_tokens": 2048,
+                    "seed": seed,
+                    "temperature": 0.0,
+                    "top_p": 0.0,
+                },
                 "input_tokens": 20,
                 "output_tokens": 8,
                 "charged_input_tokens": 20,
@@ -82,6 +95,7 @@ def exported(
             "run_id": "run1",
             "sequence": len(events) + 1,
             "message_id": f"message{index}",
+            "turn_id": turn_id,
             "sender": sender,
             "recipient": recipient,
             "kind": "message",
@@ -369,3 +383,100 @@ def test_aggregate_preserves_unknown_actual_usage_per_model():
     assert row["model_id"] == "rwkv7-g1d-0.4b"
     assert row["input_tokens"] is None
     assert row["charged_input_tokens"] == 40
+
+
+@pytest.mark.parametrize(
+    "recipient,delivered", [("A", ["B"]), ("B", []), ("all", ["A"]), ("B", ["A", "B"])]
+)
+def test_recipient_must_match_actual_peer_delivery(recipient, delivered):
+    document = exported()
+    first = next(event for event in document["events"] if event["kind"] == "message")
+    first["payload"].update(recipient=recipient, delivered_to=delivered)
+    with pytest.raises(LabError, match="invalid_experiment_delivery"):
+        evaluate_export(document)
+
+
+def test_broadcast_is_only_the_other_participant():
+    document = exported()
+    first = next(event for event in document["events"] if event["kind"] == "message")
+    first["payload"]["recipient"] = "all"
+    assert evaluate_export(document)["task_success"] is True
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing_turn", "wrong_turn_sender", "wrong_usage_turn", "duplicate_usage"],
+)
+def test_answer_without_coherent_turn_usage_message_cannot_succeed(mutation):
+    document = exported()
+    if mutation == "missing_turn":
+        document["events"] = [
+            event for event in document["events"] if event["kind"] != "turn"
+        ]
+    elif mutation == "wrong_turn_sender":
+        next(event for event in document["events"] if event["kind"] == "turn")[
+            "payload"
+        ]["participant_id"] = "B"
+    elif mutation == "wrong_usage_turn":
+        next(event for event in document["events"] if event["kind"] == "usage")[
+            "payload"
+        ]["turn_id"] = "not-this-turn"
+    else:
+        event = copy.deepcopy(
+            next(event for event in document["events"] if event["kind"] == "usage")
+        )
+        document["events"].insert(3, event)
+    for seq, event in enumerate(document["events"], 1):
+        event["seq"] = seq
+        if event["kind"] == "message":
+            event["payload"]["sequence"] = seq
+    document["run"]["last_seq"] = len(document["events"])
+    result = evaluate_export(document)
+    assert result["task_success"] is None
+    assert result["turn_evidence_verified"] is False
+    assert result["communication_observed"] is False
+    assert result["scoring_reason"] == "turn_evidence_unconfirmed"
+
+
+def test_usage_preserves_bounded_stop_and_effective_parameters_and_truncation():
+    document = exported(model_id="rwkv7-g1d-0.4b")
+    usage = [
+        event["payload"] for event in document["events"] if event["kind"] == "usage"
+    ]
+    usage[0]["stop_reason"] = "length"
+    usage[0]["output_tokens"] = 32
+    usage[0]["charged_output_tokens"] = 32
+    usage[0]["effective_parameters"].update(
+        think=False,
+        keep_alive=0,
+        context_mode="append",
+        private_path="/private/model",
+        unknown_blob={"nested": "hidden"},
+    )
+    usage[1]["stop_reason"] = "future_reason"
+    result = evaluate_export(document)
+    report = result["usage"]
+    assert report["truncation_count"] == 1
+    assert report["unknown_stop_reason_count"] == 1
+    assert report["per_turn"][0]["turn_id"] == "turn-0001"
+    assert report["per_turn"][0]["stop_reason"] == "length"
+    assert report["per_turn"][0]["truncated"] is True
+    assert report["per_turn"][0]["effective_parameters"]["think"] is False
+    assert report["per_turn"][0]["effective_parameters"]["max_new_tokens"] == 32
+    assert report["per_turn"][1]["truncated"] is None
+    assert "/private/model" not in json.dumps(report)
+    assert aggregate([result])["by_model_mode"][0]["truncation_count"] == 1
+    # More than the runner's eight turns is invalid rather than unbounded metadata.
+    for _ in range(7):
+        event = copy.deepcopy(
+            next(event for event in document["events"] if event["kind"] == "usage")
+        )
+        document["events"].append(event)
+    for seq, event in enumerate(document["events"], 1):
+        event["seq"] = seq
+    for event in document["events"]:
+        if event["kind"] == "message":
+            event["payload"]["sequence"] = event["seq"]
+    document["run"]["last_seq"] = len(document["events"])
+    with pytest.raises(LabError, match="invalid_experiment_usage"):
+        evaluate_export(document)

@@ -47,3 +47,8 @@ Lokalna walidacja L5 (2026-10-21): Ruff/mypy PASS; pełna regresja Python
 Smoke default plan
 nie wykonał HTTP ani inferencji. Lokalne linki Markdown PASS. Realny odbiór
 GPU/browser/wyłączenia i skany pozostają oddzielnymi pending warunkami.
+
+Dodatkowy przegląd P2: zgodność recipient/delivered_to i turn→usage→message,
+whitelist per-turn effective_parameters, stop_reason i truncation_count.
+Pełna lokalna regresja po poprawkach: 189 testów PASS, 96,98% coverage;
+Ruff/format/mypy (z CLI) PASS. Bez nowych prób GPU.

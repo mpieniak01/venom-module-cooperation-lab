@@ -238,6 +238,8 @@ def _messages(
             or not isinstance(message.get("delivered_to"), list)
         ):
             raise LabError("invalid_experiment_message", 422)
+        if message["recipient"] == message["sender"]:
+            raise LabError("invalid_experiment_delivery", 422)
         delivered = message["delivered_to"]
         if (
             len(delivered) > 2
@@ -248,6 +250,10 @@ def _messages(
                 for recipient in delivered
             )
             or (mode in {"single", "self_correction", "no_contact"} and delivered)
+            or (
+                mode in {"dialog", "dialog_encouraged"}
+                and delivered != ["B" if message["sender"] == "A" else "A"]
+            )
         ):
             raise LabError("invalid_experiment_delivery", 422)
         if message.get("in_reply_to") is not None and (
@@ -258,6 +264,49 @@ def _messages(
         seen.add(message["message_id"])
         messages.append({**message, "event_seq": event["seq"]})
     return messages
+
+
+def _turn_evidence(
+    events: list[dict[str, Any]], messages: list[dict[str, Any]]
+) -> bool:
+    starts = [
+        event
+        for event in events
+        if event["kind"] == "turn" and event["payload"].get("status") == "generating"
+    ]
+    usage = [event for event in events if event["kind"] == "usage"]
+    if (
+        not messages
+        or len(messages) > 8
+        or len(starts) != len(messages)
+        or len(usage) != len(messages)
+    ):
+        return False
+    seen = set()
+    last_message_seq = 0
+    for message in messages:
+        turn_id = message.get("turn_id")
+        if (
+            not isinstance(turn_id, str)
+            or not _IDENTIFIER.fullmatch(turn_id)
+            or turn_id in seen
+        ):
+            return False
+        seen.add(turn_id)
+        begin = [
+            event for event in starts if event["payload"].get("turn_id") == turn_id
+        ]
+        cost = [event for event in usage if event["payload"].get("turn_id") == turn_id]
+        if (
+            len(begin) != 1
+            or len(cost) != 1
+            or begin[0]["payload"].get("participant_id") != message["sender"]
+            or begin[0]["seq"] <= last_message_seq
+            or not begin[0]["seq"] < cost[0]["seq"] < message["event_seq"]
+        ):
+            return False
+        last_message_seq = message["event_seq"]
+    return True
 
 
 def _deliveries(
@@ -283,6 +332,14 @@ def _deliveries(
                     for message in messages
                     if message["event_seq"] > (turn["seq"] if turn else 2**31)
                     and message["sender"] == recipient
+                    and turn is not None
+                    and message.get("turn_id") == turn["payload"].get("turn_id")
+                    and any(
+                        event["kind"] == "usage"
+                        and event["payload"].get("turn_id") == message.get("turn_id")
+                        and turn["seq"] < event["seq"] < message["event_seq"]
+                        for event in events
+                    )
                     and message.get("in_reply_to") == source["message_id"]
                 ),
                 None,
@@ -296,7 +353,7 @@ def _deliveries(
                     "recipient_turn_seq": turn["seq"] if turn else None,
                     "reply_seq": response["event_seq"] if response else None,
                     "reply_source": response.get("reply_source") if response else None,
-                    "host_context_consumed": turn is not None,
+                    "host_context_consumed": response is not None,
                     "response_observed": response is not None,
                     "explicit_acceptance": bool(
                         response
@@ -311,8 +368,13 @@ def _deliveries(
 
 def _usage(events: list[dict[str, Any]]) -> dict[str, Any]:
     usage = [event["payload"] for event in events if event["kind"] == "usage"]
+    if len(usage) > 8:
+        raise LabError("invalid_experiment_usage", 422)
     result: dict[str, Any] = {
         "turns": len(usage),
+        "per_turn": [],
+        "truncation_count": 0,
+        "unknown_stop_reason_count": 0,
         "input_tokens": 0,
         "output_tokens": 0,
         "charged_input_tokens": 0,
@@ -325,9 +387,14 @@ def _usage(events: list[dict[str, Any]]) -> dict[str, Any]:
             ("input_tokens", "charged_input_tokens"),
             ("output_tokens", "charged_output_tokens"),
         ):
-            if not _integer(item.get(charged)) or (
-                item.get(actual) is not None
-                and (not _integer(item[actual]) or item[actual] > item[charged])
+            maximum = 2048 if actual == "input_tokens" else 256
+            if (
+                not _integer(item.get(charged))
+                or item[charged] > maximum
+                or (
+                    item.get(actual) is not None
+                    and (not _integer(item[actual]) or item[actual] > item[charged])
+                )
             ):
                 raise LabError("invalid_experiment_usage", 422)
             result[charged] += item[charged]
@@ -349,6 +416,74 @@ def _usage(events: list[dict[str, Any]]) -> dict[str, Any]:
             else result["generation_s"] + duration
         )
         result["ttft_s"].append(ttft)
+        reason = item.get("stop_reason")
+        safe_reason = (
+            reason
+            if isinstance(reason, str) and re.fullmatch(r"[a-z0-9_]{1,64}", reason)
+            else None
+        )
+        truncated = (
+            True
+            if safe_reason in {"length", "max_tokens", "max_new_tokens", "token_limit"}
+            else False
+            if safe_reason in {"stop", "eos", "stop_sequence", "cancelled", "deadline"}
+            else None
+        )
+        result["truncation_count"] += truncated is True
+        result["unknown_stop_reason_count"] += truncated is None
+        parameters = item.get("effective_parameters")
+        allowed = {
+            "max_new_tokens",
+            "max_context_tokens",
+            "temperature",
+            "top_p",
+            "seed",
+            "alpha_presence",
+            "alpha_frequency",
+            "alpha_decay",
+            "prefill_chunk_tokens",
+            "context_mode",
+            "think",
+            "keep_alive",
+            "input_bound_method",
+        }
+        effective = (
+            {
+                key: value
+                for key, value in parameters.items()
+                if key in allowed
+                and (
+                    type(value) is bool
+                    or _finite(value)
+                    or isinstance(value, str)
+                    and len(value) <= 80
+                )
+            }
+            if isinstance(parameters, dict)
+            else {}
+        )
+        turn_id = item.get("turn_id")
+        result["per_turn"].append(
+            {
+                "turn_id": turn_id
+                if isinstance(turn_id, str) and _IDENTIFIER.fullmatch(turn_id)
+                else None,
+                "stop_reason": safe_reason,
+                "truncated": truncated,
+                "effective_parameters": effective,
+                **{
+                    name: item.get(name)
+                    for name in (
+                        "input_tokens",
+                        "output_tokens",
+                        "charged_input_tokens",
+                        "charged_output_tokens",
+                        "ttft_s",
+                        "generation_s",
+                    )
+                },
+            }
+        )
     if not usage:
         result["input_tokens"], result["output_tokens"], result["generation_s"] = (
             None,
@@ -416,6 +551,7 @@ def evaluate_export(document: Any) -> dict[str, Any]:
     candidate, outcome = (
         _answer(last["content"], rubric) if last else (None, "no_answer")
     )
+    turns_verified = _turn_evidence(events, messages)
     delivery = _deliveries(messages, events)
     ends = [event["payload"] for event in events if event["kind"] == "end"]
     quiescent = (
@@ -464,7 +600,8 @@ def evaluate_export(document: Any) -> dict[str, Any]:
     partition = _partition(config, rubric)
     terminal_match = bool(ends and ends[-1].get("status") == run.get("status"))
     verified = (
-        terminal_match
+        turns_verified
+        and terminal_match
         and quiescent is True
         and partition is True
         and hash_valid
@@ -511,6 +648,7 @@ def evaluate_export(document: Any) -> dict[str, Any]:
         if config["mode"] in {"single", "self_correction"}
         else "partitioned",
         "input_partition_verified": partition,
+        "turn_evidence_verified": turns_verified,
         "scoring_reason": outcome
         if verified
         else (
@@ -518,6 +656,8 @@ def evaluate_export(document: Any) -> dict[str, Any]:
             if run.get("status") != "completed"
             else "terminal_evidence_unconfirmed"
             if not terminal_match or quiescent is not True
+            else "turn_evidence_unconfirmed"
+            if not turns_verified
             else "input_partition_unverified"
         ),
         "technical_completion_confirmed": run.get("status") == "completed"
@@ -527,7 +667,8 @@ def evaluate_export(document: Any) -> dict[str, Any]:
         "task_outcome": outcome if success is not None else "unscorable",
         "task_success": success,
         "participants": participants,
-        "communication_observed": any(item["response_observed"] for item in delivery),
+        "communication_observed": turns_verified
+        and any(item["response_observed"] for item in delivery),
         "peer_deliveries": delivery,
         "organization": {
             "proposals_declared": sum(
@@ -579,6 +720,9 @@ def _totals(records: list[Mapping[str, Any]]) -> dict[str, Any]:
         "unscorable": sum(record.get("task_success") is None for record in records),
         "communication_observed": sum(
             record.get("communication_observed") is True for record in records
+        ),
+        "truncation_count": sum(
+            record["usage"]["truncation_count"] for record in records
         ),
     }
     for name in (
