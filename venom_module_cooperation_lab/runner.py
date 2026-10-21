@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from .errors import LabError
 from .peer_review import review_step
-from .run_config import OPERATOR_MODES, RunConfig, RunRequest
+from .run_config import OPERATOR_MODES, Budgets, RunConfig, RunRequest
 from .storage import TERMINAL, LabStore, _identifier
 from .tic_tac_toe import TicTacToe
 
@@ -45,6 +45,7 @@ class _Job:
     closing: asyncio.Task[bool] | None = None
     watched_work: asyncio.Task[Any] | None = None
     game: TicTacToe | None = None
+    qualifying: bool = False
     cleanup_pending: bool = False
     late_cleanup_recorded: bool = False
     cancelled: bool = False
@@ -74,10 +75,12 @@ class LabRunner:
         adapter_factory: Callable[[str, Any], Any],
         *,
         cleanup_seconds: float = 10.0,
+        catalog_service: Any = None,
     ) -> None:
         self.store, self.admission = store, admission
         self.model_catalog, self.adapter_factory = model_catalog, adapter_factory
         self.cleanup_seconds = cleanup_seconds
+        self.catalog_service = catalog_service
         self.jobs: dict[str, _Job] = {}
         self._lock = asyncio.Lock()
         self._closed = False
@@ -95,6 +98,10 @@ class LabRunner:
         return task
 
     def _qualified_model(self, model_id: str) -> dict[str, Any]:
+        if self.catalog_service is not None and not self.catalog_service.available(
+            model_id
+        ):
+            raise LabError("model_unavailable", 409)
         for spec in self.model_catalog():
             if spec.model_id != model_id:
                 continue
@@ -125,19 +132,23 @@ class LabRunner:
         for spec in self.model_catalog():
             try:
                 result.append(self._qualified_model(spec.model_id))
-            except LabError:
-                result.append(asdict(spec))
+            except LabError as exc:
+                result.append({**asdict(spec), "availability_reason": exc.code})
         return result
 
     async def start(
-        self, request: RunRequest, idempotency_key: str
+        self, request: RunRequest, idempotency_key: str, *, qualification: bool = False
     ) -> tuple[dict[str, Any], bool]:
         started = time.monotonic()
         _identifier(idempotency_key)
         async with self._lock:
             if self._closed:
                 raise LabError("module_stopping", 503)
-            config = RunConfig.build(request, self._qualified_model(request.model_id))
+            config = (
+                self._qualification_config(request.model_id)
+                if qualification
+                else RunConfig.build(request, self._qualified_model(request.model_id))
+            )
             run_id = uuid4().hex
             row = self.store.create_run(
                 run_id, config.public(), owner=OWNER, idempotency_key=idempotency_key
@@ -166,6 +177,7 @@ class LabRunner:
                 )
                 raise LabError(getattr(exc, "code", "runtime_busy")) from exc
             job = _Job(run_id, config, lease, started + config.budgets.wall_seconds)
+            job.qualifying = qualification
             if config.scenario_id == "tic_tac_toe":
                 job.game = TicTacToe()
             self.jobs[run_id] = job
@@ -192,6 +204,48 @@ class LabRunner:
                 ):
                     self.jobs.pop(old_id)
             return self.store.get_run(run_id, owner=OWNER), True
+
+    def _qualification_config(self, model_id: str) -> RunConfig:
+        if self.catalog_service is None:
+            raise LabError("model_unavailable", 409)
+        spec = self.catalog_service.candidate(model_id)
+        return RunConfig(
+            model_json=json.dumps(asdict(spec), sort_keys=True),
+            scenario_id="model_qualification",
+            scenario_version="1",
+            scenario_goal="Reply with a short greeting.",
+            mode="no_contact",
+            prompts=("You are A. Answer briefly.", "You are B. Answer briefly."),
+            budgets=Budgets(
+                max_turns=2,
+                max_new_tokens=32,
+                total_input_tokens=4096,
+                total_output_tokens=64,
+                processing_steps=4160,
+                wall_seconds=120,
+            ),
+            seed=0,
+            temperature=0.0,
+            top_p=1.0,
+            schema_version=3,
+            scheduler="technical-qualification-v1",
+        )
+
+    def _record_qualification(self, job: _Job) -> None:
+        model = job.config.public()["model"]
+        self.store.put_document(
+            "qualifications",
+            model["model_id"],
+            {
+                **model,
+                "qualified": True,
+                "receipt_id": job.run_id,
+                "qualification_run_id": job.run_id,
+                "timestamp": time.time(),
+                "scope": "two_generations_reset_cleanup_not_quality",
+            },
+            owner=OWNER,
+        )
 
     def _emit(self, job: _Job, kind: str, payload: dict[str, Any]) -> dict[str, Any]:
         return self.store.append_event(job.run_id, kind, payload, owner=OWNER)
@@ -343,6 +397,11 @@ class LabRunner:
                 outcome = "cancelled"
             if not clean:
                 outcome, job.failure = "failed", "runtime_quiescence_unconfirmed"
+            if job.qualifying and outcome == "completed" and clean:
+                try:
+                    self._record_qualification(job)
+                except (LabError, PermissionError):
+                    outcome, job.failure = "failed", "storage_unavailable"
             self._finish(job, outcome)
             job.histories.clear()
 

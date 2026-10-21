@@ -41,3 +41,21 @@ Proponowany preset: max8 tur łącznie, do256 output tokenów/turę, do2048 toke
 ## Anulowanie i zasób
 
 Cancel idempotentnie blokuje kolejną turę. Cancelling trwa do potwierdzenia rzeczywistego końca inferencji. Zamknięcie socketu nie dowodzi końca GPU. Lease zwalniany po potwierdzonym quiescence; late worker oznacza busy/quarantine i kontrolowane recovery. Brak ślepego release po TTL przy aktywnym workerze. Nie zatrzymujemy cudzej pracy ani całego serwera. Shutdown ma bounded cleanup i jawny wynik niezakończonych obliczeń. C0 definiuje spójność również względem pozostałych konsumentów hosta i nieobsługiwanej topologii wielu workerów.
+
+
+## Lokalny L6: katalog i techniczne sprawdzenie Ollamy
+
+`GET /capabilities` dodaje `engines`, `catalog_error`, a do modeli `engine_id`,
+`display_name`, `can_qualify` i konkretny `availability_reason`. Odczyt nie generuje,
+nie pobiera, nie uruchamia auto-heal i nie aktywuje globalnego silnika.
+Nieobsługiwane silniki są widoczne z `adapter_not_supported`.
+
+`POST /qualifications` przyjmuje wyłącznie `model_id` i nagłówek `Idempotency-Key`;
+obowiązują te same polityki hosta, lokalność i ochrona cross-site co dla `/runs`.
+Zwraca `202 {run, created}`. Próba `model_qualification` korzysta z normalnego
+journalu, STOP i cleanup oraz przypiętej konfiguracji; nie jest publicznym
+scenariuszem benchmarku. Receipt powstaje dopiero po dwóch niepustych generacjach
+w niezależnych kontekstach i zwolnieniu zasobów. Błąd lub cancel nie nadaje gotowości.
+Nowy model musi pochodzić z aktualnego lokalnego katalogu completion/template.
+Tożsamość obejmuje digest wag, hash template i wersję runtime; adapter weryfikuje
+je ponownie przy wykonaniu. Zakres receipt to technika, nie jakość współpracy.

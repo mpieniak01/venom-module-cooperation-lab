@@ -1,7 +1,7 @@
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
-export type Model = { model_id?: string; id?: string; qualified?: boolean; availability_reason?: string; digest?: string; runtime?: string };
+export type Model = { model_id?: string; id?: string; qualified?: boolean; engine_id?: string; provider?: string; display_name?: string; can_qualify?: boolean; availability_reason?: string; digest?: string; runtime?: string };
 export type Scenario = { scenario_id: string; version: string; title?: string; goal?: string };
-export type Capabilities = { ready: boolean; state: string; reason_code?: string; models: Model[]; scenarios: Scenario[]; modes: string[]; preset?: Record<string, Json> };
+export type Capabilities = { ready: boolean; state: string; reason_code?: string; catalog_error?: string | null; engines?: {engine_id:string; name:string; status:string; supported:boolean}[]; models: Model[]; scenarios: Scenario[]; modes: string[]; preset?: Record<string, Json> };
 export type Run = { id: string; status: string; created: number; last_seq: number; bytes: number; config: Record<string, Json> };
 export type LabEvent = { run_id: string; seq: number; kind: string; timestamp: number; payload: Record<string, Json> };
 export const terminal = (status: string) => ["completed", "failed", "cancelled", "interrupted"].includes(status);

@@ -1,5 +1,14 @@
 // Each key has one PL/EN/DE row; translation completeness is structural.
 const translations = {
+  engine: ["Silnik", "Engine", "Laufzeit"],
+  qualify: ["Sprawdź model", "Check model", "Modell prüfen"],
+  qualification: ["Sprawdzenie techniczne modelu", "Technical model check", "Technische Modellprüfung"],
+  qualificationHint: ["2 krótkie odpowiedzi i zwolnienie zasobów; to nie ocena jakości.", "2 short replies and resource release; this is not a quality assessment.", "2 kurze Antworten und Ressourcenfreigabe; keine Qualitätsbewertung."],
+  modelReady: ["Gotowy", "Ready", "Bereit"],
+  modelPending: ["Wymaga sprawdzenia", "Needs checking", "Prüfung erforderlich"],
+  modelUnsupported: ["Brak adaptera laboratorium", "No laboratory adapter", "Kein Laboradapter"],
+  modelOffline: ["Model lub silnik niedostępny", "Model or engine unavailable", "Modell oder Laufzeit nicht verfügbar"],
+  catalogError: ["Nie udało się odświeżyć katalogu. Modele Ollamy są zablokowane.", "Catalog refresh failed. Ollama models are disabled.", "Katalogaktualisierung fehlgeschlagen. Ollama-Modelle sind gesperrt."],
   scenarioOperator: ["Rozmowa operatora", "Operator conversation", "Bedienergespräch"],
   scenarioPeerReview: ["Propozycja, recenzja, poprawa", "Draft, review, revise", "Entwurf, Prüfung, Überarbeitung"],
   operator_review: ["Autor A → recenzent B → poprawa A", "Author A → reviewer B → revision A", "Autor A → Prüfer B → Überarbeitung A"],

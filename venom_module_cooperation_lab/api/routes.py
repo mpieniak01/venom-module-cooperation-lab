@@ -125,9 +125,15 @@ def catalog_metadata() -> dict[str, Any]:
 @router.get("/capabilities")
 async def capabilities(request: Request) -> dict[str, Any]:
     runner = getattr(request.app.state, "cooperation_lab_runner", None)
+    catalog = runner.catalog_service if runner is not None else None
+    if catalog is not None:
+        await catalog.refresh()
     current = state(request)
     metadata = catalog_metadata()
     models = runner.models() if runner is not None else metadata["models"]
+    if catalog is not None:
+        models = catalog.public_models(models)
+        metadata.update(engines=catalog.engines, catalog_error=catalog.error)
     return {
         **metadata,
         **current,
@@ -143,7 +149,34 @@ async def create_run(
     payload: RunRequest,
     idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
 ) -> dict[str, Any]:
-    row, created = await require_runner(request).start(payload, idempotency_key)
+    runner = require_runner(request)
+    if runner.catalog_service is not None:
+        await runner.catalog_service.refresh()
+    row, created = await runner.start(payload, idempotency_key)
+    return {"run": row, "created": created}
+
+
+class QualificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    model_id: str = Field(
+        min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    )
+
+
+@router.post("/qualifications", status_code=202)
+async def qualify_model(
+    request: Request,
+    payload: QualificationRequest,
+    idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
+) -> dict[str, Any]:
+    runner = require_runner(request)
+    if runner.catalog_service is not None:
+        await runner.catalog_service.refresh()
+    row, created = await runner.start(
+        RunRequest(model_id=payload.model_id, scenario_id="split_facts"),
+        idempotency_key,
+        qualification=True,
+    )
     return {"run": row, "created": created}
 
 

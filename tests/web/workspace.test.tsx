@@ -178,7 +178,7 @@ test("selected Qwen history shows its actual immutable settings and module style
     await act(async () => root.render(<CooperationLabPage/>)); await settle();
     const settings = box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")!;
     assert.equal(settings.disabled,true);
-    assert.deepEqual([...settings.querySelectorAll("select")].map((select) => select.value),["correction","no_contact","qwen3-4b-control","en"]);
+    assert.deepEqual([...settings.querySelectorAll("select")].map((select) => select.value),["correction","no_contact","ollama","qwen3-4b-control","en"]);
     assert.deepEqual([...settings.querySelectorAll("input")].map((input) => input.value),["4","32","17"]);
     const view = box.querySelector<HTMLElement>(".coop-workspace")!;
     const body = box.querySelector<HTMLElement>(".coop-body")!;

@@ -20,3 +20,17 @@ C0 oraz L1–L5 są ID etapów implementacji; status kodu, odbioru i scalenia op
 ## Fundament L1
 
 Opcjonalny pakiet i niezależny ekran pozostają domyślnie wyłączone. Implementację, testy i ograniczenia opisuje [FOUNDATION](docs/FOUNDATION.md). `make check HOST=/home/ubuntu/venom` korzysta z istniejącego stosu hosta, bez pobierania modeli.
+
+## Lokalny rozwój: katalog Silnik → Model (L6)
+
+Na lokalnej gałęzi `codex/lab-language-chat-local` formularz laboratorium pokazuje
+rzeczywiste modele katalogu Venoma, również modele bez funkcji treningu.
+Wybierz **Silnik**, potem **Model**. Dla nowej Ollamy kliknij **Sprawdź model**:
+dwie krótkie odpowiedzi sprawdzają techniczną obsługę; działa wspólny STOP i historia.
+Po potwierdzonym zakończeniu można rozpocząć wybrany scenariusz. Sam wybór modelu
+lub odświeżenie nie uruchamia obliczeń ani nie przełącza globalnego chatu.
+
+Silniki bez adaptera Lab pozostają widoczne z powodem blokady. Nie pobieramy modeli.
+Szczegółowy [zakres lokalnego PR i dowody](docs/prs/L6-shared-model-catalog-local.md).
+To zmiana lokalna, jeszcze niewydana na GitHub; opis historycznego wydania powyżej
+pozostaje opisem scalonych L1–L5.

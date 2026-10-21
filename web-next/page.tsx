@@ -11,6 +11,7 @@ import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSetting
 import { Conversation } from "./lib/chat";
 import { OperatorComposer } from "./lib/operator-composer";
 import { GameBoard } from "./lib/game-board";
+import { engineId, modelState } from "./lib/model-selection";
 
 const button = "coop-button";
 const field = "coop-field";
@@ -31,12 +32,24 @@ export default function CooperationLabPage() {
   // Adjust the draft when selection changes, before committing a render. An
   // effect would briefly display the previous run's model and require a second paint.
   if (form.runId !== runId) {
-    setForm({ ...form, ...(lab.run ? { communicationLanguage:"en" as const, ...savedSettings(lab.run.config) } : {}), runId });
+    const restored = lab.run ? savedSettings(lab.run.config) : {};
+    const qualification = lab.run?.config.scenario_id==="model_qualification";
+    setForm({ ...form, ...(qualification ? {model:restored.model??form.model} : lab.run ? { communicationLanguage:"en" as const, ...restored } : {}), runId });
   }
   const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage } = form;
+  const [engineFilter, setEngineFilter] = useState<{runId:string|null; engine:string}|null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const models = lab.capabilities?.models ?? [];
-  const chosen = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
+  const fallback = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
+  const stored = lab.run?.config.model;
+  const storedProvider = stored && typeof stored==="object" && !Array.isArray(stored) && typeof stored.provider==="string" ? stored.provider : undefined;
+  const selectedEngine = engineFilter?.runId===runId ? engineFilter.engine : engineId(models.find(m=>modelId(m)===fallback) ?? {provider:storedProvider});
+  const engineModels = models.filter(m=>engineId(m)===selectedEngine);
+  const missingSavedModel = !!selectedModel&&!models.some(m=>modelId(m)===selectedModel)&&engineFilter?.runId!==runId;
+  const chosen = missingSavedModel?selectedModel:engineModels.some(m=>modelId(m)===fallback)?fallback:modelId(engineModels[0]??{});
+  const selected = models.find(m=>modelId(m)===chosen);
+  const engines = lab.capabilities?.engines ?? [...new Set(models.map(engineId))].map(engine_id=>({engine_id,name:engine_id,status:"unknown",supported:true}));
+  const qualifying = lab.run?.config.scenario_id==="model_qualification";
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
   const validSettings = !!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
@@ -44,10 +57,10 @@ export default function CooperationLabPage() {
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error);
   const organizations = lab.events.filter((event) => event.kind === "organization");
-  const isGame = scenario === "tic_tac_toe";
+  const isGame = !qualifying && scenario === "tic_tac_toe";
   const gameEvent = lab.events.findLast(event => event.kind === "game");
   const isReview = mode === "operator_review";
-  const operatorChat = mode === "operator_chat" || mode === "operator_relay" || isReview;
+  const operatorChat = !qualifying && (mode === "operator_chat" || mode === "operator_relay" || isReview);
   const operatorEvent = lab.events.findLast(event=>event.kind==="operator"||event.kind==="message"&&event.payload.sender==="operator");
   const operatorWaiting = operatorEvent?.kind==="operator"&&operatorEvent.payload.waiting===true;
   const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued, operatorWaiting);
@@ -74,7 +87,7 @@ export default function CooperationLabPage() {
       {lab.connection === "disconnected" && lab.run && <button type="button" className={button} onClick={lab.reconnect}>{t.reconnect}</button>}
     </fieldset>
     <output aria-live="polite" className="coop-notice h-5" title={notice || undefined}>
-      {notice || (lab.active&&operatorWaiting ? t.operatorInputHint : "")}
+      {lab.capabilities?.catalog_error?t.catalogError:notice || (lab.active&&operatorWaiting ? t.operatorInputHint : "")}
     </output>
     <div className="coop-body">
       {settings && <fieldset disabled={lab.active || lab.pending} className="coop-settings">
@@ -96,12 +109,20 @@ export default function CooperationLabPage() {
         </div>
         <div className="coop-settings-group">
           <h3>{t.setupRuntime}</h3>
-          <label className="coop-setting">{t.model}
-            <select className={field} value={chosen} onChange={event=>setForm({...form,model:event.target.value})}>
-              {chosen&&!models.some(model=>modelId(model)===chosen)&&<option value={chosen}>{chosen} — {t.notReady}</option>}
-              {models.map(model=><option value={modelId(model)} key={modelId(model)} disabled={!model.qualified}>{modelId(model)}{model.qualified?"":" — "+t.notReady}</option>)}
+          <label className="coop-setting">{t.engine}
+            <select className={field} value={selectedEngine} onChange={event=>{setEngineFilter({runId,engine:event.target.value});setForm({...form,model:modelId(models.find(m=>engineId(m)===event.target.value)??{})});}}>
+              {engines.map(engine=><option key={engine.engine_id} value={engine.engine_id}>{engine.name}</option>)}
             </select>
           </label>
+          <label className="coop-setting">{t.model}
+            <select className={field} value={chosen} onChange={event=>setForm({...form,model:event.target.value})}>
+              {missingSavedModel&&<option value={chosen}>{chosen} — {t.modelOffline}</option>}
+              {!engineModels.length&&!missingSavedModel&&<option value="">{t.modelOffline}</option>}
+              {engineModels.map(model=><option value={modelId(model)} key={modelId(model)}>{model.display_name??modelId(model)} — {modelState(model,t)}</option>)}
+            </select>
+          </label>
+          {selected&&<p className="coop-message-meta" role="status">{modelState(selected,t)}</p>}
+          {selected?.can_qualify&&<><button type="button" className={button} onClick={()=>{setSettings(true);void lab.qualify(chosen);}}>{t.qualify}</button><p className="coop-message-meta">{t.qualificationHint}</p></>}
           <label className="coop-setting">{t.communicationLanguage}
             <select className={field} value={communicationLanguage} onChange={event=>setForm({...form,communicationLanguage:event.target.value==="pl"?"pl":"en"})}>
               <option value="pl">{t.polish}</option><option value="en">{t.english}</option>
@@ -141,7 +162,7 @@ export default function CooperationLabPage() {
           </fieldset>
           {isGame && <GameBoard event={gameEvent} ended={!!lab.run && terminal(lab.run.status)} language={language} />}
           <section className="coop-panel coop-dialog" aria-label={t.dialog}>
-            <h2 className="mb-2 font-semibold">{t.dialog}</h2>
+            <h2 className="mb-2 font-semibold">{qualifying?t.qualification:t.dialog}</h2>
             {!messageEvents.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}
             <Conversation events={messageEvents} language={language} />
             {operatorChat ? <OperatorComposer key={runId ?? "draft"} runId={runId} active={lab.active} waiting={operatorWaiting&&lab.connection==="connected"} sending={lab.sending} relay={mode==="operator_relay"} review={isReview} language={language} onSend={lab.sendMessage} /> : <p className="coop-message-meta">{t.operatorSetup}</p>}

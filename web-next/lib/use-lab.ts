@@ -89,7 +89,7 @@ export function useLab() {
         const code = value.payload.code ?? value.payload.reason_code;
         setError(typeof code === "string" && /^[a-z0-9_]{1,80}$/.test(code) ? code : "experiment_failed");
       }
-      if (value.kind === "end") { stream?.close(); setConnection("connected"); }
+      if (value.kind === "end") { stream?.close(); setConnection("connected"); setRefreshIndex(v=>v+1); }
     };
     async function connect() {
       try {
@@ -136,12 +136,13 @@ export function useLab() {
     finally { busy.current = false; setPending(false); }
   }, []);
 
-  const start = useCallback((input: Record<string, Json>) => action(async () => {
+  const start = useCallback((input: Record<string, Json>, qualification=false) => action(async () => {
     const body = JSON.stringify(input);
-    if (idempotency.current?.body !== body) idempotency.current = { body, key: crypto.randomUUID() };
+    const identity=(qualification?"qualification:":"run:")+body;
+    if (idempotency.current?.body !== identity) idempotency.current = { body:identity, key: crypto.randomUUID() };
     setStarting(true);
     try {
-    const result = await request<{ run: Run }>("/runs", {
+    const result = await request<{ run: Run }>(qualification?"/qualifications":"/runs", {
       method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotency.current.key }, body,
     });
     idempotency.current = null;
@@ -204,7 +205,7 @@ export function useLab() {
   }), [action, runId]);
   return {
     capabilities, runs, run, events, connection, error, pending, starting, stopQueued, sending, sendMessage,
-    active: !!run && !terminal(run.status), start, stop, remove, exportRun, select,
+    active: !!run && !terminal(run.status), start, qualify: (model_id:string)=>start({model_id},true), stop, remove, exportRun, select,
     refresh: () => setRefreshIndex((v) => v + 1),
     reconnect: () => setRevision((v) => v + 1),
   };

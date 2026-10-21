@@ -346,3 +346,12 @@ Po tej zmianie pełne `make check HOST=/home/ubuntu/venom`: **253 Python PASS**,
 coverage **97,24%**, **15 frontend PASS**, coverage **96,02%**, Ruff/mypy/TS/lint
 i kontrakty hosta PASS. Dwie deprecjacje narzędzi pozostają ostrzeżeniami.
 To testy CPU fixture; nie powtarzano inferencji lub macierzy GPU.
+
+
+## Lokalny L6 — bez wydania GH
+
+Katalog Silnik → Model, jawne sprawdzenie Ollamy i testy opisano w
+[L6](prs/L6-shared-model-catalog-local.md). 314 Python/26 frontend PASS,
+97,54% pokrycia Python; realne dwie odpowiedzi Llamy 1B completed,
+cleanup/available/0/ps[] potwierdzone. To lokalny zakres na gałęzi rozwojowej,
+nie zmienia wyników historycznego wydania ani zamrożonego benchmarku v1.

@@ -283,3 +283,49 @@ async def test_operator_input_api_validation_delivery_idempotency_and_access(
     await asyncio.wait_for(runner.jobs[row["id"]].task, 2)
     replay = (await client.get(url.removesuffix("/messages") + "/events")).json()
     assert sum(e["kind"] == "message" for e in replay["events"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_catalog_qualification_api_and_denial(client, rig):
+    from test_catalog import install
+
+    runner, _ = rig
+    catalog, spec, adapters = install(runner)
+    caps = (await client.get("/api/v1/cooperation-lab/capabilities")).json()
+    assert len(caps["engines"]) == 3
+    assert next(m for m in caps["models"] if m["model_id"] == spec.model_id)[
+        "can_qualify"
+    ]
+    assert not adapters
+    path = "/api/v1/cooperation-lab/qualifications"
+    body = {"model_id": spec.model_id}
+    denied = await client.post(
+        path,
+        json=body,
+        headers={"Idempotency-Key": "cross", "Sec-Fetch-Site": "cross-site"},
+    )
+    assert denied.status_code == 403
+    invalid = await client.post(
+        path, json={**body, "endpoint": "remote"}, headers={"Idempotency-Key": "bad"}
+    )
+    assert invalid.status_code == 422
+    result = await client.post(
+        path, json=body, headers={"Idempotency-Key": "check-api"}
+    )
+    assert result.status_code == 202
+    run_id = result.json()["run"]["id"]
+    await runner.jobs[run_id].task
+    caps = (await client.get("/api/v1/cooperation-lab/capabilities")).json()
+    assert spec.model_id in caps["qualified_models"]
+    started = await client.post(
+        "/api/v1/cooperation-lab/runs",
+        json={**body, "scenario_id": "split_facts", "max_turns": 1},
+        headers={"Idempotency-Key": "after-check"},
+    )
+    assert started.status_code == 202
+    await runner.jobs[started.json()["run"]["id"]].task
+    runner.catalog_service = None
+    result = await client.post(
+        path, json=body, headers={"Idempotency-Key": "no-catalog"}
+    )
+    assert result.status_code == 409
