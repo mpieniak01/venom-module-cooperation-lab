@@ -104,6 +104,15 @@ or admission IO; C0 OFF retains storage-only not-ready behavior. SQLite busy
 wait is bounded, but synchronous filesystem work is not claimed to be a hard
 async timeout.
 
+Cleanup waits up to 10 seconds by default for the owned work/close phase. This
+bounded grace accommodates actual process close/join under host load; the former
+two-second grace could mark an otherwise successful run failed just before the
+owned worker exited. It does not renew the 360-second inference deadline or admit
+another turn after cancel/timeout. A phase exceeding the grace still fails closed
+and retains ownership until verified late cleanup. Tests can inject shorter
+cleanup timeouts; the production-grace regression advances asyncio's clock past
+2.16 seconds without delaying the suite or terminating the real owned thread.
+
 Cleanup retains exactly one `job.closing` task. A timeout preserves that real
 worker and C0 ownership; another cleanup attempt waits on the same task rather
 than spawning a second close. Once actual close/join confirms quiescence, the
