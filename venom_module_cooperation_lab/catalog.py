@@ -251,10 +251,16 @@ class ModelCatalog:
                     "engine_id": model["provider"],
                     **self._details.get(identifier, {}),
                     "qualified": model["qualified"] and available,
+                    "can_run": available
+                    and (model["provider"] == "ollama" or model["qualified"]),
                     "can_qualify": available
                     and model["provider"] == "ollama"
                     and not model["qualified"],
-                    "availability_reason": model["availability_reason"]
+                    "availability_reason": (
+                        "available_unchecked"
+                        if model["provider"] == "ollama" and not model["qualified"]
+                        else model["availability_reason"]
+                    )
                     if available
                     else "model_unavailable",
                 }

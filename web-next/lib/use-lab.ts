@@ -12,6 +12,8 @@ export function useLab() {
   const [connection, setConnection] = useState("connecting");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [refreshing,setRefreshing] = useState(false);
+  const selection = useRef<"initial"|"selected"|"draft">("initial");
   const [starting, setStarting] = useState(false);
   const [stopQueued, setStopQueued] = useState(false);
   const cancelQueued = useRef(false);
@@ -25,6 +27,7 @@ export function useLab() {
   const select = useCallback((value: Run | null) => {
     source.current?.close();
     source.current = null;
+    selection.current=value?"selected":"draft";
     setEvents([]);
     setRun(value);
     setError("");
@@ -37,6 +40,7 @@ export function useLab() {
 
   useEffect(() => {
     const abort = new AbortController();
+    setRefreshing(true);
     Promise.all([
       request<Capabilities>("/capabilities", { signal: abort.signal }),
       request<{ runs: Run[] }>("/runs?limit=100", { signal: abort.signal }),
@@ -53,12 +57,12 @@ export function useLab() {
         let saved: string | null = null;
         try { saved = localStorage.getItem("cooperation-lab.run"); } catch { /* Optional UI persistence. */ }
         return result.runs.find((r) => !terminal(r.status)) ??
-          result.runs.find((r) => r.id === saved) ?? null;
+          (selection.current==="initial"?result.runs.find((r) => r.id === saved):null) ?? null;
       });
       if (!source.current && !result.runs.some((r) => !terminal(r.status))) setConnection("connected");
     }).catch((reason: unknown) => {
       if (!abort.signal.aborted) { setError(failureCode(reason)); setConnection("disconnected"); }
-    });
+    }).finally(()=>{if(!abort.signal.aborted)setRefreshing(false);});
     return () => abort.abort();
   }, [refreshIndex]);
 
@@ -204,9 +208,9 @@ export function useLab() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }), [action, runId]);
   return {
-    capabilities, runs, run, events, connection, error, pending, starting, stopQueued, sending, sendMessage,
+    capabilities, runs, run, events, connection, error, pending, refreshing, starting, stopQueued, sending, sendMessage,
     active: !!run && !terminal(run.status), start, qualify: (model_id:string)=>start({model_id},true), stop, remove, exportRun, select,
-    refresh: () => setRefreshIndex((v) => v + 1),
+    refresh: () => {setRefreshIndex((v) => v + 1);setRevision(v=>v+1);},
     reconnect: () => setRevision((v) => v + 1),
   };
 }

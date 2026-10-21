@@ -30,3 +30,8 @@ kontekstów z resetem i cleanup, z trwałym receipt powiązanym z tożsamością
 szablonu i runtime. Nie zastępuje powyższego pełnego odbioru nowej architektury.
 Nieznane metryki RAM/VRAM i jakość pozostają niezmierzone. Pozostałe silniki
 są widoczne, lecz zablokowane do czasu dodania i odbioru ich adaptera.
+
+
+Poprawka odbiorowa L6: powyższe sprawdzenie Ollamy jest **opcjonalne**. Zwykły
+START nie wymaga receipt; model musi być lokalny, dostępny i obsługiwany przez
+adapter z weryfikacją tożsamości. Anulowana diagnostyka nie blokuje użycia modelu.

@@ -46,7 +46,7 @@ Cancel idempotentnie blokuje kolejną turę. Cancelling trwa do potwierdzenia rz
 ## Lokalny L6: katalog i techniczne sprawdzenie Ollamy
 
 `GET /capabilities` dodaje `engines`, `catalog_error`, a do modeli `engine_id`,
-`display_name`, `can_qualify` i konkretny `availability_reason`. Odczyt nie generuje,
+`display_name`, `can_run`, `can_qualify` i konkretny `availability_reason`. Odczyt nie generuje,
 nie pobiera, nie uruchamia auto-heal i nie aktywuje globalnego silnika.
 Nieobsługiwane silniki są widoczne z `adapter_not_supported`.
 
@@ -59,3 +59,12 @@ w niezależnych kontekstach i zwolnieniu zasobów. Błąd lub cancel nie nadaje 
 Nowy model musi pochodzić z aktualnego lokalnego katalogu completion/template.
 Tożsamość obejmuje digest wag, hash template i wersję runtime; adapter weryfikuje
 je ponownie przy wykonaniu. Zakres receipt to technika, nie jakość współpracy.
+
+
+Aktualizacja L6: `can_run` jest niezależne od `qualified`. Dostępny lokalny model
+Ollamy z completion/template może wejść bezpośrednio przez `POST /runs`;
+przypięcie digest/template/runtime oraz admission nadal obowiązują przy wykonaniu.
+Brak lub anulowanie opcjonalnego receipt nie blokuje zwykłego eksperymentu.
+RWKV zachowuje odbiór własnego komponentu. Silniki bez adaptera mają `can_run=false`.
+`generation`/`ready` odzwierciedlają dostępne adaptery, a `qualified_models` wyłącznie
+aktualne receipt. Nie raportujemy wszystkich dostępnych modeli jako sprawdzonych.

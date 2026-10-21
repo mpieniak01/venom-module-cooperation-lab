@@ -88,7 +88,9 @@ def state(request: Request) -> dict[str, Any]:
             "ready": False,
         }
     runner = getattr(request.app.state, "cooperation_lab_runner", None)
-    if runner and any(model["qualified"] for model in runner.models()):
+    if runner and any(
+        model.get("can_run", model["qualified"]) for model in runner.models()
+    ):
         return {
             "state": "ready",
             "reason_code": "qualified",

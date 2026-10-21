@@ -98,10 +98,11 @@ test("reloaded selected run replays persisted events; disconnect never cancels c
     assert.equal(findButton(box,"Zatrzymaj").disabled,false);
     assert.ok(calls.every((c)=>c.startsWith("GET ")));
     await act(async()=>findButton(box,"Odśwież").click());await settle();
+    assert.equal(Stream.instances.length,2);
+    await act(async()=>{const stream=Stream.instances[1];stream.onerror?.();stream.onerror?.();stream.onerror?.();});
     assert.match(box.textContent??"",/Połączenie przerwane/);
-    assert.equal(Stream.instances.length,1);
     await act(async()=>findButton(box,"Połącz ponownie").click());await settle();
-    assert.equal(Stream.instances.length,2);assert.equal(box.querySelectorAll("ol li").length,1);
+    assert.equal(Stream.instances.length,3);assert.equal(box.querySelectorAll("ol li").length,1);
   }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=oldFetch;localStorage.clear();}
 });
 

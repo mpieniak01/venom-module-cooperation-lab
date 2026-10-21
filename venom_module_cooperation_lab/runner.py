@@ -127,6 +127,19 @@ class LabRunner:
             return result
         raise LabError("model_not_allowed", 422)
 
+    def _runnable_model(self, model_id: str) -> dict[str, Any]:
+        try:
+            return self._qualified_model(model_id)
+        except LabError as exc:
+            if exc.code != "model_not_qualified" or self.catalog_service is None:
+                raise
+            spec = self.catalog_service.candidate(model_id)
+            return {
+                **asdict(spec),
+                "can_run": True,
+                "availability_reason": "available_unchecked",
+            }
+
     def models(self) -> list[dict[str, Any]]:
         result = []
         for spec in self.model_catalog():
@@ -134,6 +147,11 @@ class LabRunner:
                 result.append(self._qualified_model(spec.model_id))
             except LabError as exc:
                 result.append({**asdict(spec), "availability_reason": exc.code})
+        if self.catalog_service is not None:
+            for model in result:
+                model["can_run"] = self.catalog_service.available(
+                    model["model_id"]
+                ) and (model["provider"] == "ollama" or model["qualified"])
         return result
 
     async def start(
@@ -147,7 +165,7 @@ class LabRunner:
             config = (
                 self._qualification_config(request.model_id)
                 if qualification
-                else RunConfig.build(request, self._qualified_model(request.model_id))
+                else RunConfig.build(request, self._runnable_model(request.model_id))
             )
             run_id = uuid4().hex
             row = self.store.create_run(

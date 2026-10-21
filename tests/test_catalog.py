@@ -198,8 +198,13 @@ async def test_qualification_contexts_cleanup_receipt_and_idempotency(
     runner, _ = rig
     catalog, spec, adapters = install(runner)
     request = RunRequest(model_id=spec.model_id, scenario_id="split_facts")
-    with pytest.raises(LabError, match="model_not_qualified"):
-        await runner.start(request, "unqualified")
+    direct, _ = await runner.start(request, "direct-experiment")
+    await runner.jobs[direct["id"]].task
+    assert runner.snapshot(direct["id"])["run"]["status"] == "completed"
+    assert (
+        runner.store.get_document("qualifications", spec.model_id, owner=OWNER) is None
+    )
+    adapters.clear()
     row, _ = await runner.start(request, "qualify", qualification=True)
     duplicate, created = await runner.start(request, "qualify", qualification=True)
     assert duplicate["id"] == row["id"] and not created

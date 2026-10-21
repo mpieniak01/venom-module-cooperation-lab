@@ -329,3 +329,33 @@ async def test_catalog_qualification_api_and_denial(client, rig):
         path, json=body, headers={"Idempotency-Key": "no-catalog"}
     )
     assert result.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_installed_ollama_starts_directly_without_qualification_receipt(
+    client, rig
+):
+    from test_catalog import install
+
+    runner, _ = rig
+    _, spec, _ = install(runner)
+    caps = (await client.get("/api/v1/cooperation-lab/capabilities")).json()
+    model = next(m for m in caps["models"] if m["model_id"] == spec.model_id)
+    assert model["can_run"] and not model["qualified"]
+    assert caps["ready"]
+    for index in range(2):
+        result = await client.post(
+            "/api/v1/cooperation-lab/runs",
+            json={
+                "model_id": spec.model_id,
+                "scenario_id": "split_facts",
+                "max_turns": 1,
+            },
+            headers={"Idempotency-Key": "direct-api-" + str(index)},
+        )
+        assert result.status_code == 202
+        await runner.jobs[result.json()["run"]["id"]].task
+        assert runner.admission.snapshot()["status"] == "available"
+    assert (
+        runner.store.get_document("qualifications", spec.model_id, owner=OWNER) is None
+    )

@@ -1,9 +1,9 @@
 // Each key has one PL/EN/DE row; translation completeness is structural.
 const translations = {
   engine: ["Silnik", "Engine", "Laufzeit"],
-  qualify: ["Sprawdź model", "Check model", "Modell prüfen"],
+  qualify: ["Sprawdź model (opcjonalnie)", "Check model (optional)", "Modell prüfen (optional)"],
   qualification: ["Sprawdzenie techniczne modelu", "Technical model check", "Technische Modellprüfung"],
-  qualificationHint: ["2 krótkie odpowiedzi i zwolnienie zasobów; to nie ocena jakości.", "2 short replies and resource release; this is not a quality assessment.", "2 kurze Antworten und Ressourcenfreigabe; keine Qualitätsbewertung."],
+  qualificationHint: ["Opcjonalnie: 2 krótkie odpowiedzi. Nie jest wymagane do rozpoczęcia eksperymentu.", "Optional: 2 short replies. Not required to start an experiment.", "Optional: 2 kurze Antworten. Für den Start eines Experiments nicht erforderlich."],
   modelReady: ["Gotowy", "Ready", "Bereit"],
   modelPending: ["Wymaga sprawdzenia", "Needs checking", "Prüfung erforderlich"],
   modelUnsupported: ["Brak adaptera laboratorium", "No laboratory adapter", "Kein Laboradapter"],
@@ -78,6 +78,7 @@ const translations = {
   notReady: ["Niegotowe", "Not ready", "Nicht bereit"],
   disabled: ["Moduł wyłączony", "Module disabled", "Modul deaktiviert"],
   unavailable: ["Połączenie niedostępne", "Connection unavailable", "Verbindung nicht verfügbar"],
+  refreshing: ["Odświeżanie…", "Refreshing…", "Aktualisieren…"],
   refresh: ["Odśwież", "Refresh", "Aktualisieren"],
   limits: ["Limity zapisu", "Storage limits", "Speicherlimits"],
   runs: ["Próby", "Runs", "Versuche"],

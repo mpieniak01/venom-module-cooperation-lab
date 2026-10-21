@@ -53,14 +53,19 @@ export default function CooperationLabPage() {
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
   const validSettings = !!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
-  const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && m.qualified);
+  const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
-  const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error);
+  const lastFailure = lab.events.findLast(event=>event.kind==="error");
+  const persistedError=typeof lastFailure?.payload.code==="string"?lastFailure.payload.code:"";
+  const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error||persistedError);
+  const blocked = !validSettings?t.problemSettings:!canStart && selected ? modelState(selected,t) : "";
+  const resultScenario = lab.run?.config.scenario_id??scenario;
+  const resultMode = lab.run?.config.mode??mode;
   const organizations = lab.events.filter((event) => event.kind === "organization");
-  const isGame = !qualifying && scenario === "tic_tac_toe";
+  const isGame = !qualifying && resultScenario === "tic_tac_toe";
   const gameEvent = lab.events.findLast(event => event.kind === "game");
-  const isReview = mode === "operator_review";
-  const operatorChat = !qualifying && (mode === "operator_chat" || mode === "operator_relay" || isReview);
+  const isReview = resultMode === "operator_review";
+  const operatorChat = !qualifying && (resultMode === "operator_chat" || resultMode === "operator_relay" || isReview);
   const operatorEvent = lab.events.findLast(event=>event.kind==="operator"||event.kind==="message"&&event.payload.sender==="operator");
   const operatorWaiting = operatorEvent?.kind==="operator"&&operatorEvent.payload.waiting===true;
   const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued, operatorWaiting);
@@ -73,13 +78,17 @@ export default function CooperationLabPage() {
     <style>{workspaceStyles}</style>
     <header className="coop-header">
       <div><h1 id="cooperation-lab-title" className="text-xl font-semibold">{t.title}</h1><p className="text-xs text-slate-400">{t.description}</p></div>
-      <button type="button" className={button} onClick={lab.refresh} disabled={lab.pending}>{t.refresh}</button>
+      <button type="button" className={button} onClick={lab.refresh} disabled={lab.refreshing}>{lab.refreshing?t.refreshing:t.refresh}</button>
     </header>
     <fieldset className="coop-controls" aria-label={t.title}>
       <button type="button" className={button + " coop-start"} disabled={!canStart || lab.active || lab.pending} onClick={start}>{t.start}</button>
       <button type="button" className={button + " coop-stop"} disabled={!lab.active && !lab.starting} onClick={() => { void lab.stop(); }}>{t.stop}</button>
       <button type="button" className={button} aria-expanded={settings} onClick={() => setSettings((v) => !v)}>{t.settings}</button>
-      {!lab.active && lab.run && <button type="button" className={button} onClick={() => { setConfirmDelete(null); lab.select(null); }}>{t.newRun}</button>}
+      {!lab.active && lab.run && <button type="button" className={button} onClick={() => {
+        const next=models.find(m=>modelId(m)===chosen&&(m.can_run??m.qualified))??models.find(m=>m.can_run??m.qualified);
+        setForm({...form,model:next?modelId(next):chosen,runId:null});
+        setEngineFilter(null);setSettings(true);setConfirmDelete(null);lab.select(null);
+      }}>{t.newRun}</button>}
       <div className="coop-run-state" aria-live="polite">
         <span>{t.runStatus}: <strong>{computation}</strong></span>
         <span className="ml-3">{t.connection}: {statusLabel(t, lab.connection)}</span>
@@ -87,7 +96,7 @@ export default function CooperationLabPage() {
       {lab.connection === "disconnected" && lab.run && <button type="button" className={button} onClick={lab.reconnect}>{t.reconnect}</button>}
     </fieldset>
     <output aria-live="polite" className="coop-notice h-5" title={notice || undefined}>
-      {lab.capabilities?.catalog_error?t.catalogError:notice || (lab.active&&operatorWaiting ? t.operatorInputHint : "")}
+      {lab.capabilities?.catalog_error?t.catalogError:notice || (!lab.active?blocked:"") || (lab.active&&operatorWaiting ? t.operatorInputHint : "")}
     </output>
     <div className="coop-body">
       {settings && <fieldset disabled={lab.active || lab.pending} className="coop-settings">
@@ -101,7 +110,7 @@ export default function CooperationLabPage() {
           </label>
           <label className="coop-setting">{t.mode}
             <select className={field} value={mode} disabled={availableModes.length===1} onChange={event=>setForm(selectMode(form,event.target.value))}>
-              {availableModes.map(item=><option value={item} key={item}>{isGame?t.gameAlternating:modeLabel(t,item)}</option>)}
+              {availableModes.map(item=><option value={item} key={item}>{scenario==="tic_tac_toe"?t.gameAlternating:modeLabel(t,item)}</option>)}
             </select>
           </label>
           {availableModes.length===1&&<p className="coop-message-meta">{t.fixedWorkflow}</p>}
@@ -165,7 +174,7 @@ export default function CooperationLabPage() {
             <h2 className="mb-2 font-semibold">{qualifying?t.qualification:t.dialog}</h2>
             {!messageEvents.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}
             <Conversation events={messageEvents} language={language} />
-            {operatorChat ? <OperatorComposer key={runId ?? "draft"} runId={runId} active={lab.active} waiting={operatorWaiting&&lab.connection==="connected"} sending={lab.sending} relay={mode==="operator_relay"} review={isReview} language={language} onSend={lab.sendMessage} /> : <p className="coop-message-meta">{t.operatorSetup}</p>}
+            {operatorChat ? <OperatorComposer key={runId ?? "draft"} runId={runId} active={lab.active} waiting={operatorWaiting&&lab.connection==="connected"} sending={lab.sending} relay={resultMode==="operator_relay"} review={isReview} language={language} onSend={lab.sendMessage} /> : <p className="coop-message-meta">{t.operatorSetup}</p>}
           </section>
         </div>
         <aside className="coop-column">
