@@ -193,7 +193,21 @@ class LocalClient:
             # Cancels only this known run; no runtime/engine/global STOP calls.
             self._cancel_and_wait(run_id)
             raise
-        document = self.request("GET", "/runs/" + run_id + "/export")
+        report = self._confirmed_export(run_id, case)
+        if delete_after:
+            self.request("DELETE", "/runs/" + run_id)
+        return report
+
+    def _read_export(
+        self, run_id: str, case: dict[str, Any], timeout: float
+    ) -> dict[str, Any]:
+        document = self.request("GET", "/runs/" + run_id + "/export", timeout=timeout)
+        if (
+            not isinstance(document, dict)
+            or not isinstance(document.get("run"), dict)
+            or document["run"].get("id") != run_id
+        ):
+            raise LabError("invalid_run_export")
         config = document.get("run", {}).get("config", {})
         model = config.get("model", {})
         if (
@@ -208,12 +222,28 @@ class LocalClient:
             )
         ):
             raise LabError("experiment_identity_mismatch")
-        report = evaluate_export(document)
-        if report["quiescent"] is not True:
-            raise LabError("acceptance_quiescence_unconfirmed")
-        if delete_after:
-            self.request("DELETE", "/runs/" + run_id)
-        return report
+        return evaluate_export(document)
+
+    def _confirmed_export(self, run_id: str, case: dict[str, Any]) -> dict[str, Any]:
+        # A failed terminal record may precede its real close/join by a few
+        # seconds. Only fetch the same export; never retry generation or release.
+        deadline = self.clock() + 20
+        report = self._read_export(run_id, case, 5)
+        for _ in range(20):
+            if report["quiescent"] is True:
+                return report
+            if (
+                report["technical_status"] not in {"failed", "cancelled", "interrupted"}
+                or report["end_quiescent"] is not False
+                or self.clock() >= deadline
+            ):
+                break
+            self.sleep(min(1, deadline - self.clock()))
+            remaining = deadline - self.clock()
+            if remaining <= 0:
+                break
+            report = self._read_export(run_id, case, min(5, remaining))
+        raise LabError("acceptance_quiescence_unconfirmed")
 
 
 def save_private(directory: Path, name: str, document: Any) -> None:

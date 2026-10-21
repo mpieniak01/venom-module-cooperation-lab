@@ -93,3 +93,18 @@ TTFT/generation i ograniczoną whitelistę skalarnych effective_parameters.
 nieznane przyczyny pozostają `truncated=null` oraz są osobno zliczane. Przy limicie
 32 tokenów obcięcie Qwen/RWKV musi być widoczne w interpretacji jakości, zamiast
 zniknąć w sumie kosztów. Nie zmieniamy limitu po wyniku, aby uzyskać sukces.
+
+
+### Późne potwierdzenie cleanup
+
+`end failed/quiescent=false` pozostaje nieudanym wynikiem. Zwolnienie zasobu może
+zostać potwierdzone późniejszym ostatnim trwałym zdarzeniem `run` z tym samym
+run_id/status, `quiescent=true` i `cleanup_late=true`. Evaluator zachowuje
+pierwotne `end_quiescent=false`, technical_status failed oraz task unscorable;
+zapisuje osobno źródło/seq dowodu cleanup. Nie przekształca failed w completed.
+Agregaty oddzielnie liczą techniczne błędy i późne potwierdzenia zwolnienia.
+
+CLI może odczytywać ponownie **ten sam export** przez maksymalnie20s (do20
+odczytów), bez ponawiania generacji, zmiany statusu lub zwalniania lease.
+Trwała quarantine po tym limicie blokuje następną próbę/usuwanie i kończy batch
+jawnym acceptance_quiescence_unconfirmed; nie ma nieograniczonego polling loop.

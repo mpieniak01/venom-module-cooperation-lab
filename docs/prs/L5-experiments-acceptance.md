@@ -52,3 +52,10 @@ Dodatkowy przegląd P2: zgodność recipient/delivered_to i turn→usage→messa
 whitelist per-turn effective_parameters, stop_reason i truncation_count.
 Pełna lokalna regresja po poprawkach: 189 testów PASS, 96,98% coverage;
 Ruff/format/mypy (z CLI) PASS. Bez nowych prób GPU.
+
+
+Obsługa actual late cleanup: failed end pozostaje failed/unscorable; osobny
+zgodny trwały cleanup_late marker może potwierdzić wyłącznie zwolnienie zasobu.
+CLI odczytuje tylko ten sam run/export przez max20s/max20 odczytów, bez nowej
+generacji. Trwała quarantine blokuje batch/Delete. Regresja CPU oraz mypy/Ruff
+potwierdzone lokalnie, bez dalszej inferencji.

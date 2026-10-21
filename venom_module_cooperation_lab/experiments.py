@@ -517,6 +517,33 @@ def _partition(config: dict[str, Any], rubric: Rubric) -> bool | None:
     )
 
 
+def _quiescence_evidence(
+    run: dict[str, Any], events: list[dict[str, Any]]
+) -> tuple[bool | None, str, int | None, bool | None]:
+    ends = [event for event in events if event["kind"] == "end"]
+    if not ends:
+        return None, "unconfirmed", None, None
+    end = ends[-1]
+    value = end["payload"].get("quiescent")
+    original = value if type(value) is bool else None
+    if end["payload"].get("status") != run.get("status"):
+        return None, "unconfirmed", None, original
+    if original is True:
+        return True, "end", end["seq"], original
+    last = events[-1]
+    if (
+        original is False
+        and run.get("status") in {"failed", "cancelled", "interrupted"}
+        and last["seq"] > end["seq"]
+        and last["kind"] == "run"
+        and last["payload"].get("status") == run["status"]
+        and last["payload"].get("quiescent") is True
+        and last["payload"].get("cleanup_late") is True
+    ):
+        return True, "cleanup_late", last["seq"], original
+    return original, "unconfirmed", None, original
+
+
 def evaluate_export(document: Any) -> dict[str, Any]:
     run, events = _validated_export(document)
     config = run["config"]
@@ -554,11 +581,7 @@ def evaluate_export(document: Any) -> dict[str, Any]:
     turns_verified = _turn_evidence(events, messages)
     delivery = _deliveries(messages, events)
     ends = [event["payload"] for event in events if event["kind"] == "end"]
-    quiescent = (
-        ends[-1].get("quiescent")
-        if ends and type(ends[-1].get("quiescent")) is bool
-        else None
-    )
+    quiescent, proof_kind, proof_seq, end_quiescent = _quiescence_evidence(run, events)
     receipts = [
         event["payload"]["runtime_receipt"]
         for event in events
@@ -620,6 +643,9 @@ def evaluate_export(document: Any) -> dict[str, Any]:
         "run_id": run["id"],
         "technical_status": run.get("status"),
         "quiescent": quiescent,
+        "end_quiescent": end_quiescent,
+        "quiescence_evidence": proof_kind,
+        "quiescence_evidence_seq": proof_seq,
         "scenario_id": rubric.scenario_id,
         "scenario_version": rubric.version,
         "mode": config["mode"],
@@ -720,6 +746,12 @@ def _totals(records: list[Mapping[str, Any]]) -> dict[str, Any]:
         "unscorable": sum(record.get("task_success") is None for record in records),
         "communication_observed": sum(
             record.get("communication_observed") is True for record in records
+        ),
+        "technical_failed": sum(
+            record.get("technical_status") == "failed" for record in records
+        ),
+        "late_cleanup_confirmed": sum(
+            record.get("quiescence_evidence") == "cleanup_late" for record in records
         ),
         "truncation_count": sum(
             record["usage"]["truncation_count"] for record in records

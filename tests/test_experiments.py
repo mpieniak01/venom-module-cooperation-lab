@@ -480,3 +480,65 @@ def test_usage_preserves_bounded_stop_and_effective_parameters_and_truncation():
     document["run"]["last_seq"] = len(document["events"])
     with pytest.raises(LabError, match="invalid_experiment_usage"):
         evaluate_export(document)
+
+
+def late_cleanup_export():
+    document = exported(model_id="rwkv7-g1d-0.4b")
+    document["run"]["status"] = "failed"
+    document["events"][-1]["payload"].update(
+        status="failed", quiescent=False, reason_code="runtime_quiescence_unconfirmed"
+    )
+    last = document["events"][-1]
+    document["events"].append(
+        {
+            "run_id": document["run"]["id"],
+            "seq": last["seq"] + 1,
+            "timestamp": last["timestamp"] + 0.1,
+            "kind": "run",
+            "payload": {"status": "failed", "quiescent": True, "cleanup_late": True},
+        }
+    )
+    document["run"]["last_seq"] += 1
+    return document
+
+
+def test_late_cleanup_confirms_resource_exit_without_converting_failure_to_success():
+    result = evaluate_export(late_cleanup_export())
+    assert result["technical_status"] == "failed"
+    assert result["task_success"] is None
+    assert result["technical_completion_confirmed"] is False
+    assert result["end_quiescent"] is False
+    assert result["quiescent"] is True
+    assert result["quiescence_evidence"] == "cleanup_late"
+    assert result["quiescence_evidence_seq"] == late_cleanup_export()["run"]["last_seq"]
+    summary = aggregate([result])["by_model_mode"][0]
+    assert summary["technical_failed"] == 1
+    assert summary["late_cleanup_confirmed"] == 1
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("status", "completed"),
+        ("quiescent", False),
+        ("quiescent", "true"),
+        ("cleanup_late", False),
+        ("cleanup_late", "true"),
+    ],
+)
+def test_late_cleanup_requires_matching_status_and_exact_persisted_boolean_proof(
+    key, value
+):
+    document = late_cleanup_export()
+    document["events"][-1]["payload"][key] = value
+    result = evaluate_export(document)
+    assert result["quiescent"] is False
+    assert result["quiescence_evidence"] == "unconfirmed"
+    assert result["technical_status"] == "failed"
+    assert result["task_success"] is None
+
+
+def test_non_run_late_event_does_not_confirm_cleanup():
+    document = late_cleanup_export()
+    document["events"][-1]["kind"] = "organization"
+    assert evaluate_export(document)["quiescent"] is False

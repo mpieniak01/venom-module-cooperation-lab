@@ -117,3 +117,9 @@ Kod i testy CPU/HTTP-fixture: zaimplementowane lokalnie. Realna wspólna
 kwalifikacja C0+overlay, mały eksperyment GPU obu modeli, browser/reconnect/STOP,
 OFF/restore oraz końcowe skany i exact deployment SHA: **pending** do faktycznych
 receiptów koordynatora. Nie archiwizować zadania jako ukończonego przed odbiorem.
+
+
+Przy terminalnym failed z niepotwierdzonym cleanup CLI może przez maksymalnie20s
+ponownie pobrać ten sam export. Wyłącznie trwały późny marker `cleanup_late=true`
+ze zgodnym statusem/run_id potwierdza zwolnienie; failed pozostaje failed.
+Trwała quarantine kończy batch błędem, bez kolejnej generacji lub Delete.

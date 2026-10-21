@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from test_experiments import exported
+from test_experiments import exported, late_cleanup_export
 
 from venom_module_cooperation_lab.errors import LabError
 from venom_module_cooperation_lab.experiments import MODEL_IDS, MODES, build_plan
@@ -225,3 +225,62 @@ def test_failure_to_persist_started_id_cancels_only_created_run():
     with pytest.raises(OSError):
         client.execute_case(build_plan()[0], "owned", on_created=fail)
     assert client.cancelled
+
+
+class LateCleanupClient(FakeClient):
+    def __init__(self, ready_after):
+        super().__init__()
+        self.ready_after = ready_after
+        self.export_reads = 0
+
+    def request(self, method, path, payload=None, headers=None, timeout=5):
+        result = super().request(method, path, payload, headers, timeout)
+        if method == "GET" and path.endswith("/export"):
+            self.export_reads += 1
+            document = late_cleanup_export()
+            # Keep the exact CLI requested immutable seed/model identity.
+            document["run"]["config"] = exported(
+                model_id=self.case["model_id"], seed=self.case["seed"]
+            )["run"]["config"]
+            if self.ready_after is None or self.export_reads < self.ready_after:
+                document["events"].pop()
+                document["run"]["last_seq"] -= 1
+            return document
+        if method == "GET" and path == "/runs/run1":
+            return {"run": {"id": "run1", "status": "failed"}}
+        return result
+
+
+def test_cli_refetches_only_same_export_for_late_cleanup_and_keeps_failed_status():
+    client = LateCleanupClient(3)
+    result = client.execute_case(build_plan()[0], "owned")
+    assert client.export_reads == 3
+    assert client.timer.value == 2
+    assert result["quiescent"] is True
+    assert result["technical_status"] == "failed"
+    assert result["task_success"] is None
+    assert [call[1] for call in client.calls if call[0] == "POST"] == ["/runs"]
+
+
+def test_persistent_quarantine_stops_within_twenty_seconds_without_new_generation():
+    client = LateCleanupClient(None)
+    with pytest.raises(LabError, match="acceptance_quiescence_unconfirmed"):
+        client.execute_case(build_plan()[0], "owned", delete_after=True)
+    assert client.timer.value == 20
+    assert client.export_reads <= 20
+    assert [call[1] for call in client.calls if call[0] == "POST"] == ["/runs"]
+    assert not [call for call in client.calls if call[0] == "DELETE"]
+
+
+def test_refetch_never_accepts_another_runs_cleanup_evidence():
+    class WrongRun(LateCleanupClient):
+        def request(self, method, path, payload=None, headers=None, timeout=5):
+            result = super().request(method, path, payload, headers, timeout)
+            if method == "GET" and path.endswith("/export"):
+                result["run"]["id"] = "another-run"
+            return result
+
+    client = WrongRun(1)
+    with pytest.raises(LabError, match="invalid_run_export"):
+        client.execute_case(build_plan()[0], "owned")
+    assert client.export_reads == 1
