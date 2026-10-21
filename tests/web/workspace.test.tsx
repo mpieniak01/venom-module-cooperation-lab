@@ -152,3 +152,38 @@ test("readiness reasons and unknown errors share one fixed notice slot and prese
     await act(async () => root.unmount()); box.remove(); globalThis.fetch = oldFetch; localStorage.clear();
   }
 });
+
+
+test("selected Qwen history shows its actual immutable settings and module styles work without host Tailwind", async () => {
+  const oldFetch = globalThis.fetch;
+  localStorage.clear(); Stream.instances = [];
+  localStorage.setItem("cooperation-lab.run", "qwen-history");
+  const selected: Run = {id:"qwen-history", status:"running", created:1,last_seq:0,bytes:1,
+    config:{model:{model_id:"qwen3-4b-control"},scenario_id:"correction",mode:"no_contact",seed:17,budgets:{max_turns:4,max_new_tokens:32}}};
+  globalThis.fetch = async (url, init) => {
+    assert.ok(!init?.method || init.method === "GET");
+    const path = new URL(String(url),"http://localhost:3300").pathname;
+    if (path.endsWith("/capabilities")) return response(caps);
+    if (path.endsWith("/events")) return response({events:[]});
+    if (path.endsWith("/runs/qwen-history")) return response({run:selected});
+    return response({runs:[selected]});
+  };
+  const box = document.createElement("div"); document.body.append(box); const root = createRoot(box);
+  try {
+    await act(async () => root.render(<CooperationLabPage/>)); await settle();
+    const settings = box.querySelector("fieldset")!;
+    assert.equal(settings.disabled,true);
+    assert.deepEqual([...settings.querySelectorAll("select")].map((select) => select.value),["qwen3-4b-control","correction","no_contact"]);
+    assert.deepEqual([...settings.querySelectorAll("input")].map((input) => input.value),["4","32","17"]);
+    const view = box.querySelector<HTMLElement>(".coop-workspace")!;
+    const body = box.querySelector<HTMLElement>(".coop-body")!;
+    assert.equal(dom.window.getComputedStyle(view).display,"flex");
+    assert.equal(dom.window.getComputedStyle(view).overflow,"hidden");
+    assert.equal(dom.window.getComputedStyle(body).overflowY,"auto");
+    assert.equal(dom.window.getComputedStyle(findButton(box,"Rozpocznij eksperyment")).backgroundColor,"rgb(6, 95, 70)");
+    assert.equal(dom.window.getComputedStyle(findButton(box,"Zatrzymaj")).backgroundColor,"rgb(159, 18, 57)");
+    assert.equal(view.style.getPropertyValue("--coop-top"),"0px");
+  } finally {
+    await act(async () => root.unmount()); box.remove(); globalThis.fetch=oldFetch; localStorage.clear();
+  }
+});

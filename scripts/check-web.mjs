@@ -28,7 +28,7 @@ try {
   run(process.execPath, ["--import", join(host, "web-next/node_modules/tsx/dist/loader.mjs"),
     "--experimental-test-coverage", "--test-coverage-include=web-next/**",
     "--test-reporter=spec", "--test-reporter-destination=stdout",
-    "--test-reporter=lcov", "--test-reporter-destination=test-results/web-lcov.info", "--test", ...tests],
+    "--test-reporter=lcov", "--test-reporter-destination=test-results/lcov.info", "--test", ...tests],
     { TSX_TSCONFIG_PATH: tsconfig });
 } finally {
   if (linked) unlinkSync(modules);
