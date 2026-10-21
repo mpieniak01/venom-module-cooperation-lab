@@ -164,10 +164,12 @@ Skan rzeczywistej unii oraz decyzja dotycząca tych pięciu zgłoszeń muszą by
 jawne w odbiorze. Skan małego komponentu w CI nie zastępuje tego audytu Full.
 
 
-Stan skanu lokalnego po overlay: pojedynczy skan uruchomiono z rzeczywistym
-`PYTHONPATH` komponentu i jawnym manifestem unii. Po ponad trzech minutach brak
-raportu JSON lub błędu; własny proces został przerwany (exit 143), aby ograniczyć
-czas próby. **Wynik pending**, nie PASS i nie potwierdzenie usunięcia findings.
-Baseline przed overlay: 14 unikalnych ID (9 certifi/filelock + 5 Torch).
-Efektywne wersje po instalacji i integralność są potwierdzone osobnym CPU probe;
-ponowny skan Snyk/CI musi potwierdzić faktyczny remaining delta.
+Stan końcowego skanu lokalnego po overlay (koordynator, 2026-10-21):
+35 zależności, tylko pięć powyższych odziedziczonych ID Torch (1 High, 4 Medium).
+Żadne z dziewięciu nowych ID certifi/filelock nie występuje w wyniku. To nie jest
+0 vulnerabilities ani security PASS. Skan wykonano z rzeczywistym `PYTHONPATH`
+komponentu i jawnym manifestem unii. Prywatny raport: lokalny
+`docs_dev/_reports/cooperation-lab-implementation/L2/snyk-rwkv-overlay.json` hosta.
+Wcześniejszą własną próbę bez wyniku przerwano z exit143; nie zastępuje ona tego
+końcowego raportu. Formalny odbiór i decyzja dotycząca inherited Torch pozostają
+jawnie odrębnym warunkiem.
