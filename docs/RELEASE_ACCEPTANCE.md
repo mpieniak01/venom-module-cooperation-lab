@@ -355,3 +355,10 @@ Katalog Silnik → Model, jawne sprawdzenie Ollamy i testy opisano w
 97,54% pokrycia Python; realne dwie odpowiedzi Llamy 1B completed,
 cleanup/available/0/ps[] potwierdzone. To lokalny zakres na gałęzi rozwojowej,
 nie zmienia wyników historycznego wydania ani zamrożonego benchmarku v1.
+
+
+## Wydanie L6 do recenzji
+
+Wszystkie lokalne etapy zebrano na jednej gałęzi. Bieżące zachowanie, pełne
+dowody, ograniczenia i rollback opisuje [RELEASE_L6](RELEASE_L6.md). Starsze
+adnotacje „bez GH” dotyczą momentu odbioru danego lokalnego etapu.
