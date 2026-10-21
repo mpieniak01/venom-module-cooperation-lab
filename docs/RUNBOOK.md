@@ -10,8 +10,22 @@ Nie tworzyć następnej kopii Full/venv ani nie ładować dwóch engine LLM nara
 1. Sprawdzić czystość/HEAD hosta i osobnego repo modułu oraz PID/cwd istniejącego
    API/UI. Zapisać exact SHA core, modułu, adaptera i deployment w raporcie odbioru.
    Sam SHA checkoutu CLI nie potwierdza, co obsługuje uruchomiony proces.
-2. Zarejestrować `module.json` w istniejącym `API_OPTIONAL_MODULES`, bez kopiowania
-   cudzych plików .env. Manifest ma module_id `cooperation_lab`, ABI 1.0.0.
+2. Zainstalować sam pakiet modułu w **tym samym istniejącym interpreterze**, który
+   uruchamia API, bez doinstalowywania zależności/ML. Przykład kanonicznego hosta:
+
+   ```sh
+   /home/ubuntu/venom/.venv/bin/python -m pip install --no-deps --no-build-isolation -e /home/ubuntu/venom/modules/venom-module-cooperation-lab
+   /home/ubuntu/venom/.venv/bin/python -I -c "import venom_module_cooperation_lab.adapters.rwkv_worker"
+   ```
+
+   Editable jest wariantem developerskim; wydanie może instalować przypięty wheel
+   tego samego pakietu. Oba wymagają zgodnych istniejących zależności hosta.
+   Sam manifest lub import działający dzięki cwd/sys.path procesu API **nie
+   wystarcza**: multiprocessing spawn importuje target w nowym interpreterze.
+   Błąd ModuleNotFoundError przed worker_main kończy IPC/worker_protocol_error
+   bez inferencji; nie należy maskować go globalnym PYTHONPATH ani luzować C0.
+   Rejestrację `module.json` w istniejącym `API_OPTIONAL_MODULES` wykonać osobno,
+   bez kopiowania cudzych plików .env. Manifest: cooperation_lab, ABI 1.0.0.
 3. Administrator włącza `FEATURE_COOPERATION_LAB=true`,
    `NEXT_PUBLIC_FEATURE_COOPERATION_LAB=true` i `RUNTIME_ADMISSION_ENABLED=true`
    przed startem hosta, pojedynczy wspierany worker API. Nie obchodzić host policy.
