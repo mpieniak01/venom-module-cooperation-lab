@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useLanguage } from "@/lib/i18n";
-import { modeLabel, statusLabel, texts } from "./lib/i18n";
+import { diagnosticCode, modeLabel, reasonLabel, statusLabel, texts } from "./lib/i18n";
 import { modelId, type Json, type LabEvent } from "./lib/protocol";
 import { useLab } from "./lib/use-lab";
 
@@ -27,6 +27,9 @@ export default function CooperationLabPage() {
   const chosen = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
   const canStart = lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && m.qualified);
   const messageEvents = lab.events.filter((event) => event.kind === "message");
+  const reason = lab.error || (lab.capabilities && !lab.capabilities.ready ? lab.capabilities.reason_code ?? "request_failed" : undefined);
+  const noticeCode = diagnosticCode(reason);
+  const notice = reason ? reasonLabel(t, reason) : !lab.capabilities ? t.loading : "";
   const organizations = lab.events.filter((event) => event.kind === "organization");
   const usage = lab.events.filter((event) => event.kind === "usage").at(-1);
   const start = () => {
@@ -49,8 +52,8 @@ export default function CooperationLabPage() {
       </div>
       {lab.connection === "disconnected" && lab.run && <button type="button" className={button} onClick={lab.reconnect}>{t.reconnect}</button>}
     </div>
-    <div role="status" className="h-5 shrink-0 truncate text-xs text-amber-300" title={lab.error || undefined}>
-      {lab.error ? t.error + ": " + lab.error : !lab.capabilities ? t.loading : ""}
+    <div role="status" className="h-5 shrink-0 truncate text-xs text-amber-300" title={notice || undefined}>
+      {notice}
     </div>
     <div className="min-h-0 flex-1 overflow-y-auto">
       {settings && <fieldset disabled={lab.active || lab.pending} className="mb-3 grid grid-cols-2 gap-3 rounded-xl border border-white/10 p-3 lg:grid-cols-6">
@@ -124,6 +127,7 @@ export default function CooperationLabPage() {
           </section>
           <p className="text-xs text-slate-400">{t.shared}</p>
           <details className="rounded-xl border border-white/10 p-3"><summary className="cursor-pointer text-sm">{t.details}</summary>
+            {noticeCode && <p className="mt-2 text-xs">{t.diagnosticCode}: <code>{noticeCode}</code></p>}
             <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(lab.run?.config ?? {}, null, 2)}</pre>
           </details>
         </aside>

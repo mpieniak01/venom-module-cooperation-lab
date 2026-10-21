@@ -106,10 +106,49 @@ test("failed discovery and invalid server data remain visible without starting a
   const box=document.createElement("div");const root=createRoot(box);
   try{
     await act(async()=>root.render(<CooperationLabPage/>));await settle();
-    assert.match(box.textContent??"",/invalid_response/);
+    assert.equal(box.querySelector('[role="status"]')?.textContent?.trim(), "Otrzymano nieprawidłowe dane z laboratorium.");
+    assert.equal(box.querySelector("details code")?.textContent, "invalid_response");
     assert.equal(findButton(box,"Rozpocznij eksperyment").disabled,true);
     globalThis.fetch=async()=>{throw new Error("network");};
     await act(async()=>findButton(box,"Odśwież").click());await settle();
-    assert.match(box.textContent??"",/connection_unavailable/);
+    assert.equal(box.querySelector('[role="status"]')?.textContent?.trim(), "Brak połączenia z laboratorium.");
+    assert.equal(box.querySelector("details code")?.textContent, "connection_unavailable");
   }finally{await act(async()=>root.unmount());globalThis.fetch=oldFetch;}
+});
+
+
+test("readiness reasons and unknown errors share one fixed notice slot and preserve stable diagnostic codes", async () => {
+  const oldFetch = globalThis.fetch;
+  localStorage.clear();
+  let reason = "runtime_admission_disabled";
+  globalThis.fetch = async (url, init) => {
+    assert.ok(!init?.method || init.method === "GET");
+    return String(url).endsWith("/capabilities")
+      ? response({...caps, ready:false, state:"not_ready", reason_code:reason})
+      : response({runs:[]});
+  };
+  const box = document.createElement("div"); document.body.append(box);
+  const root = createRoot(box);
+  try {
+    await act(async () => root.render(<CooperationLabPage/>)); await settle();
+    const notice = box.querySelector('[role="status"]')!;
+    const controls = findButton(box, "Zatrzymaj").parentElement;
+    assert.match(notice.className, /h-5/);
+    assert.equal(notice.textContent?.trim(), "Współdzielona kontrola zasobów jest wyłączona.");
+    assert.equal(box.querySelector("details code")?.textContent, reason);
+    assert.equal(findButton(box, "Rozpocznij eksperyment").disabled, true);
+    for (const [next, translated] of [
+      ["module_disabled", "Laboratorium jest wyłączone."],
+      ["future_backend_code", "Nie udało się wykonać operacji."],
+    ]) {
+      reason = next;
+      await act(async () => findButton(box, "Odśwież").click()); await settle();
+      assert.equal(box.querySelector('[role="status"]'), notice);
+      assert.equal(notice.textContent?.trim(), translated);
+      assert.equal(box.querySelector("details code")?.textContent, next);
+      assert.equal(findButton(box, "Zatrzymaj").parentElement, controls);
+    }
+  } finally {
+    await act(async () => root.unmount()); box.remove(); globalThis.fetch = oldFetch; localStorage.clear();
+  }
 });
