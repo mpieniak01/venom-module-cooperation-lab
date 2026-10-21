@@ -36,6 +36,17 @@ export const workspaceStyles = `
 .coop-workspace .coop-messages { display:flex; flex-direction:column; gap:12px; list-style:none; margin:0; padding:0; }
 .coop-workspace .coop-message { min-width:0; border-radius:8px; background:#0f172a; padding:12px; }
 .coop-workspace .coop-message p { white-space:pre-wrap; overflow-wrap:anywhere; }
+.coop-workspace .coop-message { align-self:flex-start; max-width:94%; width:fit-content; border:1px solid #22d3ee44; border-left:3px solid #22d3ee; background:#082f493d; }
+.coop-workspace .coop-message[data-sender="B"] { align-self:flex-end; border:1px solid #a78bfa55; border-right:3px solid #a78bfa; background:#2e10653d; }
+.coop-workspace .coop-message-header { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; font-size:12px; color:#cbd5e1; }
+.coop-workspace .coop-message-route { font-size:14px; color:#67e8f9; }
+.coop-workspace .coop-message[data-sender="B"] .coop-message-route { color:#c4b5fd; }
+.coop-workspace .coop-message time { font-variant-numeric:tabular-nums; color:#94a3b8; font-size:11px; }
+.coop-workspace .coop-message .coop-message-content { margin:8px 0; font-size:14px; line-height:1.55; }
+.coop-workspace .coop-message-meta { margin:4px 0 0; color:#94a3b8; font-size:11px; }
+.coop-workspace .coop-reply { display:block; margin-top:6px; font-size:12px; color:#a5b4fc; overflow-wrap:anywhere; }
+.coop-workspace .coop-message:target { outline:2px solid #94a3b8; outline-offset:2px; }
+
 .coop-workspace .coop-panel pre { max-height:20rem; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
 .coop-workspace .coop-usage { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin-top:8px; font-size:12px; }
 @media (min-width:1024px) {
@@ -72,7 +83,7 @@ export function useWorkspaceViewport() {
   return ref;
 }
 
-export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number };
+export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en" };
 function record(value: Json | undefined): Record<string, Json> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -82,6 +93,8 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   if (typeof model === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(model)) result.model = model;
   if (typeof config.scenario_id === "string" && ["split_facts", "organization", "correction"].includes(config.scenario_id)) result.scenario = config.scenario_id;
   if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged"].includes(config.mode)) result.mode = config.mode;
+  if (config.communication_language === "pl" || config.communication_language === "en") result.communicationLanguage = config.communication_language;
+  else if (config.schema_version === 1 || Array.isArray(config.prompts)) result.communicationLanguage = "en";
   const budgets = record(config.budgets);
   const pairs = [["turns", budgets.max_turns, 1, 8], ["tokens", budgets.max_new_tokens, 1, 256], ["seed", config.seed, 0, 2147483647]] as const;
   for (const [name, value, minimum, maximum] of pairs) {

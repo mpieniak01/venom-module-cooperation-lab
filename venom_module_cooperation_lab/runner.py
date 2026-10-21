@@ -390,6 +390,15 @@ class LabRunner:
                 if job.config.mode == "self_correction"
                 else "Continue using only the information in your own context."
             )
+            if job.config.communication_language == "pl":
+                followup = (
+                    "Sprawdź swoją poprzednią odpowiedź."
+                    if job.config.mode == "self_correction"
+                    else (
+                        "Kontynuuj, korzystając wyłącznie z informacji "
+                        "we własnym kontekście."
+                    )
+                )
             history.append(ChatMessage("user", followup))
         return history
 
@@ -457,7 +466,11 @@ class LabRunner:
             job.histories[recipient].append(
                 ChatMessage(
                     "user",
-                    f"Message {message['message_id']} from {participant}: "
+                    (
+                        f"Wiadomość {message['message_id']} od {participant}: "
+                        if job.config.communication_language == "pl"
+                        else f"Message {message['message_id']} from {participant}: "
+                    )
                     + message["content"],
                 )
             )

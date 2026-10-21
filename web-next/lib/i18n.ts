@@ -47,6 +47,27 @@ const translations = {
   loading: ["Sprawdzanie gotowości", "Checking readiness", "Bereitschaft wird geprüft"],
   model: ["Model", "Model", "Modell"],
   scenario: ["Scenariusz", "Scenario", "Szenario"],
+  communicationLanguage: ["Język rozmowy modeli", "Model conversation language", "Gesprächssprache der Modelle"],
+  polish: ["Polski", "Polish", "Polnisch"],
+  english: ["Angielski", "English", "Englisch"],
+  scenarioSplitFacts: ["Rozdzielone informacje", "Split facts", "Verteilte Informationen"],
+  scenarioOrganization: ["Wspólne obliczenie", "Shared calculation", "Gemeinsame Berechnung"],
+  scenarioCorrection: ["Sprawdzenie i poprawa propozycji", "Correct a proposal", "Vorschlag überprüfen und korrigieren"],
+  kindMessage: ["Wiadomość", "Message", "Nachricht"],
+  kindProposal: ["Propozycja", "Proposal", "Vorschlag"],
+  kindAccept: ["Akceptacja", "Acceptance", "Zustimmung"],
+  kindAsk: ["Pytanie", "Question", "Frage"],
+  kindEvidence: ["Dane do uzasadnienia", "Evidence", "Beleg"],
+  kindComplete: ["Deklaracja zakończenia", "Completion claim", "Abschlussbehauptung"],
+  everyone: ["Wszyscy", "Everyone", "Alle"],
+  delivered: ["Przekazano do", "Delivered to", "Übermittelt an"],
+  notDelivered: ["Nie przekazano w tym wariancie", "Not forwarded in this condition", "In dieser Bedingung nicht weitergeleitet"],
+  deliveryUnknown: ["Brak potwierdzenia przekazania", "Delivery unconfirmed", "Übermittlung unbestätigt"],
+  recordedAt: ["Czas zapisu", "Recorded at", "Aufgezeichnet am"],
+  unknownTime: ["Czas nieznany", "Time unknown", "Zeit unbekannt"],
+  replyTo: ["Odpowiedź na", "Reply to", "Antwort auf"],
+  replyOutside: ["Odpowiedź na wcześniejszą wiadomość", "Reply to an earlier message", "Antwort auf eine frühere Nachricht"],
+
   mode: ["Wariant", "Condition", "Bedingung"],
   turns: ["Maks. tur", "Maximum turns", "Maximale Runden"],
   tokens: ["Tokenów na turę", "Tokens per turn", "Token pro Runde"],
@@ -208,4 +229,14 @@ export function diagnosticCode(code: unknown): string | undefined {
 export function reasonLabel(t: ReturnType<typeof texts>, code: unknown): string {
   const safe = diagnosticCode(code);
   return safe && Object.hasOwn(reasonKeys, safe) ? t[reasonKeys[safe]] : t.problemUnknown;
+}
+
+
+export function scenarioLabel(t: ReturnType<typeof texts>, id: string, fallback?: string) {
+  const labels: Record<string, string> = { split_facts:t.scenarioSplitFacts, organization:t.scenarioOrganization, correction:t.scenarioCorrection };
+  return Object.hasOwn(labels, id) ? labels[id] : fallback || id;
+}
+export function messageKindLabel(t: ReturnType<typeof texts>, kind: string) {
+  const labels: Record<string, string> = { message:t.kindMessage, proposal:t.kindProposal, accept:t.kindAccept, ask:t.kindAsk, evidence:t.kindEvidence, complete:t.kindComplete };
+  return Object.hasOwn(labels, kind) ? labels[kind] : t.unknown;
 }

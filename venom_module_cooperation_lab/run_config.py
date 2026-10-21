@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .scenarios import get_scenario
+from .scenarios import DialogueLanguage, get_dialogue_scenario, get_scenario
 
 Mode = Literal["single", "self_correction", "no_contact", "dialog", "dialog_encouraged"]
 MODES = ("single", "self_correction", "no_contact", "dialog", "dialog_encouraged")
@@ -21,6 +21,7 @@ class RunRequest(BaseModel):
         min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$"
     )
     scenario_id: str = Field(min_length=1, max_length=128)
+    communication_language: DialogueLanguage | None = None
     mode: Mode = "dialog_encouraged"
     seed: int = Field(default=0, ge=0, le=2**31 - 1)
     max_turns: int = Field(default=8, ge=1, le=8)
@@ -55,10 +56,16 @@ class RunConfig:
     schema_version: int = 1
     participant_count: int = 2
     scheduler: str = "alternating-v1"
+    communication_language: DialogueLanguage | None = None
 
     @classmethod
     def build(cls, request: RunRequest, model: dict[str, Any]) -> RunConfig:
-        scenario = get_scenario(request.scenario_id)
+        language = request.communication_language
+        scenario = (
+            get_scenario(request.scenario_id)
+            if language is None
+            else get_dialogue_scenario(request.scenario_id, language)
+        )
         instructions = (
             "You are participant {participant}. Work on the common goal. "
             "Only your own private information is given. "
@@ -67,12 +74,39 @@ class RunConfig:
             "recipient(A/B/all), content(string), in_reply_to(message id or null). "
             "Never include sender identity or tools."
         )
+        if language == "pl":
+            instructions = (
+                "Jesteś uczestnikiem {participant}. Pracuj nad wspólnym celem. "
+                "Otrzymujesz wyłącznie własne prywatne informacje. "
+                "Porozumiewaj się po polsku, również w kolejnych odpowiedziach. "
+                "Zwróć zwięzłą odpowiedź lub wiadomość do drugiego uczestnika. "
+                "Opcjonalny JSON: kind(message/proposal/accept/ask/evidence/complete), "
+                "recipient(A/B/all), content(tekst po polsku), "
+                "in_reply_to(identyfikator wiadomości albo null). "
+                "Zachowaj angielskie klucze i wartości protokołu JSON. "
+                "Nigdy nie dodawaj tożsamości nadawcy ani narzędzi."
+            )
+        elif language == "en":
+            instructions += (
+                " Communicate in English, including all subsequent replies. "
+                "Keep JSON protocol keys and enum values unchanged."
+            )
         encouragement = (
             " You may organize your work together: ask for missing information, "
             "propose a division of work, agree or revise your plan. "
             "No role is assigned."
             if request.mode == "dialog_encouraged"
             else ""
+        )
+        if language == "pl" and encouragement:
+            encouragement = (
+                " Możecie wspólnie organizować pracę: pytać o brakujące informacje, "
+                "proponować podział pracy, uzgadniać lub poprawiać plan. "
+                "Nie przypisano wam ról."
+            )
+        goal_label = "\nCel: " if language == "pl" else "\nGoal: "
+        private_label = (
+            "\nPrywatne informacje: " if language == "pl" else "\nPrivate information: "
         )
         prompts = []
         for participant, private in (
@@ -84,9 +118,9 @@ class RunConfig:
             prompts.append(
                 instructions.format(participant=participant)
                 + encouragement
-                + "\nGoal: "
+                + goal_label
                 + scenario.goal
-                + "\nPrivate information: "
+                + private_label
                 + private
             )
         return cls(
@@ -102,10 +136,15 @@ class RunConfig:
             seed=request.seed,
             temperature=request.temperature,
             top_p=request.top_p,
+            communication_language=language,
+            schema_version=1 if language is None else 2,
         )
 
     def public(self) -> dict[str, Any]:
         result = asdict(self)
+        if self.communication_language is None:
+            # Preserve exact legacy v1 serialization and hashes.
+            result.pop("communication_language")
         result["model"] = json.loads(result.pop("model_json"))
         result["prompts"] = list(self.prompts)
         canonical = json.dumps(result, sort_keys=True, ensure_ascii=False)

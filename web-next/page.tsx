@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
 import { useLanguage } from "@/lib/i18n";
-import { modeLabel, statusLabel, texts } from "./lib/i18n";
+import { messageKindLabel, modeLabel, scenarioLabel, statusLabel, texts } from "./lib/i18n";
 import { modelId, type Json, type LabEvent } from "./lib/protocol";
 import { useLab } from "./lib/use-lab";
 import { computationLabel, noticePresentation } from "./lib/presentation";
 import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSettings } from "./lib/workspace";
+
+import { Conversation } from "./lib/chat";
 
 const button = "coop-button";
 const field = "coop-field";
@@ -20,15 +22,15 @@ export default function CooperationLabPage() {
   const viewport = useWorkspaceViewport();
   const [settings, setSettings] = useState(true);
   const [form, setForm] = useState<SavedSettings & { runId: string | null }>({
-    model:"", scenario:"split_facts", mode:"dialog_encouraged", turns:8, tokens:128, seed:0, runId:null,
+    model:"", scenario:"split_facts", mode:"dialog_encouraged", turns:8, tokens:128, seed:0, communicationLanguage:language === "pl" ? "pl" : "en", runId:null,
   });
   const runId = lab.run?.id ?? null;
   // Adjust the draft when selection changes, before committing a render. An
   // effect would briefly display the previous run's model and require a second paint.
   if (form.runId !== runId) {
-    setForm({ ...form, ...(lab.run ? savedSettings(lab.run.config) : {}), runId });
+    setForm({ ...form, ...(lab.run ? { communicationLanguage:"en" as const, ...savedSettings(lab.run.config) } : {}), runId });
   }
-  const { model:selectedModel, scenario, mode, turns, tokens, seed } = form;
+  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage } = form;
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const models = lab.capabilities?.models ?? [];
   const chosen = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
@@ -39,7 +41,7 @@ export default function CooperationLabPage() {
   const organizations = lab.events.filter((event) => event.kind === "organization");
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
-    const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens };
+    const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
     setConfirmDelete(null); setSettings(false); void lab.start(input);
   };
   return <section aria-labelledby="cooperation-lab-title" className="coop-workspace" ref={viewport}>
@@ -73,12 +75,17 @@ export default function CooperationLabPage() {
         </label>
         <label className="coop-setting coop-setting-wide">{t.scenario}
           <select className={field} value={scenario} onChange={(event) => setForm({...form, scenario:event.target.value})}>
-            {(lab.capabilities?.scenarios ?? []).map((item) => <option value={item.scenario_id} key={item.scenario_id}>{item.title ?? item.scenario_id}</option>)}
+            {(lab.capabilities?.scenarios ?? []).map((item) => <option value={item.scenario_id} key={item.scenario_id}>{scenarioLabel(t, item.scenario_id, item.title)}</option>)}
           </select>
         </label>
         <label className="coop-setting coop-setting-wide">{t.mode}
           <select className={field} value={mode} onChange={(event) => setForm({...form, mode:event.target.value})}>
             {(lab.capabilities?.modes ?? []).map((item) => <option value={item} key={item}>{modeLabel(t, item)}</option>)}
+          </select>
+        </label>
+        <label className="coop-setting coop-setting-wide">{t.communicationLanguage}
+          <select className={field} value={communicationLanguage} onChange={(event) => setForm({...form, communicationLanguage:event.target.value === "pl" ? "pl" : "en"})}>
+            <option value="pl">{t.polish}</option><option value="en">{t.english}</option>
           </select>
         </label>
         <label className="coop-setting">{t.turns}<input className={field} type="number" min={1} max={8} value={turns} onChange={(event) => setForm({...form, turns:Number(event.target.value)})} /></label>
@@ -103,21 +110,14 @@ export default function CooperationLabPage() {
               const last = messageEvents.findLast((event) => value(event, "sender") === participant);
               return <div key={participant} className="coop-panel">
                 <strong className="text-lg">{participant}</strong><span className="ml-2 text-xs text-slate-400">{t.local}</span>
-                <p className="mt-1 truncate text-xs">{last ? value(last, "kind") : t.waiting}</p>
+                <p className="mt-1 truncate text-xs">{last ? messageKindLabel(t, value(last, "kind")) : t.waiting}</p>
               </div>;
             })}
           </fieldset>
           <section className="coop-panel" aria-label={t.dialog}>
             <h2 className="mb-2 font-semibold">{t.dialog}</h2>
             {!messageEvents.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}
-            <ol className="coop-messages">
-              {messageEvents.map((event) => <li key={event.seq} className="coop-message">
-                <div className="mb-1 text-xs text-slate-400">#{event.seq} · {value(event, "sender")} → {value(event, "recipient")} · {value(event, "kind")}</div>
-                <p className="whitespace-pre-wrap break-words text-sm">{value(event, "content")}</p>
-                {value(event, "in_reply_to") && <p className="mt-1 break-all text-xs text-slate-500">↳ {value(event, "in_reply_to")}</p>}
-                {value(event, "kind") === "complete" && <p className="mt-1 text-xs text-amber-300">{t.claimedComplete}</p>}
-              </li>)}
-            </ol>
+            <Conversation events={messageEvents} language={language} />
           </section>
         </div>
         <aside className="coop-column">
