@@ -73,3 +73,29 @@ test("STOP during an unacknowledged start queues cancellation of the returned ID
   assert.deepEqual(cancelled,["/api/v1/cooperation-lab/runs/pending/cancel"]);
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });
+
+test("a terminal journal event newer than the run snapshot completes catch-up without opening SSE", async () => {
+ const old = globalThis.fetch;
+ localStorage.clear(); Source.all = [];
+ localStorage.setItem("cooperation-lab.run", "finished");
+ const snapshot = run("finished", "running");
+ const end: LabEvent = {run_id:"finished",seq:2,kind:"end",payload:{status:"completed"},timestamp:2};
+ globalThis.fetch = async (url, init) => {
+  assert.ok(!init?.method || init.method === "GET");
+  const path = new URL(String(url), "http://localhost").pathname;
+  if (path.endsWith("/capabilities")) return response(caps);
+  if (path.endsWith("/events")) return response({events:[end],last_seq:2});
+  if (path.endsWith("/runs/finished")) return response({run:snapshot});
+  return response({runs:[snapshot]});
+ };
+ const box = document.createElement("div"); document.body.append(box);
+ const root = createRoot(box);
+ try {
+  await act(async () => root.render(<CooperationLabPage/>)); await flush();
+  assert.equal(Source.all.length, 0);
+  assert.equal(button(box,"Zatrzymaj").disabled, true);
+  assert.equal(button(box,"Rozpocznij eksperyment").disabled, false);
+ } finally {
+  await act(async () => root.unmount()); box.remove(); globalThis.fetch = old; localStorage.clear();
+ }
+});

@@ -94,7 +94,6 @@ export function useLab() {
       try {
         const snapshot = await request<{ run: Run }>("/runs/" + encodeURIComponent(runId!), { signal: abort.signal });
         if (!live) return;
-        setRun(snapshot.run);
         let all: LabEvent[] = [];
         for (let page = 0; page < 4; page += 1) {
           const result = await request<{ events: LabEvent[]; resync?: boolean }>(
@@ -107,7 +106,10 @@ export function useLab() {
           if (result.events.length < 100) break;
         }
         setEvents(all);
-        if (terminal(snapshot.run.status) || all.some((e) => e.kind === "end")) {
+        const latest = all.filter((event) => (event.kind === "run" || event.kind === "end") && typeof event.payload.status === "string").at(-1);
+        const replayed = { ...snapshot.run, status: latest ? String(latest.payload.status) : snapshot.run.status, last_seq: Math.max(snapshot.run.last_seq, cursor) };
+        setRun((before) => before?.id === runId && replayed.last_seq >= before.last_seq && !(terminal(before.status) && !terminal(replayed.status)) ? replayed : before);
+        if (terminal(replayed.status) || all.some((e) => e.kind === "end")) {
           setConnection("connected"); return;
         }
         if (typeof EventSource === "undefined") {
@@ -176,8 +178,11 @@ export function useLab() {
   const remove = useCallback(() => action(async () => {
     if (!runId) return;
     await request<void>("/runs/" + encodeURIComponent(runId), { method: "DELETE" });
-    setRuns((before) => before.filter((r) => r.id !== runId)); select(null);
-  }), [action, runId, select]);
+    setRuns((before) => before.filter((r) => r.id !== runId));
+    setRun((before) => before?.id === runId ? null : before);
+    setEvents((before) => before.filter((event) => event.run_id !== runId));
+    try { if (localStorage.getItem("cooperation-lab.run") === runId) localStorage.removeItem("cooperation-lab.run"); } catch { /* Optional UI persistence. */ }
+  }), [action, runId]);
   const exportRun = useCallback(() => action(async () => {
     if (!runId) return;
     const data = await request<Json>("/runs/" + encodeURIComponent(runId) + "/export");

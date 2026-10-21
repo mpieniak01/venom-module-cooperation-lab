@@ -76,7 +76,7 @@ export default function CooperationLabPage() {
       </fieldset>}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <label className="flex min-w-0 items-center gap-2 text-xs">{t.history}
-          <select className={field + " max-w-72"} disabled={lab.active || lab.starting} value={lab.run?.id ?? ""} onChange={(event) => { const found = lab.runs.find((r) => r.id === event.target.value); if (found) { setConfirmDelete(null); lab.select(found); } }}>
+          <select className={field + " max-w-72"} disabled={lab.active || lab.starting || lab.pending} value={lab.run?.id ?? ""} onChange={(event) => { const found = lab.runs.find((r) => r.id === event.target.value); if (found) { setConfirmDelete(null); lab.select(found); } }}>
             <option value="">{t.select}</option>
             {lab.runs.map((r) => <option key={r.id} value={r.id}>{new Date(r.created * 1000).toLocaleString(language)} · {statusLabel(t, r.id === lab.run?.id ? lab.run.status : r.status)}</option>)}
           </select>
