@@ -1,6 +1,6 @@
 # Odbiór MVP
 
-Przyszłe kryteria implementacji, nie dzisiejsze testy.
+Kryteria odbioru zaimplementowanej lokalnie bazy. Pola pozostają nieodhaczone do rzeczywistych receiptów koordynatora, dokładnych SHA i wyników właściwych bramek. Testy fixture nie zastępują GPU/browser/OFF acceptance. Narzędzia: [EXPERIMENTS](EXPERIMENTS.md), [RUNBOOK](RUNBOOK.md).
 
 ## Integracja
 

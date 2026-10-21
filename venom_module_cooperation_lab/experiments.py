@@ -6,6 +6,7 @@ or treats proposal/accept as proof of executed work or learning.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -112,7 +113,7 @@ def _integer(value: Any) -> bool:
 
 
 def _finite(value: Any) -> bool:
-    return type(value) in (int, float) and math.isfinite(value) and value >= 0
+    return type(value) in (int, float) and 0 <= value <= 10**15 and math.isfinite(value)
 
 
 def _answer(content: str, rubric: Rubric) -> tuple[str | None, str]:
@@ -135,6 +136,10 @@ def _answer(content: str, rubric: Rubric) -> tuple[str | None, str]:
     if len(finals) > 1:
         return None, "ambiguous_format"
     if finals:
+        if not re.fullmatch(
+            r"(?i)final(?: answer)?\s*:\s*[^\n]+", value.splitlines()[-1]
+        ):
+            return None, "ambiguous_format"
         value = finals[0].strip()
     if rubric.scenario_id == "split_facts":
         match = re.fullmatch(
@@ -168,6 +173,18 @@ def _validated_export(document: Any) -> tuple[dict[str, Any], list[dict[str, Any
     ):
         raise LabError("invalid_experiment_export", 422)
     run = document["run"]
+    if not isinstance(run.get("status"), str) or run["status"] not in (
+        "created",
+        "queued",
+        "preparing",
+        "running",
+        "cancelling",
+        "completed",
+        "failed",
+        "cancelled",
+        "interrupted",
+    ):
+        raise LabError("invalid_experiment_status", 422)
     if (
         not isinstance(run.get("id"), str)
         or not _IDENTIFIER.fullmatch(run["id"])
@@ -233,9 +250,9 @@ def _messages(
             or (mode in {"single", "self_correction", "no_contact"} and delivered)
         ):
             raise LabError("invalid_experiment_delivery", 422)
-        if (
-            message.get("in_reply_to") is not None
-            and message["in_reply_to"] not in seen
+        if message.get("in_reply_to") is not None and (
+            not isinstance(message["in_reply_to"], str)
+            or message["in_reply_to"] not in seen
         ):
             raise LabError("invalid_experiment_reply", 422)
         seen.add(message["message_id"])
@@ -415,6 +432,8 @@ def evaluate_export(document: Any) -> dict[str, Any]:
     model = config.get("model") if isinstance(config.get("model"), dict) else {}
     clean_model = {
         key: model.get(key)
+        if isinstance(model.get(key), str) and len(model[key]) <= 256
+        else None
         for key in (
             "model_id",
             "digest",
@@ -425,9 +444,30 @@ def evaluate_export(document: Any) -> dict[str, Any]:
             "tokenizer_hash",
         )
     }
+    config_hash = config.get("config_hash")
+    hash_valid = False
+    if isinstance(config_hash, str) and re.fullmatch(r"[a-f0-9]{64}", config_hash):
+        canonical = {
+            key: value for key, value in config.items() if key != "config_hash"
+        }
+        try:
+            hash_valid = (
+                hashlib.sha256(
+                    json.dumps(
+                        canonical, sort_keys=True, ensure_ascii=False, allow_nan=False
+                    ).encode()
+                ).hexdigest()
+                == config_hash
+            )
+        except (ValueError, TypeError, RecursionError):
+            pass
     partition = _partition(config, rubric)
+    terminal_match = bool(ends and ends[-1].get("status") == run.get("status"))
     verified = (
-        partition is True
+        terminal_match
+        and quiescent is True
+        and partition is True
+        and hash_valid
         and config.get("scenario_goal") == rubric.goal
         and run.get("status") == "completed"
     )
@@ -448,8 +488,25 @@ def evaluate_export(document: Any) -> dict[str, Any]:
         "mode": config["mode"],
         "seed": config.get("seed"),
         "model": clean_model,
-        "config_hash": config.get("config_hash"),
-        "budgets": config.get("budgets"),
+        "config_hash": config_hash if hash_valid else None,
+        "config_hash_valid": hash_valid,
+        "budgets": {
+            key: value
+            for key, value in config.get("budgets", {}).items()
+            if key
+            in {
+                "max_turns",
+                "max_new_tokens",
+                "max_context_tokens",
+                "total_input_tokens",
+                "total_output_tokens",
+                "processing_steps",
+                "wall_seconds",
+            }
+            and _integer(value)
+        }
+        if isinstance(config.get("budgets"), dict)
+        else {},
         "information": "privileged_full_information"
         if config["mode"] in {"single", "self_correction"}
         else "partitioned",
@@ -459,9 +516,12 @@ def evaluate_export(document: Any) -> dict[str, Any]:
         else (
             "run_not_completed"
             if run.get("status") != "completed"
+            else "terminal_evidence_unconfirmed"
+            if not terminal_match or quiescent is not True
             else "input_partition_unverified"
         ),
         "technical_completion_confirmed": run.get("status") == "completed"
+        and terminal_match
         and quiescent is True,
         "final_answer": candidate,
         "task_outcome": outcome if success is not None else "unscorable",
@@ -488,6 +548,10 @@ def evaluate_export(document: Any) -> dict[str, Any]:
         "usage": _usage(events),
         "runtime": {
             key: receipt.get(key)
+            if (isinstance(receipt.get(key), str) and len(receipt[key]) <= 256)
+            or type(receipt.get(key)) is bool
+            or _finite(receipt.get(key))
+            else None
             for key in (
                 "load_s",
                 "device",
@@ -496,6 +560,8 @@ def evaluate_export(document: Any) -> dict[str, Any]:
                 "runtime",
                 "runtime_version",
                 "torch_version",
+                "certifi_version",
+                "filelock_version",
                 "quantization",
                 "weights_loaded",
             )
@@ -505,28 +571,59 @@ def evaluate_export(document: Any) -> dict[str, Any]:
     }
 
 
+def _totals(records: list[Mapping[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "runs": len(records),
+        "correct": sum(record.get("task_success") is True for record in records),
+        "incorrect": sum(record.get("task_success") is False for record in records),
+        "unscorable": sum(record.get("task_success") is None for record in records),
+        "communication_observed": sum(
+            record.get("communication_observed") is True for record in records
+        ),
+    }
+    for name in (
+        "input_tokens",
+        "output_tokens",
+        "generation_s",
+        "charged_input_tokens",
+        "charged_output_tokens",
+    ):
+        values = [record["usage"][name] for record in records]
+        result[name] = (
+            sum(values) if all(value is not None for value in values) else None
+        )
+    return result
+
+
 def aggregate(results: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     records = list(results)
     if len(records) > 30:
         raise LabError("experiment_matrix_too_large", 422)
-    modes: dict[str, Any] = {}
-    for mode in MODES:
-        subset = [record for record in records if record.get("mode") == mode]
-        modes[mode] = {
-            "runs": len(subset),
-            "correct": sum(record.get("task_success") is True for record in subset),
-            "incorrect": sum(record.get("task_success") is False for record in subset),
-            "unscorable": sum(record.get("task_success") is None for record in subset),
-            "communication_observed": sum(
-                record.get("communication_observed") is True for record in subset
-            ),
-            "charged_input_tokens": sum(
-                record["usage"]["charged_input_tokens"] for record in subset
-            ),
-            "charged_output_tokens": sum(
-                record["usage"]["charged_output_tokens"] for record in subset
+    modes = {
+        mode: _totals([record for record in records if record.get("mode") == mode])
+        for mode in MODES
+    }
+    groups = [
+        {
+            "model_id": model,
+            "mode": mode,
+            **_totals(
+                [
+                    record
+                    for record in records
+                    if record.get("model", {}).get("model_id") == model
+                    and record.get("mode") == mode
+                ]
             ),
         }
+        for model in MODEL_IDS
+        for mode in MODES
+        if any(
+            record.get("model", {}).get("model_id") == model
+            and record.get("mode") == mode
+            for record in records
+        )
+    ]
     configurations = {
         (
             record.get("model", {}).get("model_id"),
@@ -543,6 +640,7 @@ def aggregate(results: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "rubric_version": RUBRIC_VERSION,
         "runs": len(records),
         "by_mode": modes,
+        "by_model_mode": groups,
         "comparison_groups": len(configurations),
         "quality_gain_claim": False,
         "limitations": [

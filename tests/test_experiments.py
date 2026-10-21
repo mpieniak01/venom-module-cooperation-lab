@@ -18,16 +18,23 @@ from venom_module_cooperation_lab.run_config import RunConfig, RunRequest
 from venom_module_cooperation_lab.runner import OWNER
 
 
-def exported(scenario="split_facts", mode="dialog_encouraged", answers=("R", "RK")):
+def exported(
+    scenario="split_facts",
+    mode="dialog_encouraged",
+    answers=("R", "RK"),
+    model_id=SPEC.model_id,
+    seed=0,
+):
     config = RunConfig.build(
         RunRequest(
-            model_id=SPEC.model_id,
+            model_id=model_id,
             scenario_id=scenario,
             mode=mode,
+            seed=seed,
             max_turns=4,
             max_new_tokens=32,
         ),
-        asdict(SPEC),
+        {**asdict(SPEC), "model_id": model_id},
     ).public()
     events = []
 
@@ -329,3 +336,36 @@ async def test_real_runner_export_contract_without_real_inference(rig):
     )
     assert report["task_success"] and report["communication_observed"]
     assert report["quiescent"] is True
+
+
+@pytest.mark.parametrize("value", [[], {}, 123])
+def test_unhashable_reply_is_rejected(value):
+    document = exported()
+    message = next(event for event in document["events"] if event["kind"] == "message")
+    message["payload"]["in_reply_to"] = value
+    with pytest.raises(LabError, match="invalid_experiment_reply"):
+        evaluate_export(document)
+
+
+def test_nonterminal_final_marker_and_unconfirmed_end_are_unscorable():
+    document = exported(answers=("R", "Final: RK\nActually uncertain"))
+    assert evaluate_export(document)["task_success"] is None
+    document = exported()
+    document["events"][-1]["payload"]["status"] = "failed"
+    report = evaluate_export(document)
+    assert report["task_success"] is None
+    assert report["technical_completion_confirmed"] is False
+    document = exported()
+    document["events"][0]["timestamp"] = 10**1000
+    with pytest.raises(LabError, match="invalid_experiment_event"):
+        evaluate_export(document)
+
+
+def test_aggregate_preserves_unknown_actual_usage_per_model():
+    report = evaluate_export(exported(model_id="rwkv7-g1d-0.4b"))
+    report["usage"]["input_tokens"] = None
+    result = aggregate([report])
+    row = result["by_model_mode"][0]
+    assert row["model_id"] == "rwkv7-g1d-0.4b"
+    assert row["input_tokens"] is None
+    assert row["charged_input_tokens"] == 40

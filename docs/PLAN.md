@@ -1,6 +1,6 @@
 # Plan: laboratorium współpracy modeli
 
-Status: PLAN DO REALIZACJI, 2026-10-21. Repo utworzone za zgodą właściciela. Ten PR zawiera dokumentację, nie działający moduł ani wyniki inferencji.
+Status: IMPLEMENTACJA L1–L5, 2026-10-21. Repo utworzone za zgodą właściciela. Baza, adaptery, runner i eksperymenty są lokalnie zaimplementowane; wspólny realny odbiór/kwalifikacja, właściwe CI/review i publikacja pozostają pending do dowodów. Wstępna feasibility L2 nie zamyka całego celu.
 
 ## Cel odbioru
 
@@ -39,6 +39,6 @@ Laboratorium nie podmienia globalnego modelu chatu. Zajętość runtime jest jaw
 
 ## Realizacja i wydania
 
-Każdy PR od świeżego main swojego repo. Lokalne testy i przegląd przed publikacją; potem review/CI i merge według zależności. Bez wielopiętrowych gałęzi o niejasnej bazie. Możliwy podział prac na C0 oraz L1; L3/UI można przygotowywać równolegle po zamrożeniu API. Kwalifikacja GPU tylko jednego modelu naraz. Ten plan nie uruchamia implementacji/workerów.
+Każdy PR od świeżego main swojego repo. Lokalne testy i przegląd przed publikacją; potem review/CI i merge według zależności. Bez wielopiętrowych gałęzi o niejasnej bazie. Możliwy podział prac na C0 oraz L1; L3/UI można przygotowywać równolegle po zamrożeniu API. Kwalifikacja GPU tylko jednego modelu naraz. Realizacja została osobno autoryzowana przez właściciela; ten dokument sam nie uruchamia modeli.
 
 L1 pokazuje prawdziwe not_ready; L4 daje interaktywny flow. Dopiero L5 kończy MVP na rzeczywistym hoście i nowym modelu. Wersje core/module/adapter oraz dane kwalifikacji są przypięte. Moduł OFF nie rezerwuje zasobów ani nie generuje pollingu; brak modułu nie blokuje core. Restart przerywa run bez auto-resume. Wyłączenie/anulowanie zwalnia wyłącznie własny zasób po potwierdzeniu końca obliczeń. Dane zostają do świadomego eksportu/usunięcia. Rollback przez zgodne tagi i OFF, bez zmian pinów aplikacji.

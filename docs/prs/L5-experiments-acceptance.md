@@ -1,6 +1,6 @@
 # L5 — samoorganizacja i pełny odbiór MVP
 
-Status: PLAN, nie istniejący numer PR. Repo: venom-module-cooperation-lab. Zależności: L1–L4 i C0.
+Status: IMPLEMENTACJA LOKALNA; realny odbiór i właściwy numer PR pending. Repo: venom-module-cooperation-lab. Zależności: L1–L4 i C0.
 
 ## Problem i wynik
 
@@ -26,3 +26,24 @@ Poza zakresem: trening wag, kolejne modele/uczestnicy, płatne zasoby, automatyc
 - [ ] Review i wymagane bramki zakończone; dokumentacja i rollback.
 
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
+
+
+## Implementacja i granice dowodów
+
+Gotowe: wersjonowana niezależna rubryka, mały plan 2 prób / opcjonalna macierz30,
+pięć trybów, publiczne syntetyczne metadata, ocena exportu z seq/hash/quiescence,
+metryki actual/charged/load/TTFT/device i deklaracje oddzielone od dowodów.
+CLI domyślnie tylko planuje, wykonuje pracę przez istniejące lokalne API dopiero
+po `--execute` i qualified preflight; stały endpoint, bez proxy/redirectów,
+idempotentne retry, bounded cancel, prywatne raporty i jawne Delete.
+
+Testy deterministyczne badają kontrakt i błędy; nie przedstawiają odpowiedzi
+fixture jako inferencji. Formalny wspólny GPU/browser/OFF/recovery odbiór jest
+pending i zostanie uzupełniony wyłącznie actual receiptami koordynatora.
+[Metodologia](../EXPERIMENTS.md), [procedura i rollback](../RUNBOOK.md).
+
+Lokalna walidacja L5 (2026-10-21): Ruff/mypy PASS; pełna regresja Python
+179 testów PASS / 96,98% coverage, w tym awaria zapisu receipt.
+Smoke default plan
+nie wykonał HTTP ani inferencji. Lokalne linki Markdown PASS. Realny odbiór
+GPU/browser/wyłączenia i skany pozostają oddzielnymi pending warunkami.
