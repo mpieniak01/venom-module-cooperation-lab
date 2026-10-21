@@ -227,6 +227,7 @@ def test_artifact_validation_hash_and_load(tmp_path, monkeypatch):
         ("TOKENIZER_SHA256", b"vocab"),
     ]:
         monkeypatch.setattr(module, name, hashlib.sha256(body).hexdigest())
+    monkeypatch.setattr(module, "verify_overlay", lambda root: None)
     config = RwkvConfig(path, runtime.parent)
     config.validate()
     item = RwkvAdapter(config)

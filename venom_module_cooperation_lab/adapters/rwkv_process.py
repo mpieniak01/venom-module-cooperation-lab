@@ -19,6 +19,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from .component import verify_overlay
 from .rwkv_worker import worker_main
 
 MODEL_SHA256 = "947cb9b8013224e06b112b72204256bec65096cc935a7767ce63d8e3ddef83bb"
@@ -53,6 +54,10 @@ class RwkvConfig:
             with path.open("rb") as source:
                 if hashlib.file_digest(source, "sha256").hexdigest() != digest:
                     raise RwkvError("artifact_hash_mismatch")
+        try:
+            verify_overlay(self.runtime_root)
+        except (OSError, RuntimeError) as exc:
+            raise RwkvError("component_overlay_unverified") from exc
 
 
 @dataclass(frozen=True)

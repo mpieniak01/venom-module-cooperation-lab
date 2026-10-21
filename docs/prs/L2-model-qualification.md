@@ -39,3 +39,8 @@ Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](..
 - Wstępny realny test CUDA RWKV PASS; rzeczywista kontrola Qwen i formalny receipt
   C0 są nadal pending. ModelSpec pozostaje `qualified=false` do tego odbioru.
 - [Dokładne piny, wyniki, ograniczenia i odtworzenie](../RWKV_L2.md).
+
+- Dodano izolowany, przypięty overlay certifi 2026.10.19 / filelock 4.2.1
+  (298919 B wheel), bez modyfikacji Full. Integralność i efektywne importy są
+  sprawdzane przed Torch. CPU FileLock/TorchJIT PASS; formalny GPU odbiór nowego
+  runtime pending. Pięć odziedziczonych FINDINGS Torch pozostaje jawnych.

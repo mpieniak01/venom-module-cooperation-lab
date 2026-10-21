@@ -166,6 +166,11 @@ def test_worker_sampling_stop_and_sync(tokenizer, monkeypatch):
 
 
 def install_fake_model(monkeypatch):
+    monkeypatch.setattr(
+        worker,
+        "activate_overlay",
+        lambda root: {"certifi_version": "fixture", "filelock_version": "fixture"},
+    )
     module = types.ModuleType("rwkv.model")
     module.RWKV = Model
     monkeypatch.setitem(sys.modules, "torch", torch)

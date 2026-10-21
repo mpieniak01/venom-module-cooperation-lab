@@ -11,9 +11,17 @@ import hashlib
 import io
 import os
 import shutil
+import sys
 import urllib.request
 import zipfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from venom_module_cooperation_lab.adapters.component import (  # noqa: E402
+    OVERLAY_PINS,
+    checked_members,
+    verify_overlay,
+)
 
 MODEL_REVISION = "2a17e911155a5be23a4ed2792e978c77038f14e2"
 MODEL_FILENAME = "rwkv7-g1d-0.4b-20260210-ctx8192.pth"
@@ -54,6 +62,44 @@ def download(url: str, target: Path, expected: str, size: int) -> None:
             partial.unlink(missing_ok=True)
 
 
+def install_overlay(runtime_root: Path, wheel_cache: Path | None = None) -> None:
+    if not runtime_root.is_absolute() or (
+        wheel_cache is not None and not wheel_cache.is_absolute()
+    ):
+        raise ValueError("absolute_paths_required")
+    root = runtime_root.resolve()
+    if runtime_root.is_symlink():
+        raise RuntimeError("unsafe_runtime_archive")
+    for pin in OVERLAY_PINS:
+        cached = wheel_cache / pin.filename if wheel_cache else None
+        if cached is not None:
+            if not cached.is_file() or cached.stat().st_size != pin.size:
+                raise RuntimeError("component_wheel_hash_mismatch")
+            wheel = cached.read_bytes()
+        else:
+            with urllib.request.urlopen(pin.url, timeout=30) as source:
+                wheel = source.read(pin.size + 1)
+        files = checked_members(wheel, pin)
+        files[f".wheel-pins/{pin.filename}"] = wheel
+        # Preflight the complete wheel before writing any file from it.
+        for name, payload in files.items():
+            target = root / name
+            if target.is_symlink() or not target.resolve().is_relative_to(root):
+                raise RuntimeError("unsafe_runtime_archive")
+            if target.exists() and (
+                not target.is_file() or target.read_bytes() != payload
+            ):
+                raise RuntimeError("existing_runtime_mismatch")
+        for name, payload in files.items():
+            target = root / name
+            if target.exists():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("xb") as destination:
+                destination.write(payload)
+    verify_overlay(root)
+
+
 def provision(model_root: Path, runtime_root: Path, storage_root: Path) -> None:
     if not all(path.is_absolute() for path in (model_root, runtime_root, storage_root)):
         raise ValueError("absolute_paths_required")
@@ -84,6 +130,7 @@ def provision(model_root: Path, runtime_root: Path, storage_root: Path) -> None:
                     raise RuntimeError("existing_runtime_mismatch")
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes(data)
+    install_overlay(runtime_root)
     print(
         "Pinned RWKV artefact/runtime verified. "
         "No model loaded or Full packages changed."
@@ -95,8 +142,15 @@ def main() -> None:
     parser.add_argument("--model-root", required=True, type=Path)
     parser.add_argument("--runtime-root", required=True, type=Path)
     parser.add_argument("--storage-root", required=True, type=Path)
+    parser.add_argument("--overlay-only", action="store_true")
+    parser.add_argument("--wheel-cache", type=Path)
     args = parser.parse_args()
-    provision(args.model_root, args.runtime_root, args.storage_root)
+    if args.overlay_only:
+        install_overlay(args.runtime_root, args.wheel_cache)
+    else:
+        if args.wheel_cache is not None:
+            parser.error("--wheel-cache requires --overlay-only")
+        provision(args.model_root, args.runtime_root, args.storage_root)
 
 
 if __name__ == "__main__":

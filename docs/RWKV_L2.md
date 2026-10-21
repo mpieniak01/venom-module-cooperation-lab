@@ -108,3 +108,66 @@ pozostawił B bez zmian. Proces zakończony. To dowód techniczny, nie benchmark
 jakości współpracy ani formalny odbiór C0. Prywatny pełny receipt jest lokalny.
 Kontrolna inferencja Qwen i pełny receipt hosta wymagają późniejszego, oddzielnego
 odbioru pod C0. CI korzysta z deterministycznych fixture i nie ładuje modeli/GPU.
+
+
+## Izolowany overlay bezpieczeństwa i granice audytu
+
+RWKV 0.8.32 deklaruje w wheel tylko `tokenizers>=0.13.2`, lecz faktycznie
+importuje również Torch i NumPy. Audyt obejmuje zatem unię efektywnych pakietów:
+RWKV 0.8.32, tokenizers 0.23.3, NumPy 2.5.4, Torch 2.13.0 oraz poniższy overlay.
+Torch/NumPy/tokenizers pozostają z istniejącego zakwalifikowanego Full; nie
+instalujemy ponownie CUDA ani całego profilu. Sam skan manifestu RWKV nie
+stanowi audytu tej odziedziczonej części stosu.
+
+| Pakiet komponentu | Rozmiar wheel | SHA256 |
+| --- | ---: | --- |
+| certifi 2026.10.19, MPL-2.0 | 136464 B | `42d35340cc5b9ba78e818ddbff0c5b1c2b779de448a340fd1b989f5fa8670e1b` |
+| filelock 4.2.1, MIT | 162455 B | `7be2662e9e826b9bba28afc0f843a123280d799a2ea44bb5d35ccec67905ae44` |
+
+Oba wheel pochodzą z oficjalnego PyPI; nie mają zależności `Requires-Dist`.
+Łącznie 298919 B. Piny/hash są jawne w `components/rwkv/requirements.txt`.
+Instalator zachowuje wheel do sprawdzania integralności rozpakowanych plików;
+nie nadpisuje innych istniejących plików. Parent weryfikuje overlay przed startem
+procesu, a izolowany child ponawia kontrolę i sprawdza faktyczną wersję/ścieżkę
+importu **przed** importem Torch. Nieskuteczny overlay blokuje load. Odkrywanie
+modeli nadal niczego nie pobiera ani nie importuje Torch.
+
+Oficjalne [GHSA certifi](https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2)
+wskazuje 2026.10.18 jako wersję naprawioną, podczas gdy dane Snyk 21280764
+wymagają 2026.10.19. Nie klasyfikujemy całego bundle .18 jako skompromitowanego
+wbrew autorowi. Bundle opublikowanego wheel .19 jest bajtowo identyczny z
+[commitem autora 662df63](https://github.com/certifi/python-certifi/commit/662df63d7906df66f1f07c0751a3dfe9da14d914):
+przywraca **nieobjęte kompromitacją** emSign G1/C1/C3; nie przywraca
+skompromitowanego TLS G3. Nie edytujemy ręcznie CA. SHA256 `cacert.pem` .19:
+`50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785`.
+
+Jawna aktualizacja tylko małego komponentu, z już zweryfikowanej lokalnej pamięci
+wheel (bez kopiowania/pobierania modelu):
+
+```sh
+python scripts/provision_rwkv.py --overlay-only \
+  --model-root "$COOPERATION_LAB_RWKV_MODEL_ROOT" \
+  --runtime-root "$COOPERATION_LAB_RWKV_RUNTIME_ROOT" \
+  --storage-root /mnt/f --wheel-cache /absolute/operator/wheel-cache
+```
+
+Krótki rzeczywisty probe CPU potwierdził wersje .19/4.2.1, działanie subclass
+`torch.utils._filelock.FileLock` (acquire/release) oraz wykonanie TorchJIT CPU
+`[1,2]+1=[2,3]` z Torch 2.13.0+cu130. `cuda.is_initialized=false`, bez modelu.
+Full po próbie nadal ma certifi 2026.10.18 i filelock 3.32.7. To dowód zgodności
+API małego overlay; ponowny realny odbiór CUDA/C0 jest osobnym warunkiem.
+
+Pięć zgłoszeń Torch było już obecnych w zaakceptowanym Full PR #546:
+`SNYK-PYTHON-TORCH-10332643`, `10337825`, `10337826`, `10337834`, `15746467`.
+To **odziedziczone FINDINGS**, nie security PASS; nie dodajemy `.snyk ignore`.
+Skan rzeczywistej unii oraz decyzja dotycząca tych pięciu zgłoszeń muszą być
+jawne w odbiorze. Skan małego komponentu w CI nie zastępuje tego audytu Full.
+
+
+Stan skanu lokalnego po overlay: pojedynczy skan uruchomiono z rzeczywistym
+`PYTHONPATH` komponentu i jawnym manifestem unii. Po ponad trzech minutach brak
+raportu JSON lub błędu; własny proces został przerwany (exit 143), aby ograniczyć
+czas próby. **Wynik pending**, nie PASS i nie potwierdzenie usunięcia findings.
+Baseline przed overlay: 14 unikalnych ID (9 certifi/filelock + 5 Torch).
+Efektywne wersje po instalacji i integralność są potwierdzone osobnym CPU probe;
+ponowny skan Snyk/CI musi potwierdzić faktyczny remaining delta.

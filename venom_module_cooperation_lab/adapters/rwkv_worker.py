@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .component import activate_overlay
 from .rwkv_tokenizer import SafeRwkvTokenizer
 
 MAX_WIRE_BYTES = 65536
@@ -55,7 +56,7 @@ def _run_worker(connection: Any, cancel: Any, config: dict[str, Any]) -> None:
     )
     os.environ.pop("RWKV_DE_VERSION", None)
     os.environ.pop("RWKV_DML_ON", None)
-    sys.path.insert(0, str(config["runtime_root"]))
+    overlay_versions = activate_overlay(Path(config["runtime_root"]))
     import torch
     from rwkv.model import RWKV
 
@@ -81,6 +82,7 @@ def _run_worker(connection: Any, cancel: Any, config: dict[str, Any]) -> None:
         "load_s": time.monotonic() - started,
         "runtime": "rwkv",
         "runtime_version": "0.8.32",
+        **overlay_versions,
         "torch_version": torch.__version__,
         "strategy": config["strategy"],
         "custom_cuda_kernel": False,

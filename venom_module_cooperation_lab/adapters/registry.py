@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..errors import LabError
 from .base import Lease, ModelAdapter, ModelSpec
+from .component import OVERLAY_RUNTIME
 from .rwkv_process import MODEL_FILENAME, MODEL_REVISION, MODEL_SHA256, TOKENIZER_SHA256
 
 RWKV_TEMPLATE = "System: {system}\n\nUser: {user}\n\nAssistant:"
@@ -20,7 +21,7 @@ RWKV_SPEC = ModelSpec(
     digest=MODEL_SHA256,
     tokenizer_hash=TOKENIZER_SHA256,
     template_hash=hashlib.sha256(RWKV_TEMPLATE.encode()).hexdigest(),
-    runtime="rwkv==0.8.32;torch==2.13.0;cuda13.0",
+    runtime=f"rwkv==0.8.32;torch==2.13.0;cuda13.0;{OVERLAY_RUNTIME}",
     quantization="float16",
 )
 OLLAMA_SPEC = ModelSpec(
