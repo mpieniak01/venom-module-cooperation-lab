@@ -1,6 +1,6 @@
 # L2 — adapter i kwalifikacja nowego modelu
 
-Status: PLAN, nie istniejący numer PR. Repo: venom-module-cooperation-lab; izolowany komponent gdy potrzebny. Zależności: L1 i C0 przed rzeczywistą inferencją.
+Status: IMPLEMENTACJA — adaptery i wstępna feasibility gotowe; formalny odbiór hosta C0 pozostaje do wykonania. Repo: venom-module-cooperation-lab; izolowany komponent gdy potrzebny. Zależności: L1 i C0 przed rzeczywistą inferencją.
 
 ## Problem i wynik
 
@@ -26,3 +26,16 @@ Poza zakresem: duży benchmark, drugi nowy model, trening i podbijanie pinów ap
 - [ ] Review i wymagane bramki, dokumentacja i sprawdzalny rollback.
 
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
+
+## Implementacja lokalna 2026-10-21
+
+- Gotowe przypięte adaptery `rwkv7-g1d-0.4b` i istniejącego `qwen3-4b-control`,
+  wspólny frozen kontrakt, pure discovery i rejestr bez dowolnych URL/ścieżek API.
+- RWKV: jeden izolowany proces, dwie prywatne historie/stany, cancel/reset,
+  synchronize oraz join; bez zmian pinów Full i bez dodatkowego venv.
+- Ollama: weryfikacja digest/runtime/template, oddzielne historie, terminal drain
+  przy cancel, potwierdzenie unload własnego modelu; brak pull lub zmian selekcji.
+- Jawny provisioner sprawdza fizyczny backing volume i hashe, nie działa w API.
+- Wstępny realny test CUDA RWKV PASS; rzeczywista kontrola Qwen i formalny receipt
+  C0 są nadal pending. ModelSpec pozostaje `qualified=false` do tego odbioru.
+- [Dokładne piny, wyniki, ograniczenia i odtworzenie](../RWKV_L2.md).

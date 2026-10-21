@@ -8,10 +8,12 @@ import threading
 import types
 
 import pytest
-import torch
+from adapters_fixtures import MiniTorch
 
 from venom_module_cooperation_lab.adapters import rwkv_worker as worker
 from venom_module_cooperation_lab.adapters.rwkv_tokenizer import SafeRwkvTokenizer
+
+torch = MiniTorch()
 
 
 class Connection:
@@ -166,6 +168,7 @@ def test_worker_sampling_stop_and_sync(tokenizer, monkeypatch):
 def install_fake_model(monkeypatch):
     module = types.ModuleType("rwkv.model")
     module.RWKV = Model
+    monkeypatch.setitem(sys.modules, "torch", torch)
     monkeypatch.setitem(sys.modules, "rwkv", types.ModuleType("rwkv"))
     monkeypatch.setitem(sys.modules, "rwkv.model", module)
     monkeypatch.setattr(sys, "path", list(sys.path))

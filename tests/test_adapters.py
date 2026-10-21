@@ -141,7 +141,7 @@ class Process:
         return True
 
     def status(self):
-        return {"state": "ready"}
+        return {"state": "ready", "quiescent": True}
 
 
 def test_recurrent_contexts_append_replay_and_cleanup():
@@ -197,6 +197,7 @@ def configured_ollama():
     adapter = OllamaAdapter(spec, lease)
     values = {
         "/api/version": {"version": "0.40.6"},
+        "/api/ps": {"models": []},
         "/api/tags": {"models": [{"name": "qwen3:4b", "digest": spec.digest}]},
         "/api/show": {"template": "template"},
     }
@@ -325,3 +326,59 @@ def test_ollama_rejects_context_and_redirect():
         NoRedirect().redirect_request(
             None, None, 302, "redirect", {}, "http://elsewhere/"
         )
+
+
+def test_ollama_wire_is_fixed_local_and_bounded():
+    from types import SimpleNamespace
+
+    adapter = OllamaAdapter(registry.OLLAMA_SPEC, Lease())
+    seen = []
+
+    def open_request(request, *, timeout):
+        seen.append(
+            (request.full_url, json.loads(request.data) if request.data else None)
+        )
+        return io.BytesIO(b'{"ok":true}')
+
+    adapter._opener = SimpleNamespace(open=open_request)
+    assert adapter._json("/api/show", {"model": "qwen3:4b"}, 1) == {"ok": True}
+    assert seen == [("http://127.0.0.1:11434/api/show", {"model": "qwen3:4b"})]
+    adapter._opener = SimpleNamespace(
+        open=lambda *args, **kw: io.BytesIO(b"x" * 262145)
+    )
+    with pytest.raises(LabError, match="runtime_response_too_large"):
+        adapter._json("/api/show", None, 1)
+
+
+def test_ollama_broken_wire_and_metadata_are_sanitized():
+    adapter, _, _ = configured_ollama()
+    adapter.load(time.monotonic() + 3)
+    adapter._open = lambda *args: io.BytesIO(b"private broken message\n")
+    with pytest.raises(LabError, match="runtime_transport_failed"):
+        adapter.generate(
+            "A",
+            [ChatMessage("user", "hello")],
+            GenerationParameters(),
+            time.monotonic() + 3,
+        )
+    assert not adapter.is_quiescent()
+
+    def fail(*args):
+        raise ValueError("private runtime configuration")
+
+    adapter._json = fail
+    with pytest.raises(LabError, match="runtime_unavailable"):
+        adapter.load(time.monotonic() + 3)
+
+
+def test_ollama_close_refuses_unconfirmed_model_unload(monkeypatch):
+    from venom_module_cooperation_lab.adapters import ollama
+
+    adapter, _, values = configured_ollama()
+    adapter._request_sent = True
+    values["/api/ps"] = {"models": [{"name": "qwen3:4b"}]}
+    ticks = iter((0, 0, 3))
+    monkeypatch.setattr(ollama.time, "monotonic", lambda: next(ticks))
+    with pytest.raises(LabError, match="runtime_not_quiescent"):
+        adapter.close()
+    assert not adapter.is_quiescent()

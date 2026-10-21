@@ -42,6 +42,7 @@ class OllamaAdapter:
         self._cancel = threading.Event()
         self._busy = False
         self._uncertain = False
+        self._request_sent = False
         self._state = "available"
         self._histories: dict[str, tuple[ChatMessage, ...]] = {"A": (), "B": ()}
 
@@ -131,6 +132,7 @@ class OllamaAdapter:
             raise LabError("context_budget_exceeded", 422)
         with self._lease.operation(kind="generation"):
             self._busy = True
+            self._request_sent = True
             started = time.monotonic()
             self._state = "running"
             payload = {
@@ -256,6 +258,26 @@ class OllamaAdapter:
         with self._lease.cleanup(confirm_quiescent=self.is_quiescent):
             if not self.is_quiescent():
                 raise LabError("runtime_not_quiescent")
+            if self._request_sent:
+                deadline = time.monotonic() + 2
+                while True:
+                    try:
+                        running = self._json(
+                            "/api/ps", None, max(0.1, deadline - time.monotonic())
+                        )
+                        present = any(
+                            item.get("name") == self.spec.artifact
+                            for item in running.get("models", [])
+                        )
+                    except (OSError, ValueError, TypeError, AttributeError) as exc:
+                        self._uncertain = True
+                        raise LabError("runtime_not_quiescent") from exc
+                    if not present:
+                        break
+                    if time.monotonic() >= deadline:
+                        self._uncertain = True
+                        raise LabError("runtime_not_quiescent")
+                    time.sleep(0.05)
             self._histories = {"A": (), "B": ()}
             self._state = "closed"
             return True

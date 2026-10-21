@@ -105,8 +105,11 @@ class RecurrentAdapter:
             return result
 
     def state(self) -> dict[str, Any]:
+        snapshot = self._process.status()
         return {
-            **self._process.status(),
+            **snapshot,
+            "generation_quiescent": snapshot["quiescent"],
+            "quiescent": self.is_quiescent(),
             "model_id": self.spec.model_id,
             "history_messages": {
                 name: len(history) for name, history in self._histories.items()
