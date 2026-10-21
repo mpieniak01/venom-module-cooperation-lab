@@ -1,8 +1,10 @@
 # L2 — modele i adaptery
 
-Status: implementacja adapterów; formalny odbiór współdzielonego kontraktu C0
-pozostaje oddzielnym krokiem. `ModelSpec.qualified=false` jest celowe: obecność
-pliku ani wstępna próba nie odblokowują automatycznie eksperymentu.
+Status: L2 scalony przez PR #10; formalny odbiór GPU wspólnego C0 z RWKV i Qwen
+PASS. Rzeczywiste macierz/browser/SSE/STOP/OFF oraz jawne ograniczenia opisuje
+[RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md). Poniżej zachowano oddzielnie
+historyczne feasibility i finalną kwalifikację; ModelSpec sam nie staje się
+qualified tylko przez obecność pliku lub wpisu w katalogu.
 
 ## Zamrożone modele
 

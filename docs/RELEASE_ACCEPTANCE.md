@@ -1,9 +1,10 @@
 # Odbiór Cooperation Lab — 2026-10-21
 
-Stan: **kwalifikacja GPU C0/L2, rzeczywista macierz 30 prób i odbiór OFF wykonane;
-końcowy odbiór przeglądarki i wydania pozostaje w toku**. Wynik testów CPU, rzeczywistej inferencji i bramek wydania
-jest rozdzielony poniżej. Samo przejście kwalifikacji adaptera nie dowodzi
-współpracy ani poprawy jakości modeli.
+Stan: **lokalny odbiór techniczny GPU, macierzy L5, browser/SSE/STOP i OFF
+wykonany**. L4 oczekuje kontroli PR, a L5 publikacji, recenzji i scalenia;
+całe wydanie nie jest jeszcze zakończone. Wyniki CPU, rzeczywistej inferencji
+i bramek wydania są rozdzielone. Działający transport nie dowodzi nauki ani
+poprawy jakości modeli.
 
 ## Tożsamość wykonanej próby
 
@@ -21,19 +22,28 @@ Torch/RWKV ładowano dopiero w izolowanym procesie po uzyskaniu lease.
 | Sprzęt | NVIDIA GeForce RTX 3060, 12288 MiB VRAM |
 | Preset próby | maks. 32 tokeny wyjścia, kontekst 2048, seed 0, temperature 0, top_p 0 |
 | Budżet | do 120 s/model, do 360 s łącznie; rzeczywiście 56.48 s łącznie |
-| RWKV receipt | `host-227f9eeaed904e22849993c56adfccf0` |
-| Qwen receipt | `host-71db1ed56a5846e9b89c310533806b43` |
 
 Pełne receipty z odpowiedziami i pomiarami pozostają lokalnie poza Git.
 Wygenerowano kandydatów `qualified=false`, `approval_required=true`; harness nie
 wpisał sam kwalifikacji do bazy. Zaufany administrator osobno zatwierdza ryzyka
 i zgodność pełnej tożsamości modelu przed aktywacją. Rewizja próby nie jest
-zastępowana późniejszym SHA integracji. Dokładny końcowy deployment podano dopiero
-po jego odbiorze w tabeli poniżej.
+zastępowana późniejszym SHA integracji. Końcowe SHA wydania/deploymentu zostaną potwierdzone
+po scaleniu L4/L5; prywatne identyfikatory prób nie są publikowane.
 
 Artefakty, pełne digest/tokenizer/template i odtworzenie:
 [modele L2](RWKV_L2.md). Kwalifikacja jest związana ze wszystkimi niezmiennymi
 polami [kontraktu](CONTRACTS.md), także runtime i kwantyzacją.
+
+## Stan scalenia etapów
+
+| Etap | PR i stan | Rewizja |
+| --- | --- | --- |
+| L1 | [moduł #9](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/9), scalony | `d4797d7e04c00d5948c2a257c6ab92038c7a53a4` |
+| C0 | [Venom #552](https://github.com/mpieniak01/Venom/pull/552), scalony | `aa2d612434949f1149d27f64ff10e5dd05334e8e` |
+| L2 | [moduł #10](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/10), scalony | `95aa0bc60b86b9be737bbb9805eb648277bc9213` |
+| L3 | [moduł #11](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/11), scalony | `b4623ff151ff3991f374d4b6c6caf668336bfe97` |
+| L4 | [moduł #12](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/12), oczekuje kontroli | HEAD `971720be8258604328d9a6059d472774e81f77a0` |
+| L5 | kod i lokalny odbiór gotowe; publikacja, recenzja i scalenie pozostają do wykonania | końcowy SHA pending |
 
 ## Rzeczywiste wyniki C0/L2
 
@@ -144,6 +154,28 @@ promptu/datasetu/rubryki, wymagany format odpowiedzi, odpowiedni budżet i osobn
 wyniki. Dataset, prompty i parser v1 pozostają zamrożone; nie przeliczamy tej
 macierzy jako sukcesu po zmianie reguł.
 
+## Rzeczywisty odbiór browser/SSE/STOP
+
+Koordynator sprawdził żywy panel i fizyczne wykonanie RWKV. Publikowany opis
+pomija identyfikator sesji, prompty, odpowiedzi i lokalne artefakty.
+
+| Sprawdzenie | Rzeczywisty wynik |
+| --- | --- |
+| START w panelu | Powstała jedna próba RWKV i wiadomości obu uczestników A/B |
+| Reload/reconnect | Ten sam zapis próby; liczba wiadomości wzrosła z 1 do 4, bez nowego START |
+| Same-origin SSE przez port UI 3300 | HTTP 200, `text/event-stream`; replay po kursorze 2 dostarczył zdarzenia do seq 17 |
+| STOP | `cancelled`, `quiescent=true`; brak utożsamiania zamknięcia karty z końcem GPU |
+| Zwolnienie zasobu po STOP | lease `available`, `active_operations=0`, Ollama `/api/ps=[]` |
+| Stabilność paska sterowania | Przed pracą i w trakcie identyczny prostokąt: x=348, y=278.5, szerokość=950, wysokość=64 px |
+| Desktop 1366×900 / mobile 390×844 | PASS; mobile scrollWidth 382 ≤ 390, bez poziomego overflow |
+| PL / EN / DE | Etykiety sprawdzone w rzeczywistym DOM; przywrócono PL |
+| Konsola | 0 błędów; ostrzeżenia wykresów hosta nadal występowały |
+| Wybór historii Qwen→RWKV | Regresja identyfikatora modelu zawierającego kropki naprawiona; poprawne odtworzenie wyboru/formularza |
+
+Powyższe potwierdza konkretny lokalny przepływ. Długie treści, równoległe karty,
+negatywne odpowiedzi i skrajne stany UI mają dodatkowe testy fixture; nie
+przedstawiamy każdego z tych wariantów jako osobnej próby na GPU/przeglądarce.
+
 ## Rzeczywisty odbiór OFF
 
 PASS na podstawie zapisanego `off-acceptance.json`: po uruchomieniu hosta z
@@ -151,21 +183,24 @@ wyłączonym modułem jego trasy API były nieobecne, hash bazy laboratorium poz
 bez zmian, trasy Rider nadal były obecne, health hosta zwrócił HTTP 200 i
 Ollama `/api/ps` było puste. Pierwszy probe 10 s był zbyt krótki na start hosta;
 PASS dotyczy późniejszego potwierdzonego wyniku, a nie pominięcia tego oczekiwania.
-To odbiór API/stanu danych. Widoczność menu w przeglądarce, ponowne włączenie,
-normalna rozmowa hosta oraz końcowy deployment pozostają osobnymi krokami.
+To odbiór API/stanu danych. Włączony panel i rzeczywisty START/STOP odebrano
+oddzielnie powyżej. Nie wykonano inferencji zwykłego chatu po laboratorium;
+końcowe scalenie/deployment oraz widoczność menu w stanie OFF nie są potwierdzane
+samym brakiem tras API.
 
 ## Testy regresji i niezależne przeglądy
 
 | Zakres i dowód | Wynik |
 | --- | --- |
+| Pełna lokalna integracja przed końcowym wydaniem | `make check`: 252 testy Python PASS, coverage ok. 97%; 13 React PASS, line coverage 95.28%; mypy, TS/lint i kontrakty hosta PASS |
 | L3 po integracji z C0, `ee3b34afdc2a0a60bd2c3c3630c947b7f08c7852` | Pełne `make check`: 168 pytest PASS, coverage 96.95%, mypy 19 źródeł, Ruff/format, TS/lint, 4 testy webowe i kontrakty opcjonalnego modułu PASS |
 | Niezależny L5 po `c9fcb8b28516795685290a36788655dd2daf85d4` | 60 targeted testów CPU PASS; powtórzone konkretne repro uwag przeglądu |
 | C0/L2 — niezależny przegląd | Zweryfikowane admission/cancel/cleanup oraz tożsamość artefaktów i izolacja; brak deklaracji skanów jako dowodu inferencji |
 | Przegląd L3 — naprawione uwagi | Single-owned close i późny cleanup; namespace przed migracją/recovery; pełna tożsamość kwalifikacji, w tym runtime/revision/quantization; SETTINGS jako źródło flag |
 | Przegląd L5 — naprawione uwagi | Sprzeczny adresat odrzucany; generating→usage→message z właściwym turn_id wymagane do oceny sukcesu; stop_reason, efektywne parametry i obcięcie zachowane w raporcie |
 
-Powyższe liczniki dotyczą wskazanych etapów i SHA, nie nieuruchomionej końcowej
-regresji całego wydania. Testy CPU używają jawnych fixture i rzeczywistego ledgeru
+Liczniki wcześniejszych etapów pozostają historycznymi dowodami. Ostatnia pełna
+regresja integracji nie zastępuje kontroli końcowych scalonych SHA w CI. Testy CPU używają jawnych fixture i rzeczywistego ledgeru
 C0; nie zastępują testu GPU/przeglądarki.
 
 ## Granice interpretacji
@@ -189,18 +224,30 @@ C0; nie zastępują testu GPU/przeglądarki.
    podatności. Szczegóły i granice znajdują się w [L2](RWKV_L2.md); decyzja ryzyka
    pozostaje osobnym warunkiem wydania.
 
+## Rzeczywiste próby a granice testów fixture
+
+| Zakres | Rodzaj dowodu |
+| --- | --- |
+| Dwa modele, izolacja/reset/cancel/cleanup | Rzeczywista kwalifikacja GPU C0/L2 |
+| Macierz 30 i dostarczenie wiadomości | Rzeczywisty runner, 30/30 completed i 12/12 dialogów z komunikacją |
+| Browser START/reload/SSE/STOP, układ, responsive, i18n | Rzeczywisty odbiór powyżej |
+| OFF i zachowanie bazy/Ridera | Rzeczywisty odbiór API/danych |
+| Crash/interrupted bez auto-resume | Testy fixture; bez celowego crash procesu podczas realnej inferencji |
+| Retencja, limity dysku/runów, storage-full i OOM | Testy fixture; bez zapychania dysku lub wymuszania realnego GPU OOM |
+| Zwykła rozmowa hosta po laboratorium | Inferencja nie została wykonana; wolny lease i pusty `/api/ps` nie są odpowiedzią chatu |
+
 ## Stan końcowego odbioru i pozostałe potwierdzenia
 
 | Warunek | Stan / wymagany dowód |
 | --- | --- |
-| Rzeczywisty browser flow L4: start, A/B, STOP, reconnect, responsive | PENDING — wynik koordynatora i exact deployment SHA |
-| Same-origin SSE proxy: brak buforowania, replay/Last-Event-ID i przerwanie | PENDING — test rzeczywistego hosta/proxy |
+| Browser L4: start, A/B, STOP, reload/reconnect, responsive i i18n | PASS — rzeczywisty odbiór; końcowy release SHA pozostaje odrębny |
+| Same-origin SSE proxy i replay | PASS — HTTP 200/text/event-stream, kursor 2→seq 17 i rzeczywisty reload |
 | Realna macierz L5 obu modeli z niezależną rubryką i śladem delivery | PASS techniczny 30/30 i komunikacja 12/12; jakość 30/30 unscorable, accuracy=null |
 | Pełna macierz 30 przypadków | WYKONANA; wyniki powyżej i w zredagowanym JSON; bez zmiany zamrożonej rubryki v1 |
 | OFF → restart: API nieobecne, baza bez zmian, Rider obecny, Ollama puste | PASS — realny off-acceptance.json |
-| Menu OFF/ponowne włączenie w przeglądarce | PENDING — odbiór operatora |
-| Przywrócona zwykła rozmowa hosta bez zmiany modelu operatora | PENDING — realny smoke po zwolnieniu zasobu |
-| Końcowy zbiorczy `make check`, CI/review/Snyk/Sonar/GitGuardian | PENDING dla końcowych SHA; wcześniejsze wyniki nie zastępują tych bramek |
+| Panel ON oraz menu OFF | Panel ON/START/STOP PASS; ukrycie menu OFF ma kontrakt/fixture, nie osobne potwierdzenie DOM |
+| Zwykła rozmowa hosta po laboratorium | NIE WYKONANO inferencji; resource available nie jest dowodem odpowiedzi |
+| Pełny lokalny `make check` i kontrole wydania | Lokalny gate 252 Python / 13 React PASS; CI/review/skany L4/L5 i końcowych SHA pozostają do potwierdzenia |
 | Dokładne SHA końcowego core/module/deployment i decyzja ryzyka | PENDING — uzupełnia koordynator przed zamknięciem odbioru |
 
 Sposób uruchomienia, retencja, OFF i rollback:

@@ -1,6 +1,6 @@
 # L4 — ekran obserwacji i kontroli współpracy
 
-Status: kod lokalny L4, odbiór hosta i CI przed wydaniem. Repo: venom-module-cooperation-lab. Zależność: L3; projektowanie po zamrożeniu API może zacząć się wcześniej.
+Status: PR #12, HEAD `971720b`, oczekuje kontroli/scalenia. Lokalny rzeczywisty browser/SSE/STOP/layout/i18n PASS; nie jest to jeszcze zakończenie wydania. Repo: venom-module-cooperation-lab. Zależność: L3.
 
 ## Problem i wynik
 
@@ -42,9 +42,14 @@ Wybrana próba synchronizuje formularz przed kolejnym paint z immutable config
 (nested model.model_id i budgets), wyłącznie poprawne wartości. Test historii
 Qwen 4tury/32tokeny/seed17/no_contact/correction zabezpiecza regres domyślnego
 RWKV 8/128 w nieaktywnych polach. Node/JSDOM potwierdza kolory i overflow bez
-Tailwind; rzeczywiste bounding boxes i media queries odbiera koordynator.
+Tailwind. Rzeczywisty odbiór potwierdził stałe bounding boxes przed/przy pracy,
+desktop 1366×900 i mobile 390×844 bez poziomego overflow, START/STOP/reload/SSE
+oraz PL/EN/DE w DOM. Regresja Qwen→RWKV obejmuje ID modelu z kropkami.
 
 Node24 generuje rzeczywisty LCOV z tej samej sesji testów do
 `test-results/lcov.info`, wskazanego przez sonar.javascript.lcov.reportPaths.
-Bez wyłączeń pokrycia i zmiany progów. TS/lint oraz12testów PASS,95,28% line
+Bez wyłączeń pokrycia i zmiany progów. TS/lint oraz 13 testów React PASS, 95.28% line
 coverage. Wynik Sonara/i18n CPD należy ocenić po actual skanie.
+
+
+Aktualny odbiór i granice dowodów: [RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md).

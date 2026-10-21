@@ -2,7 +2,7 @@
 
 Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie.
 
-**Stan: implementacja i odbiór.** Kwalifikacja GPU C0/L2, rzeczywista macierz 30 prób i OFF API/danych wykonane. Wszystkie próby zakończone technicznie; jakość strict-v1 jest nieocenialna, bez twierdzenia o zerowej trafności lub nauce. Odbiór przeglądarki i końcowe bramki wydania pozostają w toku. [Wyniki i ograniczenia](docs/RELEASE_ACCEPTANCE.md).
+**Stan: implementacja i odbiór.** Kwalifikacja GPU C0/L2, rzeczywista macierz 30 prób i OFF API/danych wykonane. Wszystkie próby zakończone technicznie; jakość strict-v1 jest nieocenialna, bez twierdzenia o zerowej trafności lub nauce. Rzeczywisty browser/SSE/STOP, stały układ, responsive i i18n odebrane. L1/C0/L2/L3 scalone; kontrole L4 oraz publikacja/recenzja/scalenie L5 i końcowy deployment pozostają w toku. [Wyniki i ograniczenia](docs/RELEASE_ACCEPTANCE.md).
 
 - [Plan i kolejność PR](docs/PLAN.md)
 - [Zadania GitHub i PR planu](docs/ISSUES.md)

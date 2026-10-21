@@ -1,6 +1,6 @@
 # L5 — samoorganizacja i pełny odbiór MVP
 
-Status: IMPLEMENTACJA LOKALNA; realny odbiór i właściwy numer PR pending. Repo: venom-module-cooperation-lab. Zależności: L1–L4 i C0.
+Status: KOD I LOKALNY ODBIÓR TECHNICZNY GOTOWE; publikacja, recenzja, kontrole i scalenie L5 pozostają do wykonania. Rzeczywiste GPU/matrix/browser/SSE/STOP/OFF mają dowody w RELEASE_ACCEPTANCE. Repo: venom-module-cooperation-lab. Zależności: L1–L4 i C0.
 
 ## Problem i wynik
 
@@ -30,7 +30,7 @@ Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](..
 
 ## Implementacja i granice dowodów
 
-Gotowe: wersjonowana niezależna rubryka, mały plan 2 prób / opcjonalna macierz30,
+Gotowe: wersjonowana niezależna rubryka, mały plan 2 prób / opcjonalna macierz 30,
 pięć trybów, publiczne syntetyczne metadata, ocena exportu z seq/hash/quiescence,
 metryki actual/charged/load/TTFT/device i deklaracje oddzielone od dowodów.
 CLI domyślnie tylko planuje, wykonuje pracę przez istniejące lokalne API dopiero
@@ -38,15 +38,17 @@ po `--execute` i qualified preflight; stały endpoint, bez proxy/redirectów,
 idempotentne retry, bounded cancel, prywatne raporty i jawne Delete.
 
 Testy deterministyczne badają kontrakt i błędy; nie przedstawiają odpowiedzi
-fixture jako inferencji. Formalny wspólny GPU/browser/OFF/recovery odbiór jest
-pending i zostanie uzupełniony wyłącznie actual receiptami koordynatora.
+fixture jako inferencji. Formalny GPU oraz rzeczywiste matrix/browser/SSE/STOP/OFF
+mają receipty koordynatora w RELEASE_ACCEPTANCE. Zwykłego chatu po laboratorium
+nie uruchamiano; crash/retencja/quotas to dowody fixture.
 [Metodologia](../EXPERIMENTS.md), [procedura i rollback](../RUNBOOK.md).
 
 Lokalna walidacja L5 (2026-10-21): Ruff/mypy PASS; pełna regresja Python
 179 testów PASS / 96,98% coverage, w tym awaria zapisu receipt.
 Smoke default plan
 nie wykonał HTTP ani inferencji. Lokalne linki Markdown PASS. Realny odbiór
-GPU/browser/wyłączenia i skany pozostają oddzielnymi pending warunkami.
+GPU/browser/wyłączenia odnotowano później w RELEASE_ACCEPTANCE; skany i końcowe
+scalenie L5 pozostają warunkami wydania.
 
 Dodatkowy przegląd P2: zgodność recipient/delivered_to i turn→usage→message,
 whitelist per-turn effective_parameters, stop_reason i truncation_count.
@@ -59,3 +61,22 @@ zgodny trwały cleanup_late marker może potwierdzić wyłącznie zwolnienie zas
 CLI odczytuje tylko ten sam run/export przez max20s/max20 odczytów, bez nowej
 generacji. Trwała quarantine blokuje batch/Delete. Regresja CPU oraz mypy/Ruff
 potwierdzone lokalnie, bez dalszej inferencji.
+
+
+Aktualny odbiór i granice dowodów: [RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md).
+
+
+## Końcowy lokalny odbiór 2026-10-21
+
+Macierz 30: 30/30 completed, 12/12 dialogowych prób z komunikacją i 30/30 strict-v1
+unscorable (nie 0% accuracy). Realny browser: START RWKV/A/B, ta sama próba po
+reload i wiadomości 1→4; SSE proxy HTTP 200/text/event-stream replay 2→17;
+STOP cancelled/quiescent, lease available/0 operacji i Ollama ps[]. Stałe
+kontrolki, desktop/mobile bez overflow, PL/EN/DE sprawdzone. 0 console errors;
+ostrzeżenia wykresów hosta pozostają jawne.
+
+Pełna regresja integracji: 252 Python PASS / ok. 97%, 13 React PASS / 95.28%,
+mypy/TS/lint i host contracts PASS. Szczegóły, rewizje i ograniczenia:
+[RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md). Publikacja/review/merge L5,
+końcowe skany i exact release SHA nadal pending. V1 pozostaje zamrożone;
+final-answer contract v2 jest oddzielnym researchem.

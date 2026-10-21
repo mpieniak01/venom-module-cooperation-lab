@@ -3,7 +3,9 @@
 Status: formalna kwalifikacja GPU C0/L2 i rzeczywista pełna macierz L5 wykonane.
 30/30 runów zakończyło się technicznie, komunikacja 12/12 w trybach dialogowych.
 Strict-v1: 30/30 unscorable z powodu formatu, accuracy=null (nie 0%). Realny OFF
-API/danych PASS; browser/layout/cancel i końcowe bramki pozostają pending.
+API/danych oraz rzeczywisty browser/SSE/STOP/layout/i18n PASS. Końcowe kontrole
+i scalenie L4/L5 pozostają pending; chatu po laboratorium nie uruchamiano, a
+crash/retencja/quotas mają dowody fixture.
 [Dokładne wyniki](RELEASE_ACCEPTANCE.md), [zredagowany JSON](EXPERIMENT_RESULTS_V1.json).
 Test fixture nie jest próbą modelu, a poprawny transport nie dowodzi nauki lub
 przewagi jakościowej.

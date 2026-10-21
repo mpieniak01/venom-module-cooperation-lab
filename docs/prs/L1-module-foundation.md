@@ -1,6 +1,6 @@
 # L1 — opcjonalny moduł, dane i bramki
 
-Status: ZAIMPLEMENTOWANY LOKALNIE, oczekuje przeglądu i publikacji; numer PR jeszcze nie nadany. Repo: venom-module-cooperation-lab. Zależność: plan.
+Status: SCALONY przez PR #9, merge `d4797d7`. Fundament i jego bramki wydano; końcowy odbiór całej integracji opisuje RELEASE_ACCEPTANCE. Repo: venom-module-cooperation-lab. Zależność: plan.
 
 ## Problem i wynik
 
@@ -20,10 +20,10 @@ Poza zakresem: generacja, model adapter, pokazywanie mocka jako działającej ws
 
 ## Kryteria zamknięcia
 
-- [ ] Zakres i zależności zgodne z planem; actual SHA hosta/modułu/adaptera zapisane.
-- [ ] Testy rzeczywiście wykonane, wyniki i skips jawne. Fixtures nie zastępują wymaganej inferencji.
-- [ ] Brak auto-download, zmiany globalnego modelu, kopii sekretów lub pozornego PASS.
-- [ ] Review i wymagane bramki, dokumentacja i sprawdzalny rollback.
+- [x] Zakres i zależności zgodne z planem; actual SHA hosta/modułu/adaptera zapisane.
+- [x] Testy rzeczywiście wykonane, wyniki i skips jawne. Fixtures nie zastępują wymaganej inferencji.
+- [x] Brak auto-download, zmiany globalnego modelu, kopii sekretów lub pozornego PASS.
+- [x] Review i wymagane bramki, dokumentacja i sprawdzalny rollback.
 
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
 
@@ -45,3 +45,6 @@ Sonar/Snyk CI i niezależna recenzja pozostają do wykonania po publikacji PR;
 nie są oznaczone PASS. Dwie ostrzegawcze deprecacje pochodzą z istniejącego
 TestClient hosta, bez błędów testów. Rzeczywisty dialog, kwalifikacja GPU i testy
 SSE/operatora należą do L2–L5.
+
+
+Aktualny odbiór i granice dowodów: [RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md).

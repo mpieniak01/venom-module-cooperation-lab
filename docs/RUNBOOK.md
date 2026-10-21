@@ -114,11 +114,14 @@ nie wymaga niszczącego downgrade; przed odmienną migracją osobny backup/plan.
 ## Stan obecnego odbioru
 
 Formalna kwalifikacja C0/L2 na GPU PASS. Realna macierz 2 modeli × 3 scenariuszy × 5
-trybów:30/30 technical completed, 12/12 komunikacji, 30/30 strict-v1 unscorable;
+trybów: 30/30 technical completed, 12/12 komunikacji, 30/30 strict-v1 unscorable;
 accuracy pozostaje nieznane. Realny OFF API/danych PASS: route absent, hash bazy
-bez zmian, Rider obecny, health 200 i Ollama ps[]. Szczegóły i ograniczenia:
-[RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md).
+bez zmian, Rider obecny, health 200 i Ollama ps[]. Browser START/RWKV A/B,
+reload/replay/SSE przez proxy, STOP/quiescence, stabilny układ desktop/mobile
+oraz PL/EN/DE odebrane. Szczegóły: [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md).
 
-Browser/layout/cancel, końcowy deployment SHA, przywrócenie zwykłej rozmowy oraz
-wymagane skany/CI pozostają pending do dowodów koordynatora. Nie archiwizować
-całego zadania przed tym odbiorem; nie poprawiać parsera v1 dla pozornej jakości.
+Po STOP zasób available/active_operations=0 i ps[]; nie wykonano następnie zwykłej
+inferencji chatu. Crash/retencja/quotas/OOM pozostają testami fixture. L4 PR #12 czeka
+na kontrole, L5 na publikację/recenzję/scalenie; finalne SHA/deployment i bramki
+wydania potwierdza koordynator. Nie archiwizować całego zadania przed scaleniem
+L5; nie poprawiać parsera v1 dla pozornej jakości.

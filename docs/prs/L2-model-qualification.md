@@ -1,6 +1,6 @@
 # L2 — adapter i kwalifikacja nowego modelu
 
-Status: IMPLEMENTACJA — adaptery i wstępna feasibility gotowe; formalny odbiór hosta C0 pozostaje do wykonania. Repo: venom-module-cooperation-lab; izolowany komponent gdy potrzebny. Zależności: L1 i C0 przed rzeczywistą inferencją.
+Status: SCALONY przez PR #10, merge `95aa0bc`. Formalna kwalifikacja C0/GPU RWKV i Qwen PASS; artefakty/ograniczenia opisują RWKV_L2 i RELEASE_ACCEPTANCE. Repo: venom-module-cooperation-lab; komponent izolowany poza Full.
 
 ## Problem i wynik
 
@@ -20,14 +20,14 @@ Poza zakresem: duży benchmark, drugi nowy model, trening i podbijanie pinów ap
 
 ## Kryteria zamknięcia
 
-- [ ] Zakres i zależności zgodne z planem; actual SHA hosta/modułu/adaptera zapisane.
-- [ ] Testy rzeczywiście wykonane, wyniki i skips jawne. Fixtures nie zastępują wymaganej inferencji.
-- [ ] Brak auto-download, zmiany globalnego modelu, kopii sekretów lub pozornego PASS.
-- [ ] Review i wymagane bramki, dokumentacja i sprawdzalny rollback.
+- [x] Zakres i zależności zgodne z planem; actual SHA hosta/modułu/adaptera zapisane.
+- [x] Testy rzeczywiście wykonane, wyniki i skips jawne. Fixtures nie zastępują wymaganej inferencji.
+- [x] Brak auto-download, zmiany globalnego modelu, kopii sekretów lub pozornego PASS.
+- [x] Review i wymagane bramki, dokumentacja i sprawdzalny rollback.
 
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
 
-## Implementacja lokalna 2026-10-21
+## Historyczny etap implementacji przed formalnym odbiorem 2026-10-21
 
 - Gotowe przypięte adaptery `rwkv7-g1d-0.4b` i istniejącego `qwen3-4b-control`,
   wspólny frozen kontrakt, pure discovery i rejestr bez dowolnych URL/ścieżek API.
@@ -44,3 +44,6 @@ Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](..
   (298919 B wheel), bez modyfikacji Full. Integralność i efektywne importy są
   sprawdzane przed Torch. CPU FileLock/TorchJIT PASS; formalny GPU odbiór nowego
   runtime pending. Pięć odziedziczonych FINDINGS Torch pozostaje jawnych.
+
+
+Aktualny odbiór i granice dowodów: [RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md).

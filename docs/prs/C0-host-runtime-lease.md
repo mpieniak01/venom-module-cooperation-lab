@@ -1,6 +1,6 @@
 # C0 — publiczny kontrakt zasobów LLM
 
-Status: PLAN, nie istniejący numer PR. Repo implementacji: mpieniak01/Venom. Zależność: plan; może powstawać równolegle z L1.
+Status: SCALONY w Venom PR #552, merge `aa2d6124`. Kontrakt hosta został użyty w formalnej kwalifikacji i rzeczywistych próbach modułu. Repo: mpieniak01/Venom.
 
 ## Problem i wynik
 
@@ -18,9 +18,12 @@ Poza zakresem: eksperymenty/GUI/scenariusze w core, trening, zmiany Rider i glob
 
 ## Kryteria zamknięcia
 
-- [ ] Zakres i zależności zgodne z planem; actual SHA hosta/modułu/adaptera zapisane.
-- [ ] Testy rzeczywiście wykonane, wyniki i skips jawne. Fixtures nie zastępują wymaganej inferencji.
-- [ ] Brak auto-download, zmiany globalnego modelu, kopii sekretów lub pozornego PASS.
-- [ ] Review i wymagane bramki, dokumentacja i sprawdzalny rollback.
+- [x] Zakres i zależności zgodne z planem; actual SHA hosta/modułu/adaptera zapisane.
+- [x] Testy rzeczywiście wykonane, wyniki i skips jawne. Fixtures nie zastępują wymaganej inferencji.
+- [x] Brak auto-download, zmiany globalnego modelu, kopii sekretów lub pozornego PASS.
+- [x] Review i wymagane bramki, dokumentacja i sprawdzalny rollback.
 
 Kontrakty: [CONTRACTS](../CONTRACTS.md). [Plan](../PLAN.md), [pełny odbiór](../ACCEPTANCE.md).
+
+
+Aktualny odbiór i granice dowodów: [RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md).

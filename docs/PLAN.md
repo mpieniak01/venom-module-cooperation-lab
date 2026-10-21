@@ -1,10 +1,10 @@
 # Plan: laboratorium współpracy modeli
 
-Status: IMPLEMENTACJA L1–L5, 2026-10-21. Formalna kwalifikacja GPU C0/L2 PASS;
-rzeczywista macierz L5: 30/30 technicznie completed, 12/12 komunikacji w trybach
-dialogowych, 30/30 strict-v1 unscorable (accuracy nieznane). Realny OFF API/dane
-PASS. Browser/layout/cancel, końcowy deployment oraz właściwe bramki wydania
-pozostają pending. Dowody: [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md).
+Status: IMPLEMENTACJA I LOKALNY ODBIÓR TECHNICZNY L1–L5, 2026-10-21. GPU C0/L2,
+macierz 30, browser/SSE/STOP/layout/i18n i OFF API/danych PASS. W macierzy 30/30
+technical completed, 12/12 komunikacji, 30/30 strict-v1 unscorable (accuracy=null).
+L1/C0/L2/L3 scalone; L4 czeka na kontrole PR #12, L5 na publikację/recenzję/scalenie.
+Nie oznacza to zakończenia całego wydania. [Dowody](RELEASE_ACCEPTANCE.md).
 
 ## Cel odbioru
 
@@ -31,6 +31,11 @@ Odbiór wymaga istniejącego modelu kontrolnego i przynajmniej jednego nowego ka
 | [L4](prs/L4-operator-workspace.md) | cooperation-lab | Widoczne i sterowalne prawdziwe flow | L3 |
 | [L5](prs/L5-experiments-acceptance.md) | cooperation-lab | Scenariusze i pełny odbiór MVP | L1–L4 i C0 |
 
+Aktualne wydania: L1 PR #9 (`d4797d7`), Venom C0 PR #552 (`aa2d6124`), L2 PR #10
+(`95aa0bc`) i L3 PR #11 (`b4623ff`) są scalone. L4 PR #12 ma HEAD `971720b` i oczekuje
+kontroli. L5 pozostaje gałęzią integracyjną z dokumentacją/wynikami do wydania.
+Pełne rewizje i linki: [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md).
+
 C0 jest scalonym publicznym kontraktem admission/lease hosta (aa2d6124), z kwalifikowanym pojedynczym workerem. Realna próba potwierdziła blokadę host_chat podczas lease modułu oraz zwolnienie dopiero po quiescence. Moduł korzysta z tego kontraktu; jego lokalny mutex nie zastępuje ochrony hosta.
 
 L/C to ID planu, nie numery GH. Scalenie poszczególnych etapów i końcowe SHA wydania są osobnym dowodem; implementacja lokalna nie oznacza automatycznie scalonego wydania. Powiązane dokumenty: [kontrakty](CONTRACTS.md), [kwalifikacja](MODEL_QUALIFICATION.md), [odbiór](ACCEPTANCE.md), [luki](GAP_REVIEW.md), [źródła](SOURCES.md).
@@ -56,3 +61,12 @@ Prompt nie wymagał końcowego formatu rubryki, a Qwen osiągał limit 32 token�
 Kolejny zakres powinien określić jawny final-answer contract v2: nowy prompt,
 wersję datasetu/rubryki, budżet i porównania. Nie poprawiać parsera v1 po obejrzeniu
 odpowiedzi ani nie przepisywać historycznych wyników na pozorną poprawę jakości.
+
+
+## Granica końcowego odbioru
+
+Lokalny browser potwierdził start, wiadomości A/B, reload/replay, STOP/quiescence,
+stałe sterowanie, desktop/mobile i PL/EN/DE. Pełny make check: 252 Python / 13 React,
+mypy/TS/lint i host contracts PASS. Rzeczywista inferencja chatu po laboratorium
+nie została wykonana; crash/retencja/quotas/OOM to dowody fixture. Scalenia L4/L5,
+kontrole właściwych SHA i końcowy deployment są osobnym etapem wydania.
