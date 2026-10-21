@@ -1,6 +1,6 @@
 # L5 — samoorganizacja i pełny odbiór MVP
 
-Status: KOD I LOKALNY ODBIÓR TECHNICZNY GOTOWE; publikacja, recenzja, kontrole i scalenie L5 pozostają do wykonania. Rzeczywiste GPU/matrix/browser/SSE/STOP/OFF mają dowody w RELEASE_ACCEPTANCE. Repo: venom-module-cooperation-lab. Zależności: L1–L4 i C0.
+Status: [PR #13 do main](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) OTWARTY; końcowa recenzja, kontrole i scalenie L5 pozostają do wykonania. L1–L4 i C0 scalone; L4 PR #12 ma CI/contracts/Sonar/Snyk/GitGuardian i niezależny review PASS. Rzeczywiste GPU/matrix/browser/SSE/STOP/OFF mają dowody w RELEASE_ACCEPTANCE. Próba zwykłego chatu po laboratorium zwróciła HTTP 400 przed pierwszą treścią; ponowny odbiór po poprawce cleanup transportu jest nierozwiązanym blockerem. Repo: venom-module-cooperation-lab. Zależności: L1–L4 i C0.
 
 ## Problem i wynik
 
@@ -39,8 +39,9 @@ idempotentne retry, bounded cancel, prywatne raporty i jawne Delete.
 
 Testy deterministyczne badają kontrakt i błędy; nie przedstawiają odpowiedzi
 fixture jako inferencji. Formalny GPU oraz rzeczywiste matrix/browser/SSE/STOP/OFF
-mają receipty koordynatora w RELEASE_ACCEPTANCE. Zwykłego chatu po laboratorium
-nie uruchamiano; crash/retencja/quotas to dowody fixture.
+mają receipty koordynatora w RELEASE_ACCEPTANCE. Późniejszy rzeczywisty probe
+zwykłego chatu zakończył się HTTP 400 przed pierwszą treścią; nie jest to PASS.
+Crash/retencja/quotas pozostają dowodami fixture.
 [Metodologia](../EXPERIMENTS.md), [procedura i rollback](../RUNBOOK.md).
 
 Lokalna walidacja L5 (2026-10-21): Ruff/mypy PASS; pełna regresja Python
@@ -72,11 +73,26 @@ Macierz 30: 30/30 completed, 12/12 dialogowych prób z komunikacją i 30/30 stri
 unscorable (nie 0% accuracy). Realny browser: START RWKV/A/B, ta sama próba po
 reload i wiadomości 1→4; SSE proxy HTTP 200/text/event-stream replay 2→17;
 STOP cancelled/quiescent, lease available/0 operacji i Ollama ps[]. Stałe
-kontrolki, desktop/mobile bez overflow, PL/EN/DE sprawdzone. 0 console errors;
-ostrzeżenia wykresów hosta pozostają jawne.
+kontrolki, desktop/mobile bez overflow, PL/EN/DE sprawdzone. Podstawowy smoke:
+0 console errors, z jawnymi ostrzeżeniami wykresów hosta. Dodatkowo realna historia
+Qwen→RWKV odtworzyła model/2 tury/32 tokeny; eksport własnej anulowanej próby
+pobrano, a usunięcie potwierdzono HTTP 404 (1 oczekiwany błąd konsoli). PL przywrócono.
 
-Pełna regresja integracji: 252 Python PASS / ok. 97%, 13 React PASS / 95.28%,
-mypy/TS/lint i host contracts PASS. Szczegóły, rewizje i ograniczenia:
-[RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md). Publikacja/review/merge L5,
-końcowe skany i exact release SHA nadal pending. V1 pozostaje zamrożone;
-final-answer contract v2 jest oddzielnym researchem.
+Pełna regresja integracji: 252 Python PASS / 97% (1993 statements / 55 miss),
+mypy 20 źródeł, 15 testów frontendowych PASS / 96,02%, TS/lint i host contracts
+PASS. L4 scalony jako `1021bb3`, kod `6fb7613` z CI/contracts, Sonar, Snyk,
+GitGuardian i niezależnym review PASS. Szczegóły, rewizje i ograniczenia:
+[RELEASE_ACCEPTANCE](../RELEASE_ACCEPTANCE.md). PR #13 ma bazę main; jego
+review/końcowe kontrole/scalenie, exact release SHA i deployment nadal pending.
+
+Ponowny browser smoke finalnego refaktoru L4 (`382dd65`) potwierdził PL/EN/DE,
+stały desktop/mobile i widoczne START/STOP, bez overflow i z 0 błędów konsoli
+w tym przebiegu. Eksport/Delete odebrano wcześniej na `b3dcc43`; probe 404
+pozostaje oddzielnym wynikiem.
+
+Zwykły chat po laboratorium: jeden rzeczywisty probe FAILED — HTTP 400 przed
+pierwszą treścią. Wybór operatora `gemma2:2b` (legacy completion-only) niezmieniony.
+Body błędu utracono, więc przyczyny nie potwierdzamy. Po probe zaobserwowano
+quarantine=1; poprawka core cleanup typowanego błędu transportu i ponowny odbiór
+pozostają blockerem końcowego odbioru. V1 pozostaje zamrożone; final-answer
+contract v2 jest oddzielnym researchem.

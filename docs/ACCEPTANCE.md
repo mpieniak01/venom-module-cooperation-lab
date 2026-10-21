@@ -1,8 +1,9 @@
 # Odbiór MVP
 
 Lokalny odbiór techniczny GPU, macierzy 30, browser/SSE/STOP i OFF jest wykonany.
-Wydanie pozostaje otwarte do kontroli i scalenia L4/L5 oraz potwierdzenia końcowych
-SHA. [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md) podaje rzeczywiste wyniki,
+L1–L4 i C0 są scalone; wydanie pozostaje otwarte do kontroli/scalenia
+[L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13),
+ponownego odbioru zwykłego chatu i potwierdzenia końcowych SHA/deploymentu. [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md) podaje rzeczywiste wyniki,
 [EXPERIMENTS](EXPERIMENTS.md) metodologię, a [RUNBOOK](RUNBOOK.md) uruchomienie/OFF.
 Zaznaczenia opisują dowód i jego granicę; fixture nie staje się testem GPU.
 
@@ -22,9 +23,10 @@ Zaznaczenia opisują dowód i jego granicę; fixture nie staje się testem GPU.
 - [x] Reload zachował tę samą próbę i odtworzył wiadomości 1→4 bez nowego START.
 - [x] Same-origin SSE przez 3300: HTTP 200/text/event-stream, replay kursor 2→seq 17.
 - [x] STOP: cancelled/quiescent=true; lease available, active_operations=0, Ollama ps[].
-- [x] Kontrolki mają identyczny prostokąt przed i podczas pracy; desktop 1366×900 i mobile 390×844 bez poziomego overflow.
-- [x] PL/EN/DE sprawdzone w rzeczywistym DOM; przywrócono PL. Konsola: 0 błędów; ostrzeżenia wykresów hosta nie były zerowe.
-- [x] Odtworzenie historii Qwen→RWKV obejmuje identyfikator modelu z kropkami i poprawne ustawienia formularza.
+- [x] Kontrolki mają identyczny prostokąt przed i podczas pracy; ponowny smoke finalnego refaktoru L4 na rewizji `382dd65` potwierdził desktop 1366×900 i mobile 390×844 bez poziomego overflow oraz oba mobilne START/STOP widoczne.
+- [x] PL/EN/DE sprawdzone w rzeczywistym DOM; przywrócono PL. Podstawowy i ponowny finalny smoke: 0 błędów konsoli; ostrzeżenia wykresów hosta nie były zerowe. Dodatkowa weryfikacja Delete miała 1 oczekiwany błąd konsoli HTTP 404.
+- [x] Rzeczywiste odtworzenie historii Qwen→RWKV obejmuje identyfikator modelu z kropkami oraz limity 2 tury / 32 tokeny.
+- [x] Pobranie eksportu własnej anulowanej próby i usunięcie z potwierdzeniem HTTP 404 sprawdzone w przeglądarce.
 
 ## Odporność i dane — zakres testów fixture
 
@@ -37,11 +39,12 @@ Zaznaczenia opisują dowód i jego granicę; fixture nie staje się testem GPU.
 
 ## Wydanie i jawne pozostałe granice
 
-- [x] Ostatni pełny lokalny make check: 252 Python PASS, coverage ok. 97%; 13 React PASS, line coverage 95.28%; mypy/TS/lint i host contracts PASS.
-- [x] L1 PR #9, Venom C0 PR #552, L2 PR #10 i L3 PR #11 scalone; rewizje zapisane w RELEASE_ACCEPTANCE.
-- [ ] L4 PR #12: kontrole i scalenie; obecny HEAD `971720b`.
-- [ ] L5: publikacja, recenzja, kontrole i scalenie, następnie końcowe SHA/deployment.
-- [ ] Inferencja zwykłego chatu po laboratorium nie była wykonana. Wolny lease nie potwierdza odpowiedzi modelu; ograniczenie pozostaje jawne.
+- [x] Ostatni pełny lokalny make check: 252 Python PASS, coverage 97% (1993 statements / 55 miss); mypy 20 źródeł; 15 testów frontendowych PASS, line coverage 96,02%; TS/lint i host contracts PASS.
+- [x] L1 PR #9, Venom C0 PR #552, L2 PR #10, L3 PR #11 i L4 PR #12 scalone; rewizje zapisane w RELEASE_ACCEPTANCE.
+- [x] Końcowy kod L4 `6fb7613`: CI/contracts, Sonar, Snyk, GitGuardian i niezależny review PASS.
+- [x] L5 opublikowany jako [PR #13 do main](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13).
+- [ ] L5: recenzja, końcowe kontrole i scalenie, następnie końcowe SHA/deployment.
+- [ ] Zwykły chat po laboratorium: jedna rzeczywista próba FAILED — HTTP 400 przed pierwszą treścią. Wybór operatora `gemma2:2b` (legacy completion-only) pozostał bez zmian. Oryginalne body błędu utracono; przyczyna nie jest ustalona. Cleanup typowanego błędu transportu po zaobserwowanym quarantine=1 wymaga poprawki core i ponownego odbioru. Wolny lease po wcześniejszych próbach nie jest dowodem odpowiedzi chatu.
 
 Snyk/Sonar/GitGuardian i review oceniamy dla właściwych SHA, bez ogłaszania braku
 skanu lub limitu jako PASS. Pięć odziedziczonych ID Torch pozostaje jawnie opisane;

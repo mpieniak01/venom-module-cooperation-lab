@@ -1,8 +1,9 @@
 # Odbiór Cooperation Lab — 2026-10-21
 
 Stan: **lokalny odbiór techniczny GPU, macierzy L5, browser/SSE/STOP i OFF
-wykonany**. L4 oczekuje kontroli PR, a L5 publikacji, recenzji i scalenia;
-całe wydanie nie jest jeszcze zakończone. Wyniki CPU, rzeczywistej inferencji
+wykonany**. L1–L4 i C0 są scalone; L5 PR #13 do main oczekuje recenzji, kontroli
+i scalenia. Próba zwykłego chatu po laboratorium zwróciła HTTP 400 przed pierwszą
+treścią; to nierozwiązany blocker końcowego odbioru. Całe wydanie nie jest jeszcze zakończone. Wyniki CPU, rzeczywistej inferencji
 i bramek wydania są rozdzielone. Działający transport nie dowodzi nauki ani
 poprawy jakości modeli.
 
@@ -28,7 +29,7 @@ Wygenerowano kandydatów `qualified=false`, `approval_required=true`; harness ni
 wpisał sam kwalifikacji do bazy. Zaufany administrator osobno zatwierdza ryzyka
 i zgodność pełnej tożsamości modelu przed aktywacją. Rewizja próby nie jest
 zastępowana późniejszym SHA integracji. Końcowe SHA wydania/deploymentu zostaną potwierdzone
-po scaleniu L4/L5; prywatne identyfikatory prób nie są publikowane.
+po scaleniu L5; prywatne identyfikatory prób nie są publikowane.
 
 Artefakty, pełne digest/tokenizer/template i odtworzenie:
 [modele L2](RWKV_L2.md). Kwalifikacja jest związana ze wszystkimi niezmiennymi
@@ -42,8 +43,8 @@ polami [kontraktu](CONTRACTS.md), także runtime i kwantyzacją.
 | C0 | [Venom #552](https://github.com/mpieniak01/Venom/pull/552), scalony | `aa2d612434949f1149d27f64ff10e5dd05334e8e` |
 | L2 | [moduł #10](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/10), scalony | `95aa0bc60b86b9be737bbb9805eb648277bc9213` |
 | L3 | [moduł #11](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/11), scalony | `b4623ff151ff3991f374d4b6c6caf668336bfe97` |
-| L4 | [moduł #12](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/12), oczekuje kontroli | HEAD `971720be8258604328d9a6059d472774e81f77a0` |
-| L5 | kod i lokalny odbiór gotowe; publikacja, recenzja i scalenie pozostają do wykonania | końcowy SHA pending |
+| L4 | [moduł #12](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/12), scalony; CI/contracts, Sonar, Snyk, GitGuardian i niezależny review PASS | merge `1021bb3a37bde64ca286b83607abae0109c408bf`; kod `6fb761393f202fe7e0ad338704deeeda6778fb47` |
+| L5 | [moduł #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13), otwarty do main; recenzja, końcowe kontrole i scalenie pozostają do wykonania | końcowy SHA pending |
 
 ## Rzeczywiste wyniki C0/L2
 
@@ -74,8 +75,8 @@ Ollama potwierdziła osobne pełne historie A/B, reset A bez zmiany B, terminaln
 `done` oraz wyładowanie własnego modelu z `/api/ps` przed zwolnieniem lease.
 Publiczne API Ollama nie udostępnia fingerprintów latent KV: takiej inspekcji
 nie wykonano. C0 blokował zwykły `host_chat` podczas lease obu modeli. Po próbie
-koordynator przywrócił API i UI; odbiór normalnej rozmowy po przywróceniu jest
-osobnym krokiem.
+koordynator przywrócił API i UI. Późniejsza rzeczywista próba normalnej rozmowy
+nie przeszła; jej wynik i granica diagnozy są opisane osobno poniżej.
 
 ## Rzeczywista macierz L5 — zamrożone v1
 
@@ -167,10 +168,20 @@ pomija identyfikator sesji, prompty, odpowiedzi i lokalne artefakty.
 | STOP | `cancelled`, `quiescent=true`; brak utożsamiania zamknięcia karty z końcem GPU |
 | Zwolnienie zasobu po STOP | lease `available`, `active_operations=0`, Ollama `/api/ps=[]` |
 | Stabilność paska sterowania | Przed pracą i w trakcie identyczny prostokąt: x=348, y=278.5, szerokość=950, wysokość=64 px |
-| Desktop 1366×900 / mobile 390×844 | PASS; mobile scrollWidth 382 ≤ 390, bez poziomego overflow |
+| Desktop 1366×900 / mobile 390×844 | Ponowny smoke finalnego refaktoru PASS; mobile scrollWidth 382 ≤ 390, bez poziomego overflow |
+| Mobilny pasek sterowania | x=28, y=340, szerokość=326, wysokość=136 px; START x=41/right=229.8, STOP x=237.8/right=329.45 — oba widoczne |
 | PL / EN / DE | Etykiety sprawdzone w rzeczywistym DOM; przywrócono PL |
-| Konsola | 0 błędów; ostrzeżenia wykresów hosta nadal występowały |
-| Wybór historii Qwen→RWKV | Regresja identyfikatora modelu zawierającego kropki naprawiona; poprawne odtworzenie wyboru/formularza |
+| Konsola | Podstawowy smoke: 0 błędów; ostrzeżenia wykresów hosta nadal występowały. Dodatkowa weryfikacja usunięcia: 1 oczekiwany błąd HTTP 404 w konsoli |
+| Wybór historii Qwen→RWKV | Rzeczywiście odtworzono identyfikator modelu z kropkami i limity 2 tury / 32 tokeny |
+| Eksport własnej anulowanej próby | Pobranie pliku przez przeglądarkę PASS; bez publikacji surowych danych |
+| Usunięcie własnej próby | Usunięcie i potwierdzenie braku zapisu przez HTTP 404 PASS |
+
+Ponowny smoke po wdrożeniu finalnego refaktoru L4 wykonano na lokalnej rewizji
+`382dd65`: PL/EN/DE, desktop/mobile i stałe kontrolki PASS, 0 błędów konsoli
+w tym przebiegu (ostrzeżenia wykresów hosta pozostawały). Wcześniejszy odbiór
+eksportu/usunięcia dotyczy rewizji `b3dcc43`; oczekiwany probe 404 jest oddzielnym
+dowodem i nie jest ukrywany w liczniku finalnego smoke. Rewizje lokalnych prób
+nie są deklaracją końcowego SHA wydania L5.
 
 Powyższe potwierdza konkretny lokalny przepływ. Długie treści, równoległe karty,
 negatywne odpowiedzi i skrajne stany UI mają dodatkowe testy fixture; nie
@@ -184,15 +195,32 @@ bez zmian, trasy Rider nadal były obecne, health hosta zwrócił HTTP 200 i
 Ollama `/api/ps` było puste. Pierwszy probe 10 s był zbyt krótki na start hosta;
 PASS dotyczy późniejszego potwierdzonego wyniku, a nie pominięcia tego oczekiwania.
 To odbiór API/stanu danych. Włączony panel i rzeczywisty START/STOP odebrano
-oddzielnie powyżej. Nie wykonano inferencji zwykłego chatu po laboratorium;
-końcowe scalenie/deployment oraz widoczność menu w stanie OFF nie są potwierdzane
+oddzielnie powyżej. Wynik zwykłego chatu jest opisany w następnej sekcji.
+Końcowe scalenie/deployment oraz widoczność menu w stanie OFF nie są potwierdzane
 samym brakiem tras API.
+
+## Nierozwiązany odbiór zwykłego chatu hosta
+
+Jeden rzeczywisty probe po laboratorium zakończył się **FAILED — HTTP 400 przed
+pierwszą treścią odpowiedzi**. Dotychczasowy wybór operatora `gemma2:2b`
+(legacy, interfejs completion-only) pozostał bez zmian. Oryginalne body błędu
+nie zostało zachowane, więc nie przypisujemy przyczyny modułowi, transportowi
+ani modelowi na podstawie samego kodu HTTP.
+
+Po tym probe zaobserwowano `quarantine=1`. Poprawka core obsługi cleanup
+typowanego błędu transportu jest w toku; ten follow-up dotyczy zwolnienia zasobu,
+nie poprawki parametru legacy adaptera. Jego odbiór i ponowna rzeczywista próba
+czatu pozostają wymagane. Wcześniejsze `available`, `active_operations=0`
+i puste `/api/ps` po próbach modułu potwierdzają ich cleanup, ale nie zastępują
+odpowiedzi zwykłego chatu. Nie oznaczamy tego kryterium jako PASS i nie zamykamy
+całego wydania przed rozstrzygnięciem.
 
 ## Testy regresji i niezależne przeglądy
 
 | Zakres i dowód | Wynik |
 | --- | --- |
-| Pełna lokalna integracja przed końcowym wydaniem | `make check`: 252 testy Python PASS, coverage ok. 97%; 13 React PASS, line coverage 95.28%; mypy, TS/lint i kontrakty hosta PASS |
+| Pełna lokalna integracja przed końcowym wydaniem | `make check`: 252 testy Python PASS, coverage 97% (1993 statements / 55 miss); mypy 20 źródeł; 15 testów frontendowych PASS, line coverage 96,02%; TS/lint i kontrakty hosta PASS |
+| L4, końcowy kod `6fb7613` | CI/contracts, Sonar, Snyk i GitGuardian PASS; niezależny review PASS. PL/EN/DE: 97 kluczy na język i 0 różnic tekstów przed/po refaktorze; bounded replay i dotychczasowe testy zachowane |
 | L3 po integracji z C0, `ee3b34afdc2a0a60bd2c3c3630c947b7f08c7852` | Pełne `make check`: 168 pytest PASS, coverage 96.95%, mypy 19 źródeł, Ruff/format, TS/lint, 4 testy webowe i kontrakty opcjonalnego modułu PASS |
 | Niezależny L5 po `c9fcb8b28516795685290a36788655dd2daf85d4` | 60 targeted testów CPU PASS; powtórzone konkretne repro uwag przeglądu |
 | C0/L2 — niezależny przegląd | Zweryfikowane admission/cancel/cleanup oraz tożsamość artefaktów i izolacja; brak deklaracji skanów jako dowodu inferencji |
@@ -234,7 +262,7 @@ C0; nie zastępują testu GPU/przeglądarki.
 | OFF i zachowanie bazy/Ridera | Rzeczywisty odbiór API/danych |
 | Crash/interrupted bez auto-resume | Testy fixture; bez celowego crash procesu podczas realnej inferencji |
 | Retencja, limity dysku/runów, storage-full i OOM | Testy fixture; bez zapychania dysku lub wymuszania realnego GPU OOM |
-| Zwykła rozmowa hosta po laboratorium | Inferencja nie została wykonana; wolny lease i pusty `/api/ps` nie są odpowiedzią chatu |
+| Zwykła rozmowa hosta po laboratorium | Jedna rzeczywista próba FAILED: HTTP 400 przed pierwszą treścią; wybór operatora niezmieniony. Body błędu utracono, przyczyna nieustalona; cleanup transportu i ponowny odbiór pozostają otwarte |
 
 ## Stan końcowego odbioru i pozostałe potwierdzenia
 
@@ -246,8 +274,9 @@ C0; nie zastępują testu GPU/przeglądarki.
 | Pełna macierz 30 przypadków | WYKONANA; wyniki powyżej i w zredagowanym JSON; bez zmiany zamrożonej rubryki v1 |
 | OFF → restart: API nieobecne, baza bez zmian, Rider obecny, Ollama puste | PASS — realny off-acceptance.json |
 | Panel ON oraz menu OFF | Panel ON/START/STOP PASS; ukrycie menu OFF ma kontrakt/fixture, nie osobne potwierdzenie DOM |
-| Zwykła rozmowa hosta po laboratorium | NIE WYKONANO inferencji; resource available nie jest dowodem odpowiedzi |
-| Pełny lokalny `make check` i kontrole wydania | Lokalny gate 252 Python / 13 React PASS; CI/review/skany L4/L5 i końcowych SHA pozostają do potwierdzenia |
+| Zwykła rozmowa hosta po laboratorium | BLOCKER — rzeczywisty probe HTTP 400 przed pierwszą treścią; po nim quarantine=1, poprawka core i ponowny odbiór pending. Brak body uniemożliwia pewne przypisanie przyczyny |
+| Eksport i usunięcie własnej anulowanej próby | PASS — rzeczywiste pobranie przez przeglądarkę i potwierdzenie usunięcia HTTP 404 |
+| Pełny lokalny `make check` i kontrole wydania | Lokalny gate 252 Python / 15 frontend PASS, mypy/TS/lint/host contracts PASS. L4 scalony z CI/contracts/Sonar/Snyk/GitGuardian i niezależnym review PASS; L5 PR #13 do main wymaga końcowych kontroli i scalenia |
 | Dokładne SHA końcowego core/module/deployment i decyzja ryzyka | PENDING — uzupełnia koordynator przed zamknięciem odbioru |
 
 Sposób uruchomienia, retencja, OFF i rollback:

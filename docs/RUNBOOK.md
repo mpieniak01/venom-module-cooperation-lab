@@ -150,8 +150,14 @@ bez zmian, Rider obecny, health 200 i Ollama ps[]. Browser START/RWKV A/B,
 reload/replay/SSE przez proxy, STOP/quiescence, stabilny układ desktop/mobile
 oraz PL/EN/DE odebrane. Szczegóły: [RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md).
 
-Po STOP zasób available/active_operations=0 i ps[]; nie wykonano następnie zwykłej
-inferencji chatu. Crash/retencja/quotas/OOM pozostają testami fixture. L4 PR #12 czeka
-na kontrole, L5 na publikację/recenzję/scalenie; finalne SHA/deployment i bramki
-wydania potwierdza koordynator. Nie archiwizować całego zadania przed scaleniem
-L5; nie poprawiać parsera v1 dla pozornej jakości.
+Po STOP zasób available/active_operations=0 i ps[]. Późniejsza pojedyncza próba
+zwykłego chatu zakończyła się HTTP 400 przed pierwszą treścią; wybór operatora
+`gemma2:2b` (legacy completion-only) niezmieniony. Body błędu utracono, więc jego
+przyczyna nie jest ustalona. Zaobserwowane quarantine=1 wymaga poprawki core
+cleanup typowanego błędu transportu i ponownego rzeczywistego odbioru czatu.
+Crash/retencja/quotas/OOM pozostają testami fixture. L4 PR #12 scalony
+(`1021bb3`), finalny kod `6fb7613` ma kontrole i niezależny review PASS.
+[L5 PR #13 do main](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13)
+oczekuje recenzji/końcowych kontroli/scalenia; finalne SHA/deployment i bramki
+wydania potwierdza koordynator. Nie archiwizować całego zadania przed zamknięciem
+blockera chatu i scaleniem L5; nie poprawiać parsera v1 dla pozornej jakości.

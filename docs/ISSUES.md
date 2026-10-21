@@ -2,7 +2,9 @@
 
 [PR planu #1](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/1), [cel MVP #2](https://github.com/mpieniak01/venom-module-cooperation-lab/issues/2).
 
-Numery poniżej są zadaniami do przyszłych PR, nie ukończonymi zmianami.
+Numery poniżej identyfikują zakresy planu; ich stan wdrożenia i scalenia podaje
+[RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md). Nie są automatycznym potwierdzeniem
+zamknięcia odpowiadających im zgłoszeń GitHub.
 
 | ID | Zadanie | Repo implementacji | Opis PR |
 | --- | --- | --- | --- |
@@ -13,4 +15,7 @@ Numery poniżej są zadaniami do przyszłych PR, nie ukończonymi zmianami.
 | L4 | [#7](https://github.com/mpieniak01/venom-module-cooperation-lab/issues/7) | to repo | [Specyfikacja](prs/L4-operator-workspace.md) |
 | L5 | [#8](https://github.com/mpieniak01/venom-module-cooperation-lab/issues/8) | to repo | [Specyfikacja](prs/L5-experiments-acceptance.md) |
 
-Kolejność: L1 i C0 → L2 → L3 → L4 → L5. Zadania otwarte. Trening i dalsza rozbudowa są poza MVP.
+Kolejność: L1 i C0 → L2 → L3 → L4 → L5. L1–L4 i C0 są scalone;
+[L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13)
+jest otwarty do main. Końcowy odbiór zwykłego chatu, kontrole L5 i deployment
+pozostają otwarte. Trening i dalsza rozbudowa są poza MVP.
