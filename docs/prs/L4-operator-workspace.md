@@ -48,3 +48,18 @@ Node24 generuje rzeczywisty LCOV z tej samej sesji testów do
 `test-results/lcov.info`, wskazanego przez sonar.javascript.lcov.reportPaths.
 Bez wyłączeń pokrycia i zmiany progów. TS/lint oraz12testów PASS,95,28% line
 coverage. Wynik Sonara/i18n CPD należy ocenić po actual skanie.
+
+## Naprawa rzeczywistej bramki PR #12
+
+Dla SHA971720b SonarCloud wykazał13,7% duplikacji nowych linii (146/1064),
+wyłącznie trzy powtórzone struktury kluczy w słownikach PL/EN/DE. Coverage92,3%,
+ratings A i hotspots100% przechodziły. Zamieniono powtarzane słowniki na jedną
+sprawdzaną typami tabelę klucz→[PL,EN,DE]; osobne dokładne porównanie potwierdziło
+zachowanie wszystkich tekstów/kluczy. Bez exclusions, ignorowania CPD lub progów.
+
+Dwanaście uwag utrzymaniowych obsłużono przez helpery prezentacji i bounded
+replay, findLast, typowany status bez String(object) oraz natywne fieldset/output.
+Zachowano limity4stron/256zdarzeń, kontrolę disposal i wcześniejsze regresje STOP.
+TS/lint i15testów PASS; rzeczywisty LCOV96,02%. Dodatkowe testy sprawdzają błędny
+obiekt statusu i skończony catch-up. Końcowy status Sonara wymaga nowego skanu CI,
+nie jest wywnioskowany z lokalnych testów.

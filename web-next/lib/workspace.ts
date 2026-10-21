@@ -10,7 +10,7 @@ export const workspaceStyles = `
 .coop-workspace .coop-header { display:flex; flex-shrink:0; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
 .coop-workspace h1 { margin:0; font-size:20px; line-height:1.3; font-weight:600; }
 .coop-workspace .coop-header p { margin:4px 0 0; font-size:12px; color:#94a3b8; }
-.coop-workspace .coop-controls { display:flex; flex-shrink:0; flex-wrap:wrap; align-items:center; gap:8px; border:1px solid #ffffff1a; border-radius:12px; padding:12px; background:#020617f2; z-index:10; }
+.coop-workspace .coop-controls { min-width:0; margin:0; display:flex; flex-shrink:0; flex-wrap:wrap; align-items:center; gap:8px; border:1px solid #ffffff1a; border-radius:12px; padding:12px; background:#020617f2; z-index:10; }
 .coop-workspace .coop-button { border:1px solid #ffffff33; border-radius:8px; padding:8px 12px; font-size:14px; line-height:20px; background:#0f172a; color:#e2e8f0; cursor:pointer; white-space:nowrap; }
 .coop-workspace .coop-button:disabled { cursor:not-allowed; opacity:.45; }
 .coop-workspace .coop-button:focus-visible, .coop-workspace .coop-field:focus-visible { outline:2px solid #2dd4bf; outline-offset:2px; }
@@ -30,7 +30,7 @@ export const workspaceStyles = `
 .coop-workspace .coop-confirmation { display:flex; flex-wrap:wrap; gap:8px; }
 .coop-workspace .coop-main { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; min-height:16rem; }
 .coop-workspace .coop-column { display:flex; flex-direction:column; gap:12px; min-width:0; }
-.coop-workspace .coop-participants { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.coop-workspace .coop-participants { min-width:0; margin:0; padding:0; border:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .coop-workspace .coop-panel { min-width:0; border:1px solid #ffffff1a; border-radius:12px; padding:12px; }
 .coop-workspace .coop-panel h2 { margin:0 0 8px; font-size:16px; font-weight:600; }
 .coop-workspace .coop-messages { display:flex; flex-direction:column; gap:12px; list-style:none; margin:0; padding:0; }

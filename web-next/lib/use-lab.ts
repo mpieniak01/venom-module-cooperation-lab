@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API, ApiError, failureCode, request } from "./api";
+import { readReplay, replayedRun } from "./replay";
 import { isLabEvent, mergeEvents, terminal, type Capabilities, type Json, type LabEvent, type Run } from "./protocol";
 
 export function useLab() {
@@ -94,20 +95,12 @@ export function useLab() {
       try {
         const snapshot = await request<{ run: Run }>("/runs/" + encodeURIComponent(runId!), { signal: abort.signal });
         if (!live) return;
-        let all: LabEvent[] = [];
-        for (let page = 0; page < 4; page += 1) {
-          const result = await request<{ events: LabEvent[]; resync?: boolean }>(
-            "/runs/" + encodeURIComponent(runId!) + "/events?after=" + cursor,
-            { signal: abort.signal });
-          if (!live) return;
-          if (result.resync || result.events.some((event) => !isLabEvent(event))) throw new Error("resync");
-          all = mergeEvents(all, result.events, runId!);
-          cursor = all.at(-1)?.seq ?? 0;
-          if (result.events.length < 100) break;
-        }
+        const replay = await readReplay(runId!, abort.signal, () => live);
+        if (!replay) return;
+        const all = replay.events;
+        cursor = replay.cursor;
         setEvents(all);
-        const latest = all.filter((event) => (event.kind === "run" || event.kind === "end") && typeof event.payload.status === "string").at(-1);
-        const replayed = { ...snapshot.run, status: latest ? String(latest.payload.status) : snapshot.run.status, last_seq: Math.max(snapshot.run.last_seq, cursor) };
+        const replayed = replayedRun(snapshot.run, all, cursor);
         setRun((before) => before?.id === runId && replayed.last_seq >= before.last_seq && !(terminal(before.status) && !terminal(replayed.status)) ? replayed : before);
         if (terminal(replayed.status) || all.some((e) => e.kind === "end")) {
           setConnection("connected"); return;

@@ -106,12 +106,12 @@ test("failed discovery and invalid server data remain visible without starting a
   const box=document.createElement("div");const root=createRoot(box);
   try{
     await act(async()=>root.render(<CooperationLabPage/>));await settle();
-    assert.equal(box.querySelector('[role="status"]')?.textContent?.trim(), "Otrzymano nieprawidłowe dane z laboratorium.");
+    assert.equal(box.querySelector('output.coop-notice')?.textContent?.trim(), "Otrzymano nieprawidłowe dane z laboratorium.");
     assert.equal(box.querySelector("details code")?.textContent, "invalid_response");
     assert.equal(findButton(box,"Rozpocznij eksperyment").disabled,true);
     globalThis.fetch=async()=>{throw new Error("network");};
     await act(async()=>findButton(box,"Odśwież").click());await settle();
-    assert.equal(box.querySelector('[role="status"]')?.textContent?.trim(), "Brak połączenia z laboratorium.");
+    assert.equal(box.querySelector('output.coop-notice')?.textContent?.trim(), "Brak połączenia z laboratorium.");
     assert.equal(box.querySelector("details code")?.textContent, "connection_unavailable");
   }finally{await act(async()=>root.unmount());globalThis.fetch=oldFetch;}
 });
@@ -131,7 +131,7 @@ test("readiness reasons and unknown errors share one fixed notice slot and prese
   const root = createRoot(box);
   try {
     await act(async () => root.render(<CooperationLabPage/>)); await settle();
-    const notice = box.querySelector('[role="status"]')!;
+    const notice = box.querySelector('output.coop-notice')!;
     const controls = findButton(box, "Zatrzymaj").parentElement;
     assert.match(notice.className, /h-5/);
     assert.equal(notice.textContent?.trim(), "Współdzielona kontrola zasobów jest wyłączona.");
@@ -143,7 +143,7 @@ test("readiness reasons and unknown errors share one fixed notice slot and prese
     ]) {
       reason = next;
       await act(async () => findButton(box, "Odśwież").click()); await settle();
-      assert.equal(box.querySelector('[role="status"]'), notice);
+      assert.equal(box.querySelector('output.coop-notice'), notice);
       assert.equal(notice.textContent?.trim(), translated);
       assert.equal(box.querySelector("details code")?.textContent, next);
       assert.equal(findButton(box, "Zatrzymaj").parentElement, controls);
@@ -171,7 +171,7 @@ test("selected Qwen history shows its actual immutable settings and module style
   const box = document.createElement("div"); document.body.append(box); const root = createRoot(box);
   try {
     await act(async () => root.render(<CooperationLabPage/>)); await settle();
-    const settings = box.querySelector("fieldset")!;
+    const settings = box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")!;
     assert.equal(settings.disabled,true);
     assert.deepEqual([...settings.querySelectorAll("select")].map((select) => select.value),["qwen3-4b-control","correction","no_contact"]);
     assert.deepEqual([...settings.querySelectorAll("input")].map((input) => input.value),["4","32","17"]);
@@ -209,7 +209,7 @@ test("switching Qwen history to RWKV replaces the model with its dotted immutabl
   const box = document.createElement("div"); document.body.append(box); const root = createRoot(box);
   try {
     await act(async () => root.render(<CooperationLabPage/>)); await settle();
-    const settings = box.querySelector("fieldset")!;
+    const settings = box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")!;
     const model = settings.querySelector("select")!;
     assert.equal(model.value,"qwen3-4b-control");
     const history = [...box.querySelectorAll("select")].find((select) => select.parentElement?.textContent?.startsWith("Historia prób"))!;
