@@ -178,3 +178,15 @@ komponentu i jawnym manifestem unii. Prywatny raport: lokalny
 Wcześniejszą własną próbę bez wyniku przerwano z exit143; nie zastępuje ona tego
 końcowego raportu. Formalny odbiór i decyzja dotycząca inherited Torch pozostają
 jawnie odrębnym warunkiem.
+
+
+### Utrzymanie adaptera po przeglądzie Sonar
+
+Rozdzielono loader/dispatch/prefill/sample/decode i odczyt streamu Ollama na
+nazwane helpery. Bez zmiany checkpointu, template, seed/sampling, lease,
+limitów, CUDA synchronize lub kolejności commitowania prywatnego stanu.
+Jawna implementacja ModelAdapter zastępuje wyłącznie strukturalne rozpoznanie
+Protocol. Worker nie połyka SystemExit/KeyboardInterrupt; nadal zamyka IPC w
+finally, a host potwierdza rzeczywiste zakończenie procesu. Regresje fixture
+obejmują anulowanie w prefill/decode bez commitowania częściowego stanu.
+To refaktor z walidacją CPU, nie nowy benchmark ani nowa próba GPU.
