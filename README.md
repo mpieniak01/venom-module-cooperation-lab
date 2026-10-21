@@ -5,6 +5,7 @@ Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie
 **Stan: planowanie.** Nie ma jeszcze działającego modułu, modeli ani wyników benchmarków. Pierwszy cel: zakwalifikować nowy model o interesujących właściwościach i zapewnić operatorowi widoczną, rzeczywistą wymianę między dwoma niezależnymi sesjami tych samych wag.
 
 - [Plan i kolejność PR](docs/PLAN.md)
+- [Zadania GitHub i PR planu](docs/ISSUES.md)
 - [Kontrakty](docs/CONTRACTS.md)
 - [Kwalifikacja modeli](docs/MODEL_QUALIFICATION.md)
 - [Odbiór](docs/ACCEPTANCE.md)

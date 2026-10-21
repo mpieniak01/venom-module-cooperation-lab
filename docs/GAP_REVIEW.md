@@ -28,3 +28,7 @@ Stan 2026-10-21: review specyfikacji i istniejących kontraktów hosta, nie test
 4. L5: scenariusze/encouragement/rubryka zamrożone przed pomiarami, bez zmiany po niekorzystnym wyniku.
 
 Luki mają właścicieli i testy. Nie obiecujemy braku wszelkich ryzyk ani tego, że badania wykażą przewagę współpracy. Powyższe bramki nie mogą zostać cicho pominięte podczas implementacji.
+
+## Wynik przeglądu dokumentacji
+
+Sprawdzono kompletność sześciu zakresów i acykliczność zależności. Uzupełniono wykrytą brakującą jawną sekcję wyłączeń L5; ponowna kontrola przeszła. Lokalne linki sprawdzone. To własny przegląd planu, nie niezależna recenzja kodu. Testy runtime/coverage N/A; brak implementacji i instalacji modeli.
