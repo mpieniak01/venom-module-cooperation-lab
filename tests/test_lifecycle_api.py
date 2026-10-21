@@ -13,6 +13,17 @@ from venom_module_cooperation_lab.lifecycle import LabLifecycle, lifespan
 from venom_module_cooperation_lab.storage import LabStore
 
 
+@pytest.fixture(autouse=True)
+def configured_host_settings(monkeypatch):
+    from venom_core import config
+
+    settings = SimpleNamespace(
+        FEATURE_COOPERATION_LAB=False, RUNTIME_ADMISSION_ENABLED=False
+    )
+    monkeypatch.setattr(config, "SETTINGS", settings)
+    return settings
+
+
 @pytest.mark.asyncio
 async def test_disabled_has_no_factory_io():
     factory = Mock()
@@ -43,8 +54,10 @@ async def test_start_closes_failed_store():
 
 
 @pytest.mark.asyncio
-async def test_lifespan_enabled_owns_schema_not_model(tmp_path, monkeypatch):
-    monkeypatch.setenv("FEATURE_COOPERATION_LAB", "true")
+async def test_lifespan_enabled_owns_schema_not_model(
+    tmp_path, monkeypatch, configured_host_settings
+):
+    configured_host_settings.FEATURE_COOPERATION_LAB = True
     stores = []
 
     def factory(access):
@@ -62,7 +75,9 @@ async def test_lifespan_enabled_owns_schema_not_model(tmp_path, monkeypatch):
     assert not stores[0].opened
 
 
-def test_public_discovery_true_not_ready_no_generation(monkeypatch):
+def test_public_discovery_true_not_ready_no_generation(
+    monkeypatch, configured_host_settings
+):
     monkeypatch.delenv("FEATURE_COOPERATION_LAB", raising=False)
     app = FastAPI()
     app.include_router(router)
@@ -75,10 +90,10 @@ def test_public_discovery_true_not_ready_no_generation(monkeypatch):
         denied = client.post("/api/v1/cooperation-lab/runs", json={})
         assert denied.status_code == 503
         assert denied.json()["detail"]["reason_code"] == "model_not_qualified"
-    monkeypatch.setenv("FEATURE_COOPERATION_LAB", "true")
+    configured_host_settings.FEATURE_COOPERATION_LAB = True
     req = SimpleNamespace(app=app)
     assert state(req)["reason_code"] == "runtime_admission_disabled"
-    monkeypatch.setenv("RUNTIME_ADMISSION_ENABLED", "true")
+    configured_host_settings.RUNTIME_ADMISSION_ENABLED = True
     del app.state.cooperation_lab
     assert state(req)["reason_code"] == "lifecycle_not_started"
     app.state.cooperation_lab = LabLifecycle(Mock())
@@ -132,3 +147,15 @@ def test_manifest_host_namespace_and_guard(tmp_path, monkeypatch):
     assert mutation.call_args_list[0].kwargs["module_id"] == "cooperation_lab"
     data = json.loads(Path("module.json").read_text())
     assert data["enabled_by_default"] is False
+
+
+def test_host_settings_are_the_only_feature_flag_truth(
+    monkeypatch, configured_host_settings
+):
+    from venom_module_cooperation_lab.lifecycle import enabled
+
+    monkeypatch.setenv("FEATURE_COOPERATION_LAB", "true")
+    assert not enabled()
+    monkeypatch.delenv("FEATURE_COOPERATION_LAB")
+    configured_host_settings.FEATURE_COOPERATION_LAB = True
+    assert enabled()

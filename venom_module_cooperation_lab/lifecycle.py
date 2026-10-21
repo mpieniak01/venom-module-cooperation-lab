@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import Any
@@ -11,8 +10,14 @@ from typing import Any
 from .storage import LabStore
 
 
+def setting_enabled(name: str) -> bool:
+    from venom_core.config import SETTINGS
+
+    return bool(getattr(SETTINGS, name, False))
+
+
 def enabled() -> bool:
-    return os.getenv("FEATURE_COOPERATION_LAB", "false").lower() in {"1", "true"}
+    return setting_enabled("FEATURE_COOPERATION_LAB")
 
 
 class LabLifecycle:

@@ -1,11 +1,10 @@
 """Safe discovery endpoints. Generations are intentionally unavailable in L1."""
 
-import os
 from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from ..lifecycle import LabLifecycle, enabled, lifespan
+from ..lifecycle import LabLifecycle, enabled, lifespan, setting_enabled
 from ..limits import Limits
 
 
@@ -28,7 +27,7 @@ def state(request: Request) -> dict[str, object]:
     lifecycle: LabLifecycle | None = getattr(request.app.state, "cooperation_lab", None)
     if not enabled():
         return {"state": "disabled", "reason_code": "module_disabled", "ready": False}
-    if os.getenv("RUNTIME_ADMISSION_ENABLED", "false").lower() not in {"1", "true"}:
+    if not setting_enabled("RUNTIME_ADMISSION_ENABLED"):
         return {
             "state": "not_ready",
             "reason_code": "runtime_admission_disabled",

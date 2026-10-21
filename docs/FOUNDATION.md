@@ -78,3 +78,5 @@ availability must be confirmed on the PR. No secrets are stored in source; missi
 secrets are not reported as successful scans. The React workspace has meaningful
 DOM tests and LCOV. L4 adds real browser/proxy tests; this foundation does not
 claim a working live dialogue or operator acceptance.
+
+Flagi backendu są odczytywane z host SETTINGS (Pydantic), także gdy plik .env nie jest eksportowany do os.environ. Limit busy_timeout SQLite ogranicza czekanie na blokadę; timeout async lifecycle nie przerywa synchronicznego I/O systemu plików.
