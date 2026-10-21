@@ -16,7 +16,7 @@ Zamrożone limity v1 w L1: 100 runów, 14 dni retencji, 512MiB bazy wraz z WAL/S
 
 ## Model i niezależność
 
-ModelSpec: ID i revision/digest, artefakt/kwantyzacja, tokenizer/template hash, runtime/version, schema capabilities/parametrów i receipt kwalifikacji. Stan available/loading/ready/unsupported/failed potwierdza adapter. Unknown/estymowany usage jest jawny, nie zerowy.
+ModelSpec: ID i revision/digest, artefakt/kwantyzacja, tokenizer/template hash, runtime/version, schema capabilities/parametrów i receipt kwalifikacji. Kwalifikacja wymaga `qualified=true`, niepustego `receipt_id` oraz dokładnej zgodności wszystkich niezmiennych pól: `model_id`, `architecture`, `provider`, `artifact`, `revision`, `digest`, `tokenizer_hash`, `template_hash`, `runtime`, `quantization`. Brak pola albo zmiana runtime (także overlay zależności), rewizji lub kwantyzacji unieważnia poprzedni receipt. Metadane gotowości nie należą do tożsamości modelu. SHA kodu hosta/modułu i ABI zapisuje rzeczywisty raport kwalifikacji jako osobny dowód; discovery pozostaje czystym odczytem metadanych, bez haszowania filesystemu. Stan available/loading/ready/unsupported/failed potwierdza adapter. Unknown/estymowany usage jest jawny, nie zerowy.
 
 Participant: run_id, participant_id A/B, immutable model reference, private history/state handle i prompt encouragement. Wagi współdzielone tylko gdy niezmienne. Mutowalny KV/state/fast weights/optimizer odseparowany per uczestnik; reset także między runami. Brak obsługi specyficznego stanu daje unsupported, nie wspólną historię ukrytą pod dwoma ID.
 

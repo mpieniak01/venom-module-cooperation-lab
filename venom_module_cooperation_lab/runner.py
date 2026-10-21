@@ -17,6 +17,18 @@ from .storage import TERMINAL, LabStore, _identifier
 
 OWNER = "local_operator"
 _ALLOWED_KINDS = {"message", "proposal", "accept", "ask", "evidence", "complete"}
+MODEL_IDENTITY_FIELDS = (
+    "model_id",
+    "architecture",
+    "provider",
+    "artifact",
+    "revision",
+    "digest",
+    "tokenizer_hash",
+    "template_hash",
+    "runtime",
+    "quantization",
+)
 
 
 @dataclass
@@ -81,13 +93,15 @@ class LabRunner:
                 continue
             result = asdict(spec)
             receipt = self.store.get_document("qualifications", model_id, owner=OWNER)
-            fields = ("digest", "tokenizer_hash", "template_hash")
             valid = (
                 receipt
                 and receipt.get("qualified") is True
                 and isinstance(receipt.get("receipt_id"), str)
                 and bool(receipt.get("receipt_id"))
-                and all(receipt.get(key) == result[key] for key in fields)
+                and all(
+                    key in receipt and receipt[key] == result[key]
+                    for key in MODEL_IDENTITY_FIELDS
+                )
             )
             if not valid or receipt is None:
                 raise LabError("model_not_qualified", 503)
@@ -339,6 +353,8 @@ class LabRunner:
             "runtime",
             "runtime_version",
             "torch_version",
+            "certifi_version",
+            "filelock_version",
             "strategy",
             "precision",
             "device",

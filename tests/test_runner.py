@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import FrozenInstanceError, asdict, replace
 
 import pytest
 from conftest import SPEC
@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from venom_module_cooperation_lab.errors import LabError
 from venom_module_cooperation_lab.run_config import RunConfig, RunRequest
-from venom_module_cooperation_lab.runner import OWNER
+from venom_module_cooperation_lab.runner import MODEL_IDENTITY_FIELDS, OWNER, LabRunner
 from venom_module_cooperation_lab.scenarios import get_scenario
 
 
@@ -478,3 +478,38 @@ async def test_late_close_is_single_owned_task_then_releases_and_journals(rig):
         assert len(adapters[0].recorded) == 1
     finally:
         release_close.set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", MODEL_IDENTITY_FIELDS)
+@pytest.mark.parametrize("missing", [False, True])
+async def test_qualification_requires_every_immutable_identity_field(
+    rig, field, missing
+):
+    runner, adapters = rig
+    receipt = {
+        **asdict(SPEC),
+        "qualified": True,
+        "receipt_id": "old-runtime-must-not-qualify-new-spec",
+    }
+    if missing:
+        receipt.pop(field)
+    else:
+        receipt[field] += "-different"
+    runner.store.put_document("qualifications", SPEC.model_id, receipt, owner=OWNER)
+    assert runner.models()[0]["qualified"] is False
+    with pytest.raises(LabError, match="model_not_qualified"):
+        await runner.start(request(), "wrong-identity")
+    assert adapters == []
+    assert runner.admission.snapshot()["status"] == "available"
+
+
+def test_runtime_receipt_retains_security_overlay_versions_without_private_fields():
+    assert LabRunner._runtime_receipt(
+        {
+            "certifi_version": "2026.10.19",
+            "filelock_version": "4.2.1",
+            "private_path": "/private/runtime",
+            "model_prompts": ["must not journal"],
+        }
+    ) == {"certifi_version": "2026.10.19", "filelock_version": "4.2.1"}

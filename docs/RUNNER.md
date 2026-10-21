@@ -17,7 +17,10 @@ path. Checkpoint identity comes from the L2 model registry.
 
 An enabled runtime admission controller and a matching qualification receipt are
 required. SQLite qualifications must contain `qualified=true`, nonempty
-`receipt_id`, and exact registry `digest`, `tokenizer_hash`, `template_hash`.
+`receipt_id`, and exact registry `model_id`, `architecture`, `provider`, `artifact`,
+`revision`, `digest`, `tokenizer_hash`, `template_hash`, `runtime`, `quantization`.
+Missing identity fields or a dependency overlay change require a new qualification;
+discovery does not inspect or hash live files.
 The CLI/qualification authority writes these trusted records; no web endpoint
 accepts receipts. GET discovery never loads a model. RunConfig stores immutable
 model/scenario versions, actual prompts, sampling/seed, budgets and a canonical

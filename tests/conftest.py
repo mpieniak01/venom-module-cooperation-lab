@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import asdict
 
 import pytest
 from venom_core.services.runtime_admission import RuntimeAdmission
@@ -105,10 +106,7 @@ async def rig(tmp_path):
         "qualifications",
         SPEC.model_id,
         {
-            "model_id": SPEC.model_id,
-            "digest": SPEC.digest,
-            "template_hash": SPEC.template_hash,
-            "tokenizer_hash": SPEC.tokenizer_hash,
+            **asdict(SPEC),
             "qualified": True,
             "receipt_id": "fixture-not-real-qualification",
         },
