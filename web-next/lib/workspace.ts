@@ -20,6 +20,9 @@ export const workspaceStyles = `
 .coop-workspace .coop-notice { height:20px; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; color:#fcd34d; }
 .coop-workspace .coop-body { min-height:0; flex:1 1 0%; overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; overscroll-behavior:contain; }
 .coop-workspace .coop-settings { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; min-width:0; margin:0 0 12px; border:1px solid #ffffff1a; border-radius:12px; padding:12px; }
+ .coop-workspace .coop-settings-group { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.coop-workspace .coop-settings-group h3 { margin:0 0 4px; font-size:13px; font-weight:600; color:#cbd5e1; }
+.coop-workspace .coop-settings-hint { margin:0; font-size:12px; color:#67e8f9; }
 .coop-workspace .coop-settings legend { padding:0 4px; font-size:14px; }
 .coop-workspace .coop-setting { display:flex; flex-direction:column; gap:4px; min-width:0; font-size:12px; }
 .coop-workspace .coop-field { min-width:0; max-width:100%; width:100%; border:1px solid #ffffff33; border-radius:8px; padding:8px; background:#020617; color:#e2e8f0; font:inherit; }
@@ -72,7 +75,7 @@ export const workspaceStyles = `
   .coop-workspace[data-operator="true"] .coop-messages { flex:1; min-height:0; }
   .coop-workspace[data-operator="true"] aside { overflow-y:auto; }
 
-  .coop-workspace .coop-settings { grid-template-columns:repeat(6,minmax(0,1fr)); }
+  .coop-workspace .coop-settings { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .coop-workspace .coop-setting-wide { grid-column:span 2 / span 2; }
   .coop-workspace .coop-main { grid-template-columns:minmax(0,1fr) 18rem; }
 }

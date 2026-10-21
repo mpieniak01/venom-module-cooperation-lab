@@ -124,6 +124,7 @@ test("operator prompt reaches the API once per key; retry retains draft, replies
  try{
   await act(async()=>root.render(<CooperationLabPage/>));await flush();
   await act(async()=>Source.all.at(-1)?.onopen?.());
+  assert.match(box.querySelector(".coop-run-state")!.textContent!,/Czeka na Twój wpis/);
   const area=box.querySelector("textarea")!;
   assert.ok(area);assert.equal(area.disabled,false);
   const set=Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,"value")!.set!;

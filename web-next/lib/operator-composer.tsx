@@ -16,7 +16,7 @@ export function OperatorComposer({runId,active,waiting,sending,language,relay,re
     if(await onSend(sent))setDraft(before=>before.runId===runId&&before.text===sent?{runId,text:""}:before);
   }}>
     <label className="coop-setting">{relay?t.operatorRelayPrompt:t.operatorPrompt}
-      <textarea className="coop-field" rows={3} maxLength={2000} value={draft.text}
+      <textarea className="coop-field" rows={3} maxLength={2000} placeholder={t.operatorInputHint} value={draft.text}
         disabled={!active||sending} onInput={event=>setDraft({runId,text:event.currentTarget.value})}/>
     </label>
     <div className="coop-composer-actions">

@@ -4,6 +4,7 @@ import { useLanguage } from "@/lib/i18n";
 import { messageKindLabel, modeLabel, scenarioLabel, statusLabel, texts } from "./lib/i18n";
 import { modelId, terminal, type Json, type LabEvent } from "./lib/protocol";
 import { useLab } from "./lib/use-lab";
+import { scenarioPolicy, selectScenario, selectMode } from "./lib/experiment-settings";
 import { computationLabel, noticePresentation } from "./lib/presentation";
 import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSettings } from "./lib/workspace";
 
@@ -36,10 +37,12 @@ export default function CooperationLabPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const models = lab.capabilities?.models ?? [];
   const chosen = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
-  const canStart = lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && m.qualified);
+  const policy = scenarioPolicy(scenario);
+  const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
+  const validSettings = !!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && m.qualified);
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error);
-  const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued);
   const organizations = lab.events.filter((event) => event.kind === "organization");
   const isGame = scenario === "tic_tac_toe";
   const gameEvent = lab.events.findLast(event => event.kind === "game");
@@ -47,6 +50,7 @@ export default function CooperationLabPage() {
   const operatorChat = mode === "operator_chat" || mode === "operator_relay" || isReview;
   const operatorEvent = lab.events.findLast(event=>event.kind==="operator"||event.kind==="message"&&event.payload.sender==="operator");
   const operatorWaiting = operatorEvent?.kind==="operator"&&operatorEvent.payload.waiting===true;
+  const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued, operatorWaiting);
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
@@ -70,35 +74,48 @@ export default function CooperationLabPage() {
       {lab.connection === "disconnected" && lab.run && <button type="button" className={button} onClick={lab.reconnect}>{t.reconnect}</button>}
     </fieldset>
     <output aria-live="polite" className="coop-notice h-5" title={notice || undefined}>
-      {notice}
+      {notice || (lab.active&&operatorWaiting ? t.operatorInputHint : "")}
     </output>
     <div className="coop-body">
       {settings && <fieldset disabled={lab.active || lab.pending} className="coop-settings">
         <legend className="px-1 text-sm">{t.settings}</legend>
-        <label className="coop-setting coop-setting-wide">{t.model}
-          <select className={field} value={chosen} onChange={(event) => setForm({...form, model:event.target.value})}>
-            {chosen && !models.some((model) => modelId(model) === chosen) && <option value={chosen}>{chosen} — {t.notReady}</option>}
-            {models.map((model) => <option value={modelId(model)} key={modelId(model)} disabled={!model.qualified}>{modelId(model)}{model.qualified ? "" : " — " + t.notReady}</option>)}
-          </select>
-        </label>
-        <label className="coop-setting coop-setting-wide">{t.scenario}
-          <select className={field} value={scenario} onChange={(event) => { const next=event.target.value; setForm({...form, scenario:next, mode:next === "peer_review" ? "operator_review" : next === "tic_tac_toe" ? "dialog" : mode, turns:next === "peer_review" ? 6 : next === "tic_tac_toe" ? 9 : Math.min(turns, 8)}); }}>
-            {(lab.capabilities?.scenarios ?? []).filter(item=>isReview ? item.scenario_id==="peer_review" : operatorChat ? item.scenario_id==="operator_conversation" : item.scenario_id!=="operator_conversation").map((item) => <option value={item.scenario_id} key={item.scenario_id}>{scenarioLabel(t, item.scenario_id, item.title)}</option>)}
-          </select>
-        </label>
-        <label className="coop-setting coop-setting-wide">{t.mode}
-          <select className={field} value={mode} onChange={(event) => setForm({...form, mode:event.target.value, scenario:event.target.value==="operator_review" ? "peer_review" : ["operator_chat", "operator_relay"].includes(event.target.value) ? "operator_conversation" : ["operator_conversation", "peer_review"].includes(scenario) ? "split_facts" : scenario, turns:event.target.value==="operator_review" ? 6 : ["operator_chat", "operator_relay"].includes(event.target.value) ? Math.max(2, turns - turns % 2) : turns})}>
-            {(lab.capabilities?.modes ?? []).filter(item => !isGame || item === "dialog").map((item) => <option value={item} key={item}>{isGame ? t.gameAlternating : modeLabel(t, item)}</option>)}
-          </select>
-        </label>
-        <label className="coop-setting coop-setting-wide">{t.communicationLanguage}
-          <select className={field} value={communicationLanguage} onChange={(event) => setForm({...form, communicationLanguage:event.target.value === "pl" ? "pl" : "en"})}>
-            <option value="pl">{t.polish}</option><option value="en">{t.english}</option>
-          </select>
-        </label>
-        <label className="coop-setting">{t.turns}<input className={field} type="number" min={isReview ? 3 : operatorChat ? 2 : 1} step={isReview ? 3 : operatorChat ? 2 : 1} max={isReview ? 6 : isGame ? 9 : 8} value={turns} onChange={(event) => setForm({...form, turns:Number(event.target.value)})} /></label>
-        <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={256} value={tokens} onChange={(event) => setForm({...form, tokens:Number(event.target.value)})} /></label>
-        <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={(event) => setForm({...form, seed:Number(event.target.value)})} /></label>
+        <div className="coop-settings-group">
+          <h3>{t.setupTask}</h3>
+          <label className="coop-setting">{t.scenario}
+            <select className={field} value={scenario} onChange={event=>setForm(selectScenario(form,event.target.value))}>
+              {(lab.capabilities?.scenarios ?? []).map(item=><option value={item.scenario_id} key={item.scenario_id}>{scenarioLabel(t,item.scenario_id,item.title)}</option>)}
+            </select>
+          </label>
+          <label className="coop-setting">{t.mode}
+            <select className={field} value={mode} disabled={availableModes.length===1} onChange={event=>setForm(selectMode(form,event.target.value))}>
+              {availableModes.map(item=><option value={item} key={item}>{isGame?t.gameAlternating:modeLabel(t,item)}</option>)}
+            </select>
+          </label>
+          {availableModes.length===1&&<p className="coop-message-meta">{t.fixedWorkflow}</p>}
+          <p className="coop-settings-hint">{policy?.entry==="operator"?t.startsWithInput:t.startsAutomatic}</p>
+        </div>
+        <div className="coop-settings-group">
+          <h3>{t.setupRuntime}</h3>
+          <label className="coop-setting">{t.model}
+            <select className={field} value={chosen} onChange={event=>setForm({...form,model:event.target.value})}>
+              {chosen&&!models.some(model=>modelId(model)===chosen)&&<option value={chosen}>{chosen} — {t.notReady}</option>}
+              {models.map(model=><option value={modelId(model)} key={modelId(model)} disabled={!model.qualified}>{modelId(model)}{model.qualified?"":" — "+t.notReady}</option>)}
+            </select>
+          </label>
+          <label className="coop-setting">{t.communicationLanguage}
+            <select className={field} value={communicationLanguage} onChange={event=>setForm({...form,communicationLanguage:event.target.value==="pl"?"pl":"en"})}>
+              <option value="pl">{t.polish}</option><option value="en">{t.english}</option>
+            </select>
+          </label>
+          <p className="coop-message-meta">{t.sameWeights}</p>
+        </div>
+        <div className="coop-settings-group">
+          <h3>{t.setupLimits}</h3>
+          <label className="coop-setting">{t.turns}<input className={field} type="number" min={policy?.min??1} step={policy?.step??1} max={policy?.max??8} value={turns} onChange={event=>setForm({...form,turns:Number(event.target.value)})}/></label>
+          {policy&&<p className="coop-message-meta">{operatorChat?t.roundsCount+": "+Math.floor(turns/policy.step):isGame?t.gameMoves+": "+turns:""}</p>}
+          <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={256} value={tokens} onChange={event=>setForm({...form,tokens:Number(event.target.value)})}/></label>
+          <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
+        </div>
       </fieldset>}
       <div className="coop-history">
         <label className="coop-history-picker">{t.history}

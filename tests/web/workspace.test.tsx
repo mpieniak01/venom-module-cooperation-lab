@@ -178,7 +178,7 @@ test("selected Qwen history shows its actual immutable settings and module style
     await act(async () => root.render(<CooperationLabPage/>)); await settle();
     const settings = box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")!;
     assert.equal(settings.disabled,true);
-    assert.deepEqual([...settings.querySelectorAll("select")].map((select) => select.value),["qwen3-4b-control","correction","no_contact","en"]);
+    assert.deepEqual([...settings.querySelectorAll("select")].map((select) => select.value),["correction","no_contact","qwen3-4b-control","en"]);
     assert.deepEqual([...settings.querySelectorAll("input")].map((input) => input.value),["4","32","17"]);
     const view = box.querySelector<HTMLElement>(".coop-workspace")!;
     const body = box.querySelector<HTMLElement>(".coop-body")!;
@@ -215,7 +215,7 @@ test("switching Qwen history to RWKV replaces the model with its dotted immutabl
   try {
     await act(async () => root.render(<CooperationLabPage/>)); await settle();
     const settings = box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")!;
-    const model = settings.querySelector("select")!;
+    const model = [...settings.querySelectorAll("select")].find(select=>select.parentElement?.textContent?.startsWith("Model"))!;
     assert.equal(model.value,"qwen3-4b-control");
     const history = [...box.querySelectorAll("select")].find((select) => select.parentElement?.textContent?.startsWith("Historia prób"))!;
     assert.equal(history.disabled,false);
@@ -245,6 +245,15 @@ test("tic-tac-toe selects dialog and nine moves and live game events update the 
  try{
   await act(async()=>root.render(<CooperationLabPage/>));await settle();
   const selector=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Scenariusz"))!;
+  const variants=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Wariant"))!;
+  await act(async()=>{selector.value="peer_review";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  assert.equal(selector.value,"peer_review");
+  assert.equal(variants.value,"operator_review");assert.equal(variants.options.length,1);assert.equal(variants.disabled,true);
+  assert.ok([...selector.options].some(option=>option.value==="tic_tac_toe"));
+  await act(async()=>{selector.value="operator_conversation";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  assert.equal(variants.value,"operator_chat");
+  await act(async()=>{selector.value="split_facts";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  assert.equal(variants.value,"dialog_encouraged");
   await act(async()=>{selector.value="tic_tac_toe";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
   const mode=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Wariant"))!;
   assert.equal(mode.value,"dialog");assert.equal(mode.options.length,1);assert.equal(mode.options[0].textContent,"Gra naprzemienna");
