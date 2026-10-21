@@ -1,0 +1,6 @@
+# Optional isolated component, NOT application Full requirements.
+# Torch 2.13.0+cu130 is inherited from the qualified host; do not reinstall it.
+rwkv==0.8.32 --hash=sha256:d3f0594810a4a7e91569f177003ec22294c3eabc91c5f8d0ff3511702d4b67c1
+# Security overlay is local to the isolated child, never a Full pip upgrade.
+certifi==2026.10.19 --hash=sha256:42d35340cc5b9ba78e818ddbff0c5b1c2b779de448a340fd1b989f5fa8670e1b
+filelock==4.2.1 --hash=sha256:7be2662e9e826b9bba28afc0f843a123280d799a2ea44bb5d35ccec67905ae44

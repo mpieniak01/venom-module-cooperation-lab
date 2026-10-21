@@ -13,3 +13,4 @@ test-results/
 data/
 .env*
 logs/
+/.venv
