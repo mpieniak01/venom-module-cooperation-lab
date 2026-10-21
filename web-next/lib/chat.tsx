@@ -26,19 +26,19 @@ export function Conversation({ events, language }: { events:LabEvent[]; language
       const replyId = text(event, "in_reply_to");
       const reply = replyId ? byId.get(replyId) : undefined;
       const recipients = event.payload.delivered_to;
-      const delivered = Array.isArray(recipients) && recipients.every(value => value === "A" || value === "B") ? recipients : null;
+      const delivered = Array.isArray(recipients) && recipients.every(value => value === "A" || value === "B" || value === "operator") ? recipients : null;
       const delivery = delivered === null ? t.deliveryUnknown
-        : delivered.length ? t.delivered + " " + delivered.join(", ") : t.notDelivered;
-      return <li key={event.seq} id={"coop-message-" + event.seq} className="coop-message" data-sender={sender === "A" || sender === "B" ? sender : "unknown"}>
+        : delivered.length ? t.delivered + " " + delivered.map(value => value === "operator" ? t.operator : value).join(", ") : t.notDelivered;
+      return <li key={event.seq} id={"coop-message-" + event.seq} className="coop-message" data-sender={sender === "A" || sender === "B" || sender === "operator" ? sender : "unknown"}>
         <div className="coop-message-header">
-          <strong className="coop-message-route">{sender || "?"} → {recipient === "all" ? t.everyone : recipient || "?"}</strong>
+          <strong className="coop-message-route">{sender === "operator" ? t.operator : sender || "?"} → {recipient === "all" ? t.everyone : recipient === "operator" ? t.operator : recipient || "?"}</strong>
           <span>#{event.seq} · {messageKindLabel(t, kind)}</span>
           {time ? <time dateTime={time.iso} title={t.recordedAt + ": " + time.iso}>{time.display}</time> : <span>{t.unknownTime}</span>}
         </div>
         <p className="coop-message-content">{text(event, "content")}</p>
         <p className="coop-message-meta">{delivery}</p>
         {replyId && (reply
-          ? <a className="coop-reply" href={"#coop-message-" + reply.seq}>↳ {t.replyTo} #{reply.seq} · {text(reply, "sender")}</a>
+          ? <a className="coop-reply" href={"#coop-message-" + reply.seq}>↳ {t.replyTo} #{reply.seq} · {text(reply, "sender") === "operator" ? t.operator : text(reply, "sender")}</a>
           : <span className="coop-reply">↳ {t.replyOutside}</span>)}
         {kind === "complete" && <p className="coop-message-meta">{t.claimedComplete}</p>}
       </li>;

@@ -12,7 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from .errors import LabError
-from .run_config import RunConfig, RunRequest
+from .run_config import OPERATOR_MODES, RunConfig, RunRequest
 from .storage import TERMINAL, LabStore, _identifier
 from .tic_tac_toe import TicTacToe
 
@@ -55,6 +55,10 @@ class _Job:
     last_delivered: dict[str, str | None] = field(
         default_factory=lambda: {"A": None, "B": None}
     )
+    operator_waiting: bool = False
+    operator_signal: asyncio.Event = field(default_factory=asyncio.Event)
+    operator_submissions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    operator_message_id: str | None = None
     input_tokens: int = 0
     output_tokens: int = 0
     processing_steps: int = 0
@@ -198,6 +202,56 @@ class LabRunner:
             row["failure_code"] = job.failure
         return {"run": row}
 
+    def operator_message(
+        self, run_id: str, content: str, idempotency_key: str
+    ) -> dict[str, Any]:
+        _identifier(idempotency_key)
+        row = self.store.get_run(run_id, owner=OWNER)
+        job = self.jobs.get(run_id)
+        if job is None or job.config.mode not in OPERATOR_MODES:
+            raise LabError("operator_chat_unavailable", 409)
+        previous = job.operator_submissions.get(idempotency_key)
+        if previous is not None:
+            if previous["payload"]["content"] != content:
+                raise LabError("idempotency_conflict", 409)
+            return {"event": previous, "created": False}
+        self._check(job)
+        if row["status"] != "running" or not job.operator_waiting:
+            raise LabError("operator_chat_not_waiting", 409)
+        from .adapters.base import ChatMessage
+
+        recipients = ["A"] if job.config.mode == "operator_relay" else ["A", "B"]
+        message_id = uuid4().hex
+        message = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "message_id": message_id,
+            "sender": "operator",
+            "recipient": "A" if job.config.mode == "operator_relay" else "all",
+            "kind": "message",
+            "content": content,
+            "delivered_to": recipients,
+            "timestamp": time.time(),
+            "in_reply_to": None,
+            "sequence": row["last_seq"] + 1,
+        }
+        # Persist before acknowledging or exposing the text to either context.
+        event = self._emit(job, "message", message)
+        for participant in recipients:
+            prefix = (
+                "Wiadomość operatora: "
+                if job.config.communication_language == "pl"
+                else "Operator message: "
+            )
+            job.histories[participant].append(ChatMessage("user", prefix + content))
+            job.last_delivered[participant] = message_id
+        job.messages.add(message_id)
+        job.operator_message_id = message_id
+        job.operator_submissions[idempotency_key] = event
+        job.operator_waiting = False
+        job.operator_signal.set()
+        return {"event": event, "created": True}
+
     async def cancel(self, run_id: str) -> dict[str, Any]:
         row = self.store.get_run(run_id, owner=OWNER)
         if row["status"] in TERMINAL:
@@ -262,7 +316,10 @@ class LabRunner:
             self._emit(job, "run", {"status": "running"})
             if job.game is not None:
                 self._emit(job, "game", job.game.public())
-            await self._turns(job)
+            if job.config.mode in OPERATOR_MODES:
+                await self._operator_turns(job)
+            else:
+                await self._turns(job)
             outcome = "completed"
         except LabError as exc:
             job.failure = exc.code
@@ -430,42 +487,75 @@ class LabRunner:
         completed: set[str] = set()
         turns = 1 if config.mode == "single" else config.budgets.max_turns
         for index in range(turns):
-            self._check(job)
-            self._reserve_turn(job)
-            participant = self._participant(config.mode, index)
-            history = self._turn_context(job, participant)
-            turn_id = f"turn-{index + 1:04d}"
-            self._emit(
-                job,
-                "turn",
-                {
-                    "turn_id": turn_id,
-                    "participant_id": participant,
-                    "status": "generating",
-                },
-            )
-            result = await self._work(
-                job,
-                partial(
-                    job.adapter.generate,
-                    participant,
-                    tuple(history),
-                    parameters,
-                    job.deadline,
-                ),
-            )
-            message = self._publish_result(job, participant, turn_id, result)
+            message = await self._generate_turn(job, parameters, index)
             if job.game is not None:
                 if job.game.finished:
                     break
                 continue
             if message["kind"] == "complete":
-                completed.add(participant)
+                completed.add(message["sender"])
                 if config.mode in {"single", "self_correction"} or completed == {
                     "A",
                     "B",
                 }:
                     break
+
+    async def _operator_turns(self, job: _Job) -> None:
+        from .adapters.base import GenerationParameters
+
+        config = job.config
+        parameters = GenerationParameters(
+            max_new_tokens=config.budgets.max_new_tokens,
+            max_context_tokens=config.budgets.max_context_tokens,
+            temperature=config.temperature,
+            top_p=config.top_p,
+            seed=config.seed,
+        )
+        for index in range(0, config.budgets.max_turns, 2):
+            self._check(job)
+            job.operator_signal.clear()
+            job.operator_waiting = True
+            self._emit(job, "operator", {"waiting": True, "round": index // 2 + 1})
+            while not job.operator_signal.is_set():
+                # Bounded wait keeps STOP and the original wall deadline effective.
+                try:
+                    await asyncio.wait_for(job.operator_signal.wait(), timeout=0.1)
+                except TimeoutError:
+                    pass
+                self._check(job)
+            self._emit(job, "operator", {"waiting": False, "round": index // 2 + 1})
+            for turn in (index, index + 1):
+                await self._generate_turn(job, parameters, turn)
+        job.operator_waiting = False
+
+    async def _generate_turn(
+        self, job: _Job, parameters: Any, index: int
+    ) -> dict[str, Any]:
+        self._check(job)
+        self._reserve_turn(job)
+        participant = self._participant(job.config.mode, index)
+        history = self._turn_context(job, participant)
+        turn_id = f"turn-{index + 1:04d}"
+        self._emit(
+            job,
+            "turn",
+            {
+                "turn_id": turn_id,
+                "participant_id": participant,
+                "status": "generating",
+            },
+        )
+        result = await self._work(
+            job,
+            partial(
+                job.adapter.generate,
+                participant,
+                tuple(history),
+                parameters,
+                job.deadline,
+            ),
+        )
+        return self._publish_result(job, participant, turn_id, result)
 
     def _publish_result(
         self, job: _Job, participant: str, turn_id: str, result: Any
@@ -491,6 +581,8 @@ class LabRunner:
             self._emit(job, "game", board)
         job.histories[participant].append(ChatMessage("assistant", message["content"]))
         for recipient in message["delivered_to"]:
+            if recipient == "operator":
+                continue
             job.histories[recipient].append(
                 ChatMessage(
                     "user",
@@ -536,7 +628,11 @@ class LabRunner:
         if not isinstance(text, str) or not text.strip():
             raise LabError("empty_model_output")
         content, kind = text.strip(), "message"
-        recipient = "B" if sender == "A" else "A"
+        recipient = (
+            "operator"
+            if job.config.mode in OPERATOR_MODES
+            else ("B" if sender == "A" else "A")
+        )
         in_reply_to = job.last_delivered[sender]
         reply_source = "host_context" if in_reply_to else None
         if content.startswith(("{", "[")):
@@ -548,7 +644,12 @@ class LabRunner:
                 not isinstance(payload, dict)
                 or set(payload) - {"kind", "recipient", "content", "in_reply_to"}
                 or payload.get("kind") not in _ALLOWED_KINDS
-                or payload.get("recipient") not in {"A", "B", "all"}
+                or payload.get("recipient")
+                not in (
+                    {"A", "B", "all", "operator"}
+                    if job.config.mode in OPERATOR_MODES
+                    else {"A", "B", "all"}
+                )
                 or payload.get("recipient") == sender
                 or not isinstance(payload.get("content"), str)
                 or not payload["content"].strip()
@@ -564,7 +665,13 @@ class LabRunner:
                 not isinstance(in_reply_to, str) or in_reply_to not in job.messages
             ):
                 raise LabError("unknown_reply")
+        if job.config.mode == "operator_relay":
+            recipient = "B" if sender == "A" else "operator"
         delivered = self._delivery_recipients(job.config.mode, sender, recipient)
+        if job.config.mode == "operator_chat" or (
+            job.config.mode == "operator_relay" and sender == "B"
+        ):
+            delivered.append("operator")
         sequence = self.store.get_run(job.run_id, owner=OWNER)["last_seq"] + 1
         return {
             "schema_version": 1,
@@ -580,6 +687,11 @@ class LabRunner:
             "kind": kind,
             "content": content,
             "delivered_to": delivered,
+            **(
+                {"operator_message_id": job.operator_message_id}
+                if job.config.mode in OPERATOR_MODES
+                else {}
+            ),
         }
 
     def _schedule_late_cleanup(self, job: _Job) -> None:

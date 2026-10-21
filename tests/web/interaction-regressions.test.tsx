@@ -99,3 +99,50 @@ test("a terminal journal event newer than the run snapshot completes catch-up wi
   await act(async () => root.unmount()); box.remove(); globalThis.fetch = old; localStorage.clear();
  }
 });
+
+test("operator prompt reaches the API once per key; retry retains draft, replies replay and STOP stays enabled", async()=>{
+ const old=globalThis.fetch;localStorage.clear();Source.all=[];
+ const current=run("operator-run","running");
+ current.config={...current.config,scenario_id:"operator_conversation",mode:"operator_chat",communication_language:"pl"};
+ const waiting:LabEvent={run_id:current.id,seq:1,kind:"operator",timestamp:1,payload:{waiting:true}};
+ const calls:{key:string;content:string}[]=[];
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(path.endsWith("/capabilities"))return response(caps);
+  if(path.endsWith("/messages")){
+   calls.push({key:new Headers(init?.headers).get("Idempotency-Key")!,content:JSON.parse(String(init?.body)).content});
+   if(calls.length===1)throw Error("temporary network error");
+   Source.all.at(-1)!.emit({run_id:current.id,seq:2,kind:"message",timestamp:2,payload:{message_id:"op1",sender:"operator",recipient:"all",content:calls.at(-1)!.content,delivered_to:["A","B"]}});
+   Source.all.at(-1)!.emit({run_id:current.id,seq:3,kind:"operator",timestamp:3,payload:{waiting:false}});
+   return response({created:true},202);
+  }
+  if(path.endsWith("/events"))return response({events:[waiting],last_seq:1});
+  if(path.endsWith("/runs/operator-run"))return response({run:current});
+  return response({runs:[current]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await flush();
+  await act(async()=>Source.all.at(-1)?.onopen?.());
+  const area=box.querySelector("textarea")!;
+  assert.ok(area);assert.equal(area.disabled,false);
+  const set=Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype,"value")!.set!;
+  await act(async()=>{set.call(area,"Moja wiadomość <script>test</script>");area.dispatchEvent(new dom.window.Event("input",{bubbles:true}));});
+  assert.equal(button(box,"Wyślij do A i B").disabled,false);
+  await act(async()=>button(box,"Wyślij do A i B").click());await flush();
+  assert.match(area.value,/Moja wiadomość/);
+  await act(async()=>button(box,"Wyślij do A i B").click());await flush();
+  assert.equal(calls.length,2);assert.equal(calls[0].key,calls[1].key);
+  assert.equal(area.value,"");assert.equal(button(box,"Wyślij do A i B").disabled,true);
+  assert.equal(button(box,"Zatrzymaj").disabled,false);
+  assert.match(box.querySelector(".coop-message-route")!.textContent!,/Operator → Wszyscy/);
+  assert.equal(box.querySelector("script"),null);
+  await act(async()=>{
+   Source.all.at(-1)!.emit({run_id:current.id,seq:4,kind:"message",timestamp:4,payload:{sender:"A",recipient:"operator",content:"Odpowiedź A",delivered_to:["operator"]}});
+   Source.all.at(-1)!.emit({run_id:current.id,seq:5,kind:"message",timestamp:5,payload:{sender:"B",recipient:"operator",content:"Odpowiedź B",delivered_to:["operator"]}});
+   Source.all.at(-1)!.emit({run_id:current.id,seq:6,kind:"operator",timestamp:6,payload:{waiting:true}});
+  });
+  assert.match(box.textContent!,/Odpowiedź A/);assert.match(box.textContent!,/Odpowiedź B/);
+  assert.match(box.textContent!,/Czat czeka na Twój wpis/);
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
+});

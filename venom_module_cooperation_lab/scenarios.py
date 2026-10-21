@@ -28,6 +28,16 @@ class Scenario:
 
 SCENARIOS = (
     Scenario(
+        "operator_conversation",
+        "1",
+        "Operator conversation",
+        "Follow the operator conversation. The operator supplies the topic. "
+        "Do not invent an operator message.",
+        "",
+        "",
+        "",
+    ),
+    Scenario(
         "split_facts",
         "1",
         "Split facts",
@@ -82,6 +92,13 @@ DialogueLanguage = Literal["pl", "en"]
 
 # Localized dialogue profiles are separate from the frozen benchmark v1.
 _POLISH_SCENARIOS = {
+    "operator_conversation": (
+        "Rozmowa operatora",
+        "Prowadź rozmowę według wpisów operatora. "
+        "Operator podaje temat. Nie wymyślaj wiadomości operatora.",
+        "",
+        "",
+    ),
     "tic_tac_toe": (
         "Kółko i krzyżyk",
         "Zagraj w kółko i krzyżyk na planszy 3x3. A gra X i zaczyna; B gra O. "

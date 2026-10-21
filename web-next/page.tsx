@@ -8,6 +8,7 @@ import { computationLabel, noticePresentation } from "./lib/presentation";
 import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSettings } from "./lib/workspace";
 
 import { Conversation } from "./lib/chat";
+import { OperatorComposer } from "./lib/operator-composer";
 import { GameBoard } from "./lib/game-board";
 
 const button = "coop-button";
@@ -42,12 +43,15 @@ export default function CooperationLabPage() {
   const organizations = lab.events.filter((event) => event.kind === "organization");
   const isGame = scenario === "tic_tac_toe";
   const gameEvent = lab.events.findLast(event => event.kind === "game");
+  const operatorChat = mode === "operator_chat" || mode === "operator_relay";
+  const operatorEvent = lab.events.findLast(event=>event.kind==="operator"||event.kind==="message"&&event.payload.sender==="operator");
+  const operatorWaiting = operatorEvent?.kind==="operator"&&operatorEvent.payload.waiting===true;
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
     setConfirmDelete(null); setSettings(false); void lab.start(input);
   };
-  return <section aria-labelledby="cooperation-lab-title" className="coop-workspace" ref={viewport}>
+  return <section aria-labelledby="cooperation-lab-title" className="coop-workspace" data-operator={operatorChat} ref={viewport}>
     <style>{workspaceStyles}</style>
     <header className="coop-header">
       <div><h1 id="cooperation-lab-title" className="text-xl font-semibold">{t.title}</h1><p className="text-xs text-slate-400">{t.description}</p></div>
@@ -78,11 +82,11 @@ export default function CooperationLabPage() {
         </label>
         <label className="coop-setting coop-setting-wide">{t.scenario}
           <select className={field} value={scenario} onChange={(event) => { const next=event.target.value; setForm({...form, scenario:next, mode:next === "tic_tac_toe" ? "dialog" : mode, turns:next === "tic_tac_toe" ? 9 : Math.min(turns, 8)}); }}>
-            {(lab.capabilities?.scenarios ?? []).map((item) => <option value={item.scenario_id} key={item.scenario_id}>{scenarioLabel(t, item.scenario_id, item.title)}</option>)}
+            {(lab.capabilities?.scenarios ?? []).filter(item=>operatorChat ? item.scenario_id==="operator_conversation" : item.scenario_id!=="operator_conversation").map((item) => <option value={item.scenario_id} key={item.scenario_id}>{scenarioLabel(t, item.scenario_id, item.title)}</option>)}
           </select>
         </label>
         <label className="coop-setting coop-setting-wide">{t.mode}
-          <select className={field} value={mode} onChange={(event) => setForm({...form, mode:event.target.value})}>
+          <select className={field} value={mode} onChange={(event) => setForm({...form, mode:event.target.value, scenario:["operator_chat", "operator_relay"].includes(event.target.value) ? "operator_conversation" : scenario==="operator_conversation" ? "split_facts" : scenario, turns:["operator_chat", "operator_relay"].includes(event.target.value) ? Math.max(2, turns - turns % 2) : turns})}>
             {(lab.capabilities?.modes ?? []).filter(item => !isGame || item === "dialog").map((item) => <option value={item} key={item}>{isGame ? t.gameAlternating : modeLabel(t, item)}</option>)}
           </select>
         </label>
@@ -91,7 +95,7 @@ export default function CooperationLabPage() {
             <option value="pl">{t.polish}</option><option value="en">{t.english}</option>
           </select>
         </label>
-        <label className="coop-setting">{t.turns}<input className={field} type="number" min={1} max={isGame ? 9 : 8} value={turns} onChange={(event) => setForm({...form, turns:Number(event.target.value)})} /></label>
+        <label className="coop-setting">{t.turns}<input className={field} type="number" min={operatorChat ? 2 : 1} step={operatorChat ? 2 : 1} max={isGame ? 9 : 8} value={turns} onChange={(event) => setForm({...form, turns:Number(event.target.value)})} /></label>
         <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={256} value={tokens} onChange={(event) => setForm({...form, tokens:Number(event.target.value)})} /></label>
         <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={(event) => setForm({...form, seed:Number(event.target.value)})} /></label>
       </fieldset>}
@@ -109,19 +113,20 @@ export default function CooperationLabPage() {
       <div className="coop-main">
         <div className="coop-column">
           <fieldset className="coop-participants" aria-label={t.participants}>
-            {["A", "B"].map((participant) => {
+            {(operatorChat ? ["A", "B", "operator"] : ["A", "B"]).map((participant) => {
               const last = messageEvents.findLast((event) => value(event, "sender") === participant);
               return <div key={participant} className="coop-panel">
-                <strong className="text-lg">{participant}</strong><span className="ml-2 text-xs text-slate-400">{t.local}</span>
+                <strong className="text-lg">{participant === "operator" ? t.operator : participant}</strong><span className="ml-2 text-xs text-slate-400">{participant === "operator" ? "" : t.local}</span>
                 <p className="mt-1 truncate text-xs">{last ? messageKindLabel(t, value(last, "kind")) : t.waiting}</p>
               </div>;
             })}
           </fieldset>
           {isGame && <GameBoard event={gameEvent} ended={!!lab.run && terminal(lab.run.status)} language={language} />}
-          <section className="coop-panel" aria-label={t.dialog}>
+          <section className="coop-panel coop-dialog" aria-label={t.dialog}>
             <h2 className="mb-2 font-semibold">{t.dialog}</h2>
             {!messageEvents.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}
             <Conversation events={messageEvents} language={language} />
+            {operatorChat ? <OperatorComposer key={runId ?? "draft"} runId={runId} active={lab.active} waiting={operatorWaiting&&lab.connection==="connected"} sending={lab.sending} relay={mode==="operator_relay"} language={language} onSend={lab.sendMessage} /> : <p className="coop-message-meta">{t.operatorSetup}</p>}
           </section>
         </div>
         <aside className="coop-column">

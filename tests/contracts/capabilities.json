@@ -45,6 +45,12 @@
   ],
   "scenarios": [
     {
+      "scenario_id": "operator_conversation",
+      "version": "1",
+      "title": "Operator conversation",
+      "goal": "Follow the operator conversation. The operator supplies the topic. Do not invent an operator message."
+    },
+    {
       "scenario_id": "split_facts",
       "version": "1",
       "title": "Split facts",
@@ -74,7 +80,9 @@
     "self_correction",
     "no_contact",
     "dialog",
-    "dialog_encouraged"
+    "dialog_encouraged",
+    "operator_chat",
+    "operator_relay"
   ],
   "preset": {
     "max_turns": 8,

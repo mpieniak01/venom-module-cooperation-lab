@@ -45,6 +45,11 @@ export const workspaceStyles = `
 .coop-workspace .coop-message time { font-variant-numeric:tabular-nums; color:#94a3b8; font-size:11px; }
 .coop-workspace .coop-message .coop-message-content { margin:8px 0; font-size:14px; line-height:1.55; }
 .coop-workspace .coop-message-meta { margin:4px 0 0; color:#94a3b8; font-size:11px; }
+.coop-workspace .coop-composer { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+.coop-workspace .coop-composer textarea { resize:vertical; min-height:4rem; max-height:10rem; }
+.coop-workspace .coop-composer-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:12px; }
+.coop-workspace .coop-message[data-sender="operator"] { align-self:center; border:1px solid #34d39988; background:#064e3b55; }
+.coop-workspace .coop-message[data-sender="operator"] .coop-message-route { color:#6ee7b7; }
 .coop-workspace .coop-reply { display:block; margin-top:6px; font-size:12px; color:#a5b4fc; overflow-wrap:anywhere; }
 .coop-workspace .coop-message:target { outline:2px solid #94a3b8; outline-offset:2px; }
 .coop-workspace .coop-game-board { border-collapse:collapse; margin:8px 0; font-variant-numeric:tabular-nums; }
@@ -57,6 +62,16 @@ export const workspaceStyles = `
 .coop-workspace .coop-panel pre { max-height:20rem; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
 .coop-workspace .coop-usage { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin-top:8px; font-size:12px; }
 @media (min-width:1024px) {
+  .coop-workspace[data-operator="true"] .coop-body { display:flex; flex-direction:column; }
+  .coop-workspace[data-operator="true"] .coop-settings, .coop-workspace[data-operator="true"] .coop-history { flex-shrink:0; }
+  .coop-workspace[data-operator="true"] .coop-main { flex:1; min-height:0; }
+  .coop-workspace[data-operator="true"] .coop-column { min-height:0; }
+  .coop-workspace[data-operator="true"] .coop-participants { grid-template-columns:repeat(3,minmax(0,1fr)); flex-shrink:0; }
+  .coop-workspace[data-operator="true"] .coop-dialog { display:flex; flex-direction:column; flex:1; min-height:0; }
+  .coop-workspace[data-operator="true"] .coop-dialog h2, .coop-workspace[data-operator="true"] .coop-composer { flex-shrink:0; }
+  .coop-workspace[data-operator="true"] .coop-messages { flex:1; min-height:0; }
+  .coop-workspace[data-operator="true"] aside { overflow-y:auto; }
+
   .coop-workspace .coop-settings { grid-template-columns:repeat(6,minmax(0,1fr)); }
   .coop-workspace .coop-setting-wide { grid-column:span 2 / span 2; }
   .coop-workspace .coop-main { grid-template-columns:minmax(0,1fr) 18rem; }
@@ -98,8 +113,8 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   const result: Partial<SavedSettings> = {};
   const model = record(config.model).model_id ?? config.model_id;
   if (typeof model === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(model)) result.model = model;
-  if (typeof config.scenario_id === "string" && ["split_facts", "organization", "correction", "tic_tac_toe"].includes(config.scenario_id)) result.scenario = config.scenario_id;
-  if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged"].includes(config.mode)) result.mode = config.mode;
+  if (typeof config.scenario_id === "string" && ["operator_conversation", "split_facts", "organization", "correction", "tic_tac_toe"].includes(config.scenario_id)) result.scenario = config.scenario_id;
+  if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged", "operator_chat", "operator_relay"].includes(config.mode)) result.mode = config.mode;
   if (config.communication_language === "pl" || config.communication_language === "en") result.communicationLanguage = config.communication_language;
   else if (config.schema_version === 1 || Array.isArray(config.prompts)) result.communicationLanguage = "en";
   const budgets = record(config.budgets);

@@ -1,5 +1,20 @@
 // Each key has one PL/EN/DE row; translation completeness is structural.
 const translations = {
+  scenarioOperator: ["Rozmowa operatora", "Operator conversation", "Bedienergespräch"],
+  operatorInactive: ["Czat nieaktywny. Rozpocznij nową próbę.", "Chat inactive. Start a new run.", "Chat inaktiv. Starten Sie einen neuen Versuch."],
+  operator: ["Operator", "Operator", "Bediener"],
+  operator_relay: ["Głuchy telefon: Operator → A → B", "Telephone game: Operator → A → B", "Stille Post: Bediener → A → B"],
+  operatorRelayPrompt: ["Opowieść dla modelu A", "Story for model A", "Geschichte für Modell A"],
+  operatorRelaySend: ["Wyślij tylko do A", "Send only to A", "Nur an A senden"],
+  operatorRelayHint: ["B zobaczy wyłącznie przekaz A, bez Twojego oryginału.", "B sees only A's retelling, never your original.", "B sieht nur die Erzählung von A, niemals Ihr Original."],
+  operator_chat: ["Rozmowa z operatorem", "Conversation with operator", "Gespräch mit Bediener"],
+  operatorPrompt: ["Wiadomość do obu modeli", "Message to both models", "Nachricht an beide Modelle"],
+  operatorSend: ["Wyślij do A i B", "Send to A and B", "An A und B senden"],
+  operatorWaiting: ["Czat czeka na Twój wpis.", "Chat is waiting for your message.", "Der Chat wartet auf Ihre Nachricht."],
+  operatorResponding: ["Poczekaj na odpowiedzi A i B.", "Wait for replies from A and B.", "Warten Sie auf Antworten von A und B."],
+  operatorSetup: ["Aby pisać do modeli, wybierz wariant „Rozmowa z operatorem” i rozpocznij próbę.", "To message the models, select Conversation with operator and start a run.", "Wählen Sie Gespräch mit Bediener und starten Sie einen Versuch."],
+  operatorLimit: ["Jeden wpis = dwie tury modeli. Limit sesji: 6 min.", "One message = two model turns. Session limit: 6 min.", "Eine Nachricht = zwei Modellrunden. Sitzungslimit: 6 Min."],
+  problemOperatorWait: ["Czat nie czeka teraz na wpis. Sprawdź odpowiedzi lub odśwież połączenie.", "Chat is not waiting for input. Check replies or reconnect.", "Der Chat wartet nicht auf Eingabe. Antworten prüfen oder neu verbinden."],
   diagnosticCode: ["Kod diagnostyczny", "Diagnostic code", "Diagnosecode"],
   problemUnknown: ["Nie udało się wykonać operacji.", "The operation could not be completed.", "Der Vorgang konnte nicht abgeschlossen werden."],
   problemConnection: ["Brak połączenia z laboratorium.", "The laboratory connection is unavailable.", "Die Verbindung zum Labor ist nicht verfügbar."],
@@ -147,6 +162,8 @@ export function modeLabel(t: ReturnType<typeof texts>, mode: string) { return st
 
 // Backend codes stay stable; operator text is translated independently.
 const reasonKeys: Record<string, keyof typeof messages.en> = {
+  operator_chat_unavailable: "problemOperatorWait",
+  operator_chat_not_waiting: "problemOperatorWait",
   invalid_game_move: "problemGameMove",
   occupied_game_square: "problemGameSquare",
   connection_unavailable: "problemConnection",
@@ -245,7 +262,7 @@ export function reasonLabel(t: ReturnType<typeof texts>, code: unknown): string 
 
 
 export function scenarioLabel(t: ReturnType<typeof texts>, id: string, fallback?: string) {
-  const labels: Record<string, string> = { split_facts:t.scenarioSplitFacts, organization:t.scenarioOrganization, correction:t.scenarioCorrection, tic_tac_toe:t.scenarioTicTacToe };
+  const labels: Record<string, string> = { operator_conversation:t.scenarioOperator, split_facts:t.scenarioSplitFacts, organization:t.scenarioOrganization, correction:t.scenarioCorrection, tic_tac_toe:t.scenarioTicTacToe };
   return Object.hasOwn(labels, id) ? labels[id] : fallback || id;
 }
 export function messageKindLabel(t: ReturnType<typeof texts>, kind: string) {

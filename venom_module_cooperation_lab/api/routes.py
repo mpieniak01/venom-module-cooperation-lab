@@ -11,6 +11,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..errors import LabError
 from ..lifecycle import LabLifecycle, admission_enabled, enabled, lifespan
@@ -144,6 +145,31 @@ async def create_run(
 ) -> dict[str, Any]:
     row, created = await require_runner(request).start(payload, idempotency_key)
     return {"run": row, "created": created}
+
+
+class OperatorMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    content: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("content")
+    @classmethod
+    def nonempty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("empty_operator_message")
+        return value
+
+
+@router.post("/runs/{run_id}/messages", status_code=202)
+async def operator_message(
+    request: Request,
+    run_id: str,
+    payload: OperatorMessage,
+    idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
+) -> dict[str, Any]:
+    _identifier(run_id)
+    return require_runner(request).operator_message(
+        run_id, payload.content, idempotency_key
+    )
 
 
 @router.get("/runs")

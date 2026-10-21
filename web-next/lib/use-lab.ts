@@ -110,7 +110,7 @@ export function useLab() {
         }
         stream = new EventSource(API + "/runs/" + encodeURIComponent(runId!) + "/events/stream?after=" + cursor);
         source.current = stream;
-        for (const type of ["run", "turn", "message", "organization", "usage", "game", "error", "end"]) {
+        for (const type of ["run", "turn", "message", "organization", "usage", "game", "operator", "error", "end"]) {
           stream.addEventListener(type, receive as EventListener);
         }
         stream.onopen = () => { if (live) { failures = 0; setConnection("connected"); } };
@@ -154,6 +154,25 @@ export function useLab() {
     } finally { setStarting(false); }
   }), [action, select]);
 
+  const messageKey = useRef<{runId:string; content:string; key:string} | null>(null);
+  const [sending, setSending] = useState(false);
+  const messageBusy = useRef(false);
+  const sendMessage = useCallback(async (content:string):Promise<boolean> => {
+    if (!runId || messageBusy.current) return false;
+    messageBusy.current=true; setSending(true); setError("");
+    if (messageKey.current?.runId !== runId || messageKey.current.content !== content) {
+      messageKey.current={runId,content,key:crypto.randomUUID()};
+    }
+    try {
+      await request("/runs/"+encodeURIComponent(runId)+"/messages", {
+        method:"POST", headers:{"Content-Type":"application/json","Idempotency-Key":messageKey.current.key},
+        body:JSON.stringify({content}),
+      });
+      messageKey.current=null;
+      return true;
+    } catch(reason) { setError(failureCode(reason)); return false; }
+    finally { messageBusy.current=false; setSending(false); }
+  }, [runId]);
   const stop = useCallback(async () => {
     try {
     let target = runId;
@@ -184,7 +203,7 @@ export function useLab() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }), [action, runId]);
   return {
-    capabilities, runs, run, events, connection, error, pending, starting, stopQueued,
+    capabilities, runs, run, events, connection, error, pending, starting, stopQueued, sending, sendMessage,
     active: !!run && !terminal(run.status), start, stop, remove, exportRun, select,
     refresh: () => setRefreshIndex((v) => v + 1),
     reconnect: () => setRevision((v) => v + 1),

@@ -11,8 +11,27 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .scenarios import DialogueLanguage, get_dialogue_scenario, get_scenario
 
-Mode = Literal["single", "self_correction", "no_contact", "dialog", "dialog_encouraged"]
-MODES = ("single", "self_correction", "no_contact", "dialog", "dialog_encouraged")
+Mode = Literal[
+    "single",
+    "self_correction",
+    "no_contact",
+    "dialog",
+    "dialog_encouraged",
+    "operator_chat",
+    "operator_relay",
+]
+MODES = (
+    "single",
+    "self_correction",
+    "no_contact",
+    "dialog",
+    "dialog_encouraged",
+    "operator_chat",
+    "operator_relay",
+)
+
+
+OPERATOR_MODES = {"operator_chat", "operator_relay"}
 
 
 class RunRequest(BaseModel):
@@ -40,6 +59,12 @@ class RunRequest(BaseModel):
                 raise ValueError("tic_tac_toe_requires_dialog")
         elif self.max_turns > 8:
             raise ValueError("scenario_turn_limit_exceeded")
+        if (self.mode in OPERATOR_MODES) != (
+            self.scenario_id == "operator_conversation"
+        ):
+            raise ValueError("operator_mode_requires_operator_scenario")
+        if self.mode in OPERATOR_MODES and (self.max_turns < 2 or self.max_turns % 2):
+            raise ValueError("operator_chat_requires_pairs")
         return self
 
 
@@ -117,6 +142,15 @@ class RunConfig:
                 "proponować podział pracy, uzgadniać lub poprawiać plan. "
                 "Nie przypisano wam ról."
             )
+        if request.mode == "operator_chat":
+            instructions += (
+                " Operator jest trzecim uczestnikiem. Odpowiadaj na jego nowe "
+                "wiadomości, uwzględniając kontekst rozmowy. "
+                "Możesz kierować JSON do recipient=operator."
+                if language == "pl"
+                else " The operator is a third participant. Answer their new messages "
+                "using the conversation context. JSON recipient=operator is allowed."
+            )
         goal_label = "\nCel: " if language == "pl" else "\nGoal: "
         private_label = (
             "\nPrywatne informacje: " if language == "pl" else "\nPrivate information: "
@@ -128,8 +162,29 @@ class RunConfig:
         ):
             if request.mode in {"single", "self_correction"}:
                 private = scenario.private_a + " " + scenario.private_b
+            operator_role = ""
+            if request.mode == "operator_relay":
+                if language == "pl":
+                    operator_role = (
+                        " Głuchy telefon: przeczytaj wpis operatora i opowiedz go "
+                        "wiernie modelowi B. B nie widzi oryginału."
+                        if participant == "A"
+                        else " Głuchy telefon: otrzymasz wyłącznie przekaz modelu A, "
+                        "nie oryginał operatora. Opowiedz operatorowi to, co "
+                        "przekazał A; nie zgaduj brakującego oryginału."
+                    )
+                else:
+                    operator_role = (
+                        " Telephone game: faithfully retell the operator message "
+                        "to B. B cannot see the original."
+                        if participant == "A"
+                        else " Telephone game: you receive only A's retelling, never "
+                        "the operator original. Retell A's account to the operator; "
+                        "do not guess the missing original."
+                    )
             prompts.append(
                 instructions.format(participant=participant)
+                + operator_role
                 + encouragement
                 + goal_label
                 + scenario.goal
@@ -160,7 +215,17 @@ class RunConfig:
             temperature=request.temperature,
             top_p=request.top_p,
             communication_language=language,
-            schema_version=1 if language is None else 2,
+            schema_version=3
+            if request.mode in OPERATOR_MODES
+            else (1 if language is None else 2),
+            participant_count=3 if request.mode in OPERATOR_MODES else 2,
+            scheduler=(
+                "operator-relay-v1"
+                if request.mode == "operator_relay"
+                else "operator-rounds-v1"
+            )
+            if request.mode in OPERATOR_MODES
+            else "alternating-v1",
         )
 
     def public(self) -> dict[str, Any]:
