@@ -53,6 +53,7 @@ def _run_worker(connection: Any, cancel: Any, config: dict[str, Any]) -> None:
         RWKV_CUDA_ON="0",
         RWKV_JIT_ON="1",
         TORCH_FORCE_WEIGHTS_ONLY_LOAD="1",
+        PYTHONDONTWRITEBYTECODE="1",
     )
     os.environ.pop("RWKV_DE_VERSION", None)
     os.environ.pop("RWKV_DML_ON", None)
