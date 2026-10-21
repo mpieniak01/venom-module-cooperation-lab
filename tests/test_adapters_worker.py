@@ -280,3 +280,48 @@ def test_parent_death_guard_and_initialization_error(monkeypatch):
     connection = Connection()
     worker.worker_main(connection, threading.Event(), {}, 6)
     assert not connection.replies
+
+
+@pytest.mark.parametrize("signal_exception", [SystemExit, KeyboardInterrupt])
+def test_worker_does_not_swallow_process_exit(signal_exception, monkeypatch):
+    monkeypatch.setattr(worker.sys, "platform", "linux")
+    monkeypatch.setattr(
+        worker.ctypes, "CDLL", lambda name: types.SimpleNamespace(prctl=lambda *args: 0)
+    )
+    monkeypatch.setattr(worker.os, "getppid", lambda: 5)
+
+    def exiting(*args):
+        raise signal_exception()
+
+    monkeypatch.setattr(worker, "_run_worker", exiting)
+    connection = Connection()
+    with pytest.raises(signal_exception):
+        worker.worker_main(connection, threading.Event(), {}, 5)
+    assert connection.closed
+    assert connection.replies == []
+
+
+@pytest.mark.parametrize("phase", ["prefill", "decode"])
+def test_cancel_during_work_never_commits_partial_private_state(phase, tokenizer):
+    event = threading.Event()
+
+    class CancellingModel(Model):
+        calls = 0
+
+        def forward(self, tokens, state):
+            output = super().forward(tokens, state)
+            self.calls += 1
+            if self.calls == (1 if phase == "prefill" else 2):
+                event.set()
+            return output
+
+    request = command(max_context_tokens=64)
+    request["prompt"] = "a" * (33 if phase == "prefill" else 1)
+    private = states()
+    result = worker._generate(
+        CancellingModel(), tokenizer, private, event, request, torch, False
+    )
+    assert result["stop_reason"] == "cancelled"
+    assert result["input_tokens"] == (16 if phase == "prefill" else 1)
+    assert result["output_tokens"] == (0 if phase == "prefill" else 1)
+    assert private == states()
