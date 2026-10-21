@@ -113,12 +113,12 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   const result: Partial<SavedSettings> = {};
   const model = record(config.model).model_id ?? config.model_id;
   if (typeof model === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(model)) result.model = model;
-  if (typeof config.scenario_id === "string" && ["operator_conversation", "split_facts", "organization", "correction", "tic_tac_toe"].includes(config.scenario_id)) result.scenario = config.scenario_id;
-  if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged", "operator_chat", "operator_relay"].includes(config.mode)) result.mode = config.mode;
+  if (typeof config.scenario_id === "string" && ["peer_review", "operator_conversation", "split_facts", "organization", "correction", "tic_tac_toe"].includes(config.scenario_id)) result.scenario = config.scenario_id;
+  if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged", "operator_chat", "operator_relay", "operator_review"].includes(config.mode)) result.mode = config.mode;
   if (config.communication_language === "pl" || config.communication_language === "en") result.communicationLanguage = config.communication_language;
   else if (config.schema_version === 1 || Array.isArray(config.prompts)) result.communicationLanguage = "en";
   const budgets = record(config.budgets);
-  const pairs = [["turns", budgets.max_turns, 1, config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 256], ["seed", config.seed, 0, 2147483647]] as const;
+  const pairs = [["turns", budgets.max_turns, config.mode === "operator_review" ? 3 : 1, config.mode === "operator_review" ? 6 : config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 256], ["seed", config.seed, 0, 2147483647]] as const;
   for (const [name, value, minimum, maximum] of pairs) {
     if (typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum) result[name] = value;
   }

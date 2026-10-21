@@ -28,6 +28,16 @@ class Scenario:
 
 SCENARIOS = (
     Scenario(
+        "peer_review",
+        "1",
+        "Draft, review, revise",
+        "Answer the operator task through a draft, a peer review, and a revision. "
+        "A drafts, B reviews, A revises. The operator judges the final result.",
+        "",
+        "",
+        "",
+    ),
+    Scenario(
         "operator_conversation",
         "1",
         "Operator conversation",
@@ -92,6 +102,13 @@ DialogueLanguage = Literal["pl", "en"]
 
 # Localized dialogue profiles are separate from the frozen benchmark v1.
 _POLISH_SCENARIOS = {
+    "peer_review": (
+        "Propozycja, recenzja, poprawa",
+        "Odpowiedz na zadanie operatora w trzech "
+        "etapach: propozycja A, recenzja B, poprawa A. Wynik ocenia operator.",
+        "",
+        "",
+    ),
     "operator_conversation": (
         "Rozmowa operatora",
         "Prowadź rozmowę według wpisów operatora. "

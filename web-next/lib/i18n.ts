@@ -1,6 +1,13 @@
 // Each key has one PL/EN/DE row; translation completeness is structural.
 const translations = {
   scenarioOperator: ["Rozmowa operatora", "Operator conversation", "Bedienergespräch"],
+  scenarioPeerReview: ["Propozycja, recenzja, poprawa", "Draft, review, revise", "Entwurf, Prüfung, Überarbeitung"],
+  operator_review: ["Autor A → recenzent B → poprawa A", "Author A → reviewer B → revision A", "Autor A → Prüfer B → Überarbeitung A"],
+  reviewLimit: ["Jeden wpis = 3 etapy: propozycja A, recenzja B, poprawa A. Do 2 niezależnych zadań / 6 min.", "One message = 3 phases: A drafts, B reviews, A revises. Up to 2 independent tasks / 6 min.", "Eine Nachricht = 3 Phasen: A entwirft, B prüft, A überarbeitet. Bis 2 unabhängige Aufgaben / 6 Min."],
+  reviewSend: ["Wyślij zadanie", "Send task", "Aufgabe senden"],
+  phaseDraft: ["Propozycja", "Draft", "Entwurf"],
+  phaseCritique: ["Recenzja", "Review", "Prüfung"],
+  phaseRevision: ["Poprawa", "Revision", "Überarbeitung"],
   operatorInactive: ["Czat nieaktywny. Rozpocznij nową próbę.", "Chat inactive. Start a new run.", "Chat inaktiv. Starten Sie einen neuen Versuch."],
   operator: ["Operator", "Operator", "Bediener"],
   operator_relay: ["Głuchy telefon: Operator → A → B", "Telephone game: Operator → A → B", "Stille Post: Bediener → A → B"],
@@ -262,10 +269,14 @@ export function reasonLabel(t: ReturnType<typeof texts>, code: unknown): string 
 
 
 export function scenarioLabel(t: ReturnType<typeof texts>, id: string, fallback?: string) {
-  const labels: Record<string, string> = { operator_conversation:t.scenarioOperator, split_facts:t.scenarioSplitFacts, organization:t.scenarioOrganization, correction:t.scenarioCorrection, tic_tac_toe:t.scenarioTicTacToe };
+  const labels: Record<string, string> = { peer_review:t.scenarioPeerReview, operator_conversation:t.scenarioOperator, split_facts:t.scenarioSplitFacts, organization:t.scenarioOrganization, correction:t.scenarioCorrection, tic_tac_toe:t.scenarioTicTacToe };
   return Object.hasOwn(labels, id) ? labels[id] : fallback || id;
 }
 export function messageKindLabel(t: ReturnType<typeof texts>, kind: string) {
   const labels: Record<string, string> = { message:t.kindMessage, proposal:t.kindProposal, accept:t.kindAccept, ask:t.kindAsk, evidence:t.kindEvidence, complete:t.kindComplete };
   return Object.hasOwn(labels, kind) ? labels[kind] : t.unknown;
+}
+
+export function phaseLabel(t: ReturnType<typeof texts>, phase:string) {
+  return ({draft:t.phaseDraft,critique:t.phaseCritique,revision:t.phaseRevision} as Record<string,string>)[phase] ?? "";
 }

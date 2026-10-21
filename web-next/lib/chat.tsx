@@ -1,5 +1,5 @@
 import type { LabEvent } from "./protocol";
-import { messageKindLabel, texts } from "./i18n";
+import { messageKindLabel, phaseLabel, texts } from "./i18n";
 
 function text(event: LabEvent, key: string) {
   const value = event.payload[key];
@@ -32,6 +32,7 @@ export function Conversation({ events, language }: { events:LabEvent[]; language
       return <li key={event.seq} id={"coop-message-" + event.seq} className="coop-message" data-sender={sender === "A" || sender === "B" || sender === "operator" ? sender : "unknown"}>
         <div className="coop-message-header">
           <strong className="coop-message-route">{sender === "operator" ? t.operator : sender || "?"} → {recipient === "all" ? t.everyone : recipient === "operator" ? t.operator : recipient || "?"}</strong>
+          {phaseLabel(t,text(event,"phase"))&&<strong>{phaseLabel(t,text(event,"phase"))}</strong>}
           <span>#{event.seq} · {messageKindLabel(t, kind)}</span>
           {time ? <time dateTime={time.iso} title={t.recordedAt + ": " + time.iso}>{time.display}</time> : <span>{t.unknownTime}</span>}
         </div>

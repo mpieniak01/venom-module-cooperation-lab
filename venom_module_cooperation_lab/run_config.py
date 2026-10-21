@@ -19,6 +19,7 @@ Mode = Literal[
     "dialog_encouraged",
     "operator_chat",
     "operator_relay",
+    "operator_review",
 ]
 MODES = (
     "single",
@@ -28,10 +29,11 @@ MODES = (
     "dialog_encouraged",
     "operator_chat",
     "operator_relay",
+    "operator_review",
 )
 
 
-OPERATOR_MODES = {"operator_chat", "operator_relay"}
+OPERATOR_MODES = {"operator_chat", "operator_relay", "operator_review"}
 
 
 class RunRequest(BaseModel):
@@ -50,6 +52,8 @@ class RunRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_scenario_limits(self) -> RunRequest:
+        if self.mode == "operator_review" and "max_turns" not in self.model_fields_set:
+            self.max_turns = 6
         if self.scenario_id == "tic_tac_toe":
             if "mode" not in self.model_fields_set:
                 self.mode = "dialog"
@@ -59,12 +63,20 @@ class RunRequest(BaseModel):
                 raise ValueError("tic_tac_toe_requires_dialog")
         elif self.max_turns > 8:
             raise ValueError("scenario_turn_limit_exceeded")
-        if (self.mode in OPERATOR_MODES) != (
-            self.scenario_id == "operator_conversation"
-        ):
-            raise ValueError("operator_mode_requires_operator_scenario")
-        if self.mode in OPERATOR_MODES and (self.max_turns < 2 or self.max_turns % 2):
-            raise ValueError("operator_chat_requires_pairs")
+        if self.mode == "operator_review":
+            if self.scenario_id != "peer_review" or self.max_turns not in {3, 6}:
+                raise ValueError("peer_review_requires_complete_rounds")
+        elif self.scenario_id == "peer_review":
+            raise ValueError("peer_review_requires_operator_review")
+        else:
+            if (self.mode in OPERATOR_MODES) != (
+                self.scenario_id == "operator_conversation"
+            ):
+                raise ValueError("operator_mode_requires_operator_scenario")
+            if self.mode in OPERATOR_MODES and (
+                self.max_turns < 2 or self.max_turns % 2
+            ):
+                raise ValueError("operator_chat_requires_pairs")
         return self
 
 
@@ -151,6 +163,14 @@ class RunConfig:
                 else " The operator is a third participant. Answer their new messages "
                 "using the conversation context. JSON recipient=operator is allowed."
             )
+        if request.mode == "operator_review":
+            instructions = (
+                "Uczestnik {participant}. Pisz po polsku, zwięzłym zwykłym tekstem, "
+                "bez JSON i toku myślenia. Wykonuj tylko etap wskazany przez hosta."
+                if language == "pl"
+                else "Participant {participant}. Write concise plain English, without "
+                "JSON or a thinking transcript. Perform only the phase set by the host."
+            )
         goal_label = "\nCel: " if language == "pl" else "\nGoal: "
         private_label = (
             "\nPrywatne informacje: " if language == "pl" else "\nPrivate information: "
@@ -162,6 +182,9 @@ class RunConfig:
         ):
             if request.mode in {"single", "self_correction"}:
                 private = scenario.private_a + " " + scenario.private_b
+            if request.mode == "operator_review":
+                prompts.append(instructions.format(participant=participant))
+                continue
             operator_role = ""
             if request.mode == "operator_relay":
                 if language == "pl":
@@ -220,7 +243,9 @@ class RunConfig:
             else (1 if language is None else 2),
             participant_count=3 if request.mode in OPERATOR_MODES else 2,
             scheduler=(
-                "operator-relay-v1"
+                "author-review-revise-v1"
+                if request.mode == "operator_review"
+                else "operator-relay-v1"
                 if request.mode == "operator_relay"
                 else "operator-rounds-v1"
             )

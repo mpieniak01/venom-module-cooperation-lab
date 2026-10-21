@@ -45,6 +45,12 @@
   ],
   "scenarios": [
     {
+      "scenario_id": "peer_review",
+      "version": "1",
+      "title": "Draft, review, revise",
+      "goal": "Answer the operator task through a draft, a peer review, and a revision. A drafts, B reviews, A revises. The operator judges the final result."
+    },
+    {
       "scenario_id": "operator_conversation",
       "version": "1",
       "title": "Operator conversation",
@@ -82,7 +88,8 @@
     "dialog",
     "dialog_encouraged",
     "operator_chat",
-    "operator_relay"
+    "operator_relay",
+    "operator_review"
   ],
   "preset": {
     "max_turns": 8,

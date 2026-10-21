@@ -12,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from .errors import LabError
+from .peer_review import review_step
 from .run_config import OPERATOR_MODES, RunConfig, RunRequest
 from .storage import TERMINAL, LabStore, _identifier
 from .tic_tac_toe import TicTacToe
@@ -349,10 +350,11 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         for participant, prompt in zip(("A", "B"), job.config.prompts, strict=True):
-            job.histories[participant] = [
-                ChatMessage("system", prompt),
-                ChatMessage("user", job.config.scenario_goal),
-            ]
+            job.histories[participant] = [ChatMessage("system", prompt)]
+            if job.config.mode != "operator_review":
+                job.histories[participant].append(
+                    ChatMessage("user", job.config.scenario_goal)
+                )
 
     def _charge(self, job: _Job, result: Any) -> dict[str, Any]:
         budgets = job.config.budgets
@@ -441,6 +443,8 @@ class LabRunner:
 
     @staticmethod
     def _participant(mode: str, index: int) -> str:
+        if mode == "operator_review":
+            return review_step(index, None).participant
         return "A" if mode in {"single", "self_correction"} else ("A", "B")[index % 2]
 
     def _turn_context(self, job: _Job, participant: str) -> list[Any]:
@@ -511,11 +515,20 @@ class LabRunner:
             top_p=config.top_p,
             seed=config.seed,
         )
-        for index in range(0, config.budgets.max_turns, 2):
+        round_size = 3 if config.mode == "operator_review" else 2
+        for index in range(0, config.budgets.max_turns, round_size):
             self._check(job)
+            if index and config.mode == "operator_review":
+                # Each new review task is independent; keep the journal, not
+                # the previous task's KV/history in this bounded context.
+                await self._work(job, lambda: job.adapter.reset())
+                self._prepare_histories(job)
+                job.last_delivered = {"A": None, "B": None}
             job.operator_signal.clear()
             job.operator_waiting = True
-            self._emit(job, "operator", {"waiting": True, "round": index // 2 + 1})
+            self._emit(
+                job, "operator", {"waiting": True, "round": index // round_size + 1}
+            )
             while not job.operator_signal.is_set():
                 # Bounded wait keeps STOP and the original wall deadline effective.
                 try:
@@ -523,8 +536,10 @@ class LabRunner:
                 except TimeoutError:
                     pass
                 self._check(job)
-            self._emit(job, "operator", {"waiting": False, "round": index // 2 + 1})
-            for turn in (index, index + 1):
+            self._emit(
+                job, "operator", {"waiting": False, "round": index // round_size + 1}
+            )
+            for turn in range(index, index + round_size):
                 await self._generate_turn(job, parameters, turn)
         job.operator_waiting = False
 
@@ -536,6 +551,13 @@ class LabRunner:
         participant = self._participant(job.config.mode, index)
         history = self._turn_context(job, participant)
         turn_id = f"turn-{index + 1:04d}"
+        phase = None
+        if job.config.mode == "operator_review":
+            from .adapters.base import ChatMessage
+
+            step = review_step(index, job.config.communication_language)
+            phase = step.phase
+            history = [*history, ChatMessage("user", step.instruction)]
         self._emit(
             job,
             "turn",
@@ -543,6 +565,7 @@ class LabRunner:
                 "turn_id": turn_id,
                 "participant_id": participant,
                 "status": "generating",
+                **({"phase": phase} if phase else {}),
             },
         )
         result = await self._work(
@@ -667,9 +690,21 @@ class LabRunner:
                 raise LabError("unknown_reply")
         if job.config.mode == "operator_relay":
             recipient = "B" if sender == "A" else "operator"
+        phase_fields = {}
+        if job.config.mode == "operator_review":
+            step = review_step(
+                int(turn_id.removeprefix("turn-")) - 1,
+                job.config.communication_language,
+            )
+            recipient = step.recipient
+            in_reply_to = job.last_delivered[sender]
+            reply_source = "host_review_context" if in_reply_to else None
+            phase_fields = {"phase": step.phase}
         delivered = self._delivery_recipients(job.config.mode, sender, recipient)
-        if job.config.mode == "operator_chat" or (
-            job.config.mode == "operator_relay" and sender == "B"
+        if (
+            job.config.mode == "operator_chat"
+            or (job.config.mode == "operator_relay" and sender == "B")
+            or (job.config.mode == "operator_review" and recipient == "operator")
         ):
             delivered.append("operator")
         sequence = self.store.get_run(job.run_id, owner=OWNER)["last_seq"] + 1
@@ -687,6 +722,7 @@ class LabRunner:
             "kind": kind,
             "content": content,
             "delivered_to": delivered,
+            **phase_fields,
             **(
                 {"operator_message_id": job.operator_message_id}
                 if job.config.mode in OPERATOR_MODES

@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { texts } from "./i18n";
 
-export function OperatorComposer({runId,active,waiting,sending,language,relay,onSend}:{
-  runId:string|null; active:boolean; waiting:boolean; sending:boolean; language:string; relay:boolean;
+export function OperatorComposer({runId,active,waiting,sending,language,relay,review=false,onSend}:{
+  runId:string|null; active:boolean; waiting:boolean; sending:boolean; language:string; relay:boolean; review?:boolean;
   onSend:(content:string)=>Promise<boolean>;
 }) {
   const t=texts(language);
@@ -20,10 +20,10 @@ export function OperatorComposer({runId,active,waiting,sending,language,relay,on
         disabled={!active||sending} onInput={event=>setDraft({runId,text:event.currentTarget.value})}/>
     </label>
     <div className="coop-composer-actions">
-      <button type="submit" className="coop-button coop-start" disabled={!ready||!draft.text.trim()}>{relay?t.operatorRelaySend:t.operatorSend}</button>
+      <button type="submit" className="coop-button coop-start" disabled={!ready||!draft.text.trim()}>{relay?t.operatorRelaySend:review?t.reviewSend:t.operatorSend}</button>
       <span role="status">{active?(waiting?t.operatorWaiting:t.operatorResponding):t.operatorInactive}</span>
     </div>
     {relay&&<p className="coop-message-meta">{t.operatorRelayHint}</p>}
-    <p className="coop-message-meta">{t.operatorLimit}</p>
+    <p className="coop-message-meta">{review?t.reviewLimit:t.operatorLimit}</p>
   </form>;
 }
