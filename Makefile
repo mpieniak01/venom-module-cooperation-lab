@@ -3,12 +3,13 @@ HOST := $(abspath $(HOST))
 PYTHON ?= $(HOST)/.venv/bin/python
 RUFF ?= $(HOST)/.venv/bin/ruff
 WEB_BIN = $(HOST)/web-next/node_modules/.bin
+CHECK_DIRS = venom_module_cooperation_lab tests $(if $(wildcard scripts/*.py),scripts,)
 
 .PHONY: check check-python check-web check-host
 check: check-python check-web check-host
 check-python:
-	$(RUFF) check venom_module_cooperation_lab scripts tests
-	$(RUFF) format --check venom_module_cooperation_lab scripts tests
+	$(RUFF) check $(CHECK_DIRS)
+	$(RUFF) format --check $(CHECK_DIRS)
 	PYTHONPATH=$(HOST):. $(PYTHON) -m mypy venom_module_cooperation_lab --no-incremental --cache-dir=/dev/null
 	PYTHONPATH=$(HOST):. $(PYTHON) -m pytest -q --cov=venom_module_cooperation_lab --cov-fail-under=90 --cov-report=term-missing --cov-report=xml:test-results/coverage.xml
 check-web:
