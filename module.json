@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "module_id": "cooperation_lab",
+  "display_name": "Cooperation Lab",
+  "enabled_by_default": false,
+  "backend": {
+    "router_import": "venom_module_cooperation_lab.api.routes:router",
+    "feature_flag": "FEATURE_COOPERATION_LAB",
+    "module_api_version": "1.0.0",
+    "min_core_version": "1.6.0",
+    "data_policy": {
+      "storage_mode": "core_prefixed",
+      "mutation_guard": "core_environment_policy",
+      "state_files": [
+        "lab.sqlite3",
+        "lab.sqlite3-wal",
+        "lab.sqlite3-shm"
+      ]
+    }
+  },
+  "frontend": {
+    "nav_path": "/cooperation-lab",
+    "feature_flag": "NEXT_PUBLIC_FEATURE_COOPERATION_LAB",
+    "nav_label": "Cooperation Lab",
+    "nav_labels": {
+      "pl": "Laboratorium współpracy",
+      "en": "Cooperation Lab",
+      "de": "Kooperationslabor"
+    },
+    "component_import": "../../../modules/venom-module-cooperation-lab/web-next/page"
+  }
+}

@@ -1,0 +1,7 @@
+export const messages = {
+  pl: { title: "Laboratorium współpracy", description: "Dwie niezależne sesje modelu. Eksperymenty uruchamia operator.", notReady: "Model nie został jeszcze zakwalifikowany", disabled: "Moduł wyłączony", unavailable: "Połączenie niedostępne", refresh: "Odśwież", limits: "Limity zapisu", runs: "Prób", retention: "Retencja (dni)", disk: "Baza (MiB)", start: "Rozpocznij eksperyment", noRuns: "Brak uruchomionych eksperymentów", loading: "Sprawdzanie gotowości" },
+  en: { title: "Cooperation Lab", description: "Two independent model sessions. Experiments are started by the operator.", notReady: "No model has been qualified yet", disabled: "Module disabled", unavailable: "Connection unavailable", refresh: "Refresh", limits: "Storage limits", runs: "Runs", retention: "Retention (days)", disk: "Database (MiB)", start: "Start experiment", noRuns: "No experiments have been started", loading: "Checking readiness" },
+  de: { title: "Kooperationslabor", description: "Zwei unabhängige Modellsitzungen. Experimente startet der Benutzer.", notReady: "Noch kein Modell qualifiziert", disabled: "Modul deaktiviert", unavailable: "Verbindung nicht verfügbar", refresh: "Aktualisieren", limits: "Speicherlimits", runs: "Versuche", retention: "Aufbewahrung (Tage)", disk: "Datenbank (MiB)", start: "Experiment starten", noRuns: "Keine gestarteten Experimente", loading: "Bereitschaft wird geprüft" },
+} as const;
+export type Language = keyof typeof messages;
+export function texts(language: string) { return messages[language as Language] ?? messages.en; }
