@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from collections.abc import Callable
@@ -162,6 +163,13 @@ class LabRunner:
         async with self._lock:
             if self._closed:
                 raise LabError("module_stopping", 503)
+            previous = self.store.find_run_by_key(idempotency_key, owner=OWNER)
+            if previous is not None:
+                if not self._same_request(previous["config"], request, qualification):
+                    raise LabError("idempotency_conflict", 409)
+                return previous, False
+            if self.catalog_service is not None:
+                await self.catalog_service.refresh()
             config = (
                 self._qualification_config(request.model_id)
                 if qualification
@@ -223,6 +231,36 @@ class LabRunner:
                     self.jobs.pop(old_id)
             return self.store.get_run(run_id, owner=OWNER), True
 
+    @staticmethod
+    def _same_request(
+        config: dict[str, Any], request: RunRequest, qualification: bool
+    ) -> bool:
+        # Compare the normalized operator input, never a rebuilt config using
+        # today's weights, templates, prompts or qualification receipt.
+        model_id = config["model"]["model_id"]
+        if qualification:
+            return (
+                config["scenario_id"] == "model_qualification"
+                and model_id == request.model_id
+            )
+        stored = {
+            name: config.get(name)
+            for name in (
+                "scenario_id",
+                "communication_language",
+                "mode",
+                "seed",
+                "temperature",
+                "top_p",
+            )
+        }
+        stored.update(
+            model_id=model_id,
+            max_turns=config["budgets"]["max_turns"],
+            max_new_tokens=config["budgets"]["max_new_tokens"],
+        )
+        return stored == request.model_dump()
+
     def _qualification_config(self, model_id: str) -> RunConfig:
         if self.catalog_service is None:
             raise LabError("model_unavailable", 409)
@@ -280,14 +318,15 @@ class LabRunner:
     ) -> dict[str, Any]:
         _identifier(idempotency_key)
         row = self.store.get_run(run_id, owner=OWNER)
-        job = self.jobs.get(run_id)
-        if job is None or job.config.mode not in OPERATOR_MODES:
-            raise LabError("operator_chat_unavailable", 409)
-        previous = job.operator_submissions.get(idempotency_key)
+        key_hash = hashlib.sha256(idempotency_key.encode()).hexdigest()
+        previous = self.store.find_operator_submission(run_id, key_hash, owner=OWNER)
         if previous is not None:
             if previous["payload"]["content"] != content:
                 raise LabError("idempotency_conflict", 409)
             return {"event": previous, "created": False}
+        job = self.jobs.get(run_id)
+        if job is None or job.config.mode not in OPERATOR_MODES:
+            raise LabError("operator_chat_unavailable", 409)
         self._check(job)
         if row["status"] != "running" or not job.operator_waiting:
             raise LabError("operator_chat_not_waiting", 409)
@@ -300,6 +339,7 @@ class LabRunner:
             "run_id": run_id,
             "message_id": message_id,
             "sender": "operator",
+            "submission_key_hash": key_hash,
             "recipient": "A" if job.config.mode == "operator_relay" else "all",
             "kind": "message",
             "content": content,

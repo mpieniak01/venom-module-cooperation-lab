@@ -68,3 +68,16 @@ Brak lub anulowanie opcjonalnego receipt nie blokuje zwykłego eksperymentu.
 RWKV zachowuje odbiór własnego komponentu. Silniki bez adaptera mają `can_run=false`.
 `generation`/`ready` odzwierciedlają dostępne adaptery, a `qualified_models` wyłącznie
 aktualne receipt. Nie raportujemy wszystkich dostępnych modeli jako sprawdzonych.
+
+
+Idempotency L6 po recenzji: START najpierw odczytuje trwały rekord klucza i
+porównuje znormalizowany request z zapisanymi parametrami, zanim odświeży katalog
+lub sprawdzi dostępność modelu. Zaginiona odpowiedź może być odzyskana po zmianie
+wag, braku modelu, błędzie katalogu albo restarcie bez ponownej generacji. Inny
+request z tym samym kluczem nadal jest konfliktem. Diagnostyka ma osobny typ próby.
+
+Wiadomość operatora przechowuje SHA256 klucza w payloadzie trwałego zdarzenia,
+atomowo z samą wiadomością. Ponowienie odczytuje journal przed wymaganiem aktywnego
+jobu, również po jego zwolnieniu i restarcie. Treść musi być identyczna; klucz jest
+ograniczony do danego runu. Surowy klucz nie trafia do eksportu. Bez migracji DB;
+starym zdarzeniom sprzed tej zmiany nie da się odtworzyć niezapisanego klucza.

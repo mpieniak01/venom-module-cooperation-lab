@@ -266,6 +266,45 @@ class LabStore:
                 raise LabError("runtime_busy") from exc
             return self.get_run(run_id, owner=owner)
 
+    def find_run_by_key(self, key: str, *, owner: str) -> dict[str, Any] | None:
+        with self._lock:
+            self._access(owner, "runs.read")
+            row = (
+                self._connection()
+                .execute(
+                    "SELECT * FROM runs WHERE owner=? AND idempotency_key=?",
+                    (_identifier(owner), _identifier(key)),
+                )
+                .fetchone()
+            )
+            return self._run(row) if row is not None else None
+
+    def find_operator_submission(
+        self, run_id: str, key_hash: str, *, owner: str
+    ) -> dict[str, Any] | None:
+        with self._lock:
+            self._row(run_id, owner)
+            rows = self._connection().execute(
+                "SELECT * FROM events WHERE run_id=? AND kind='message' ORDER BY seq",
+                (run_id,),
+            )
+            # Journal size is bounded by the per-run quota. The key is committed
+            # atomically inside the event, without a separate crash-prone write.
+            for row in rows:
+                payload = json.loads(row["payload"])
+                if (
+                    payload.get("sender") == "operator"
+                    and payload.get("submission_key_hash") == key_hash
+                ):
+                    return {
+                        "run_id": run_id,
+                        "seq": row["seq"],
+                        "kind": row["kind"],
+                        "timestamp": row["timestamp"],
+                        "payload": payload,
+                    }
+            return None
+
     def get_run(self, run_id: str, *, owner: str) -> dict[str, Any]:
         with self._lock:
             return self._run(self._row(run_id, owner))

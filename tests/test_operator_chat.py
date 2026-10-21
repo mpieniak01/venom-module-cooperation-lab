@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 
 import pytest
@@ -219,3 +220,27 @@ async def test_telephone_only_a_receives_original_b_receives_a_retelling(rig, la
     ]
     assert messages[2]["in_reply_to"] == messages[1]["message_id"]
     assert runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_operator_retry_survives_pruned_job_and_storage_restart(rig):
+    runner, _ = rig
+    row, _ = await runner.start(request(max_turns=2), "durable-operator-run")
+    await waiting(runner, row)
+    original = runner.operator_message(row["id"], "Trwały wpis", "durable-message-key")
+    await finish(runner, row)
+    runner.jobs.clear()
+    runner.store.close()
+    runner.store.open()
+    replay = runner.operator_message(row["id"], "Trwały wpis", "durable-message-key")
+    assert replay == {"event": original["event"], "created": False}
+    assert "durable-message-key" not in json.dumps(original)
+    with pytest.raises(LabError, match="idempotency_conflict"):
+        runner.operator_message(row["id"], "Inny wpis", "durable-message-key")
+    assert (
+        sum(
+            e["payload"].get("sender") == "operator"
+            for e in runner.store.events(row["id"], owner=OWNER)
+        )
+        == 1
+    )

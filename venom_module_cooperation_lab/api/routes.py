@@ -152,8 +152,6 @@ async def create_run(
     idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
 ) -> dict[str, Any]:
     runner = require_runner(request)
-    if runner.catalog_service is not None:
-        await runner.catalog_service.refresh()
     row, created = await runner.start(payload, idempotency_key)
     return {"run": row, "created": created}
 
@@ -172,8 +170,6 @@ async def qualify_model(
     idempotency_key: Annotated[str, Header(min_length=1, max_length=128)],
 ) -> dict[str, Any]:
     runner = require_runner(request)
-    if runner.catalog_service is not None:
-        await runner.catalog_service.refresh()
     row, created = await runner.start(
         RunRequest(model_id=payload.model_id, scenario_id="split_facts"),
         idempotency_key,

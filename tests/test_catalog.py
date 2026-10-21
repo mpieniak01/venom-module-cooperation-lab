@@ -285,3 +285,34 @@ def test_metadata_is_bounded_local_and_no_generation(monkeypatch):
     )
     with pytest.raises(LabError, match="runtime_response_too_large"):
         ollama_metadata()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("qualification", [False, True])
+async def test_start_retry_survives_unavailable_or_changed_model(rig, qualification):
+    runner, _ = rig
+    catalog, spec, _ = install(runner)
+    request = RunRequest(model_id=spec.model_id, scenario_id="split_facts", max_turns=1)
+    row, _ = await runner.start(request, "durable-start", qualification=qualification)
+    await runner.jobs[row["id"]].task
+    runner.jobs.clear()
+    runner.store.close()
+    runner.store.open()
+    catalog._available.clear()
+    catalog.loader.side_effect = RuntimeError("unavailable")
+    catalog._updated = 0
+    same, created = await runner.start(
+        request, "durable-start", qualification=qualification
+    )
+    assert same["id"] == row["id"] and not created
+    with pytest.raises(LabError, match="idempotency_conflict"):
+        await runner.start(
+            request.model_copy(update={"model_id": "changed"}),
+            "durable-start",
+            qualification=qualification,
+        )
+    if not qualification:
+        with pytest.raises(LabError, match="idempotency_conflict"):
+            await runner.start(
+                request.model_copy(update={"max_new_tokens": 32}), "durable-start"
+            )

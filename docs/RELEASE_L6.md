@@ -33,7 +33,7 @@ Bez nowych zależności, venv, wag, sterowania robotem lub narzędzi wykonawczyc
 
 ## Dowody odbioru
 
-- Pełny lokalny make check: 315 testów Python PASS, pokrycie 97,57%;
+- Pełny lokalny make check: 318 testów Python PASS, pokrycie 97,55%;
   27 frontend PASS; Ruff/mypy (23 źródła), TypeScript, lint i kontrakt modułu PASS.
   Dwie istniejące deprecjacje narzędzi są ostrzeżeniami.
 - Rzeczywisty browser desktop/mobile: scenariusze, przełączanie modeli,
@@ -71,3 +71,12 @@ przy braku aktywnych prób, nie przerywać sesji operatora. Nie uruchamiać mode
 na startupie. Rollback: odwrócić commit scalenia po zatrzymaniu własnych prób;
 nie usuwać namespace bazy, receipt ani historycznych journalów. Nie ma migracji
 schematu bazy. Nowe konfiguracje/historyczne wersje pozostają w zapisanych JSON.
+
+
+## Poprawki po recenzji PR #16
+
+Naprawiono dwa P2: odzyskiwanie START po utracie odpowiedzi i zmianie katalogu
+oraz trwałość idempotency wpisu operatora po usunięciu jobu/restarcie. Nowe
+regresje obejmują ponowienie zwykłego START i diagnostyki przy niedostępnym modelu,
+konflikt innego requestu oraz ponowienie wiadomości po ponownym otwarciu SQLite.
+Potwierdzono brak drugiego runu lub drugiego wpisu. Kontrakt powyżej bez migracji.
