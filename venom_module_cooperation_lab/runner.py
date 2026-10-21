@@ -28,6 +28,10 @@ class _Job:
     adapter: Any = None
     task: asyncio.Task[None] | None = None
     work: asyncio.Task[Any] | None = None
+    closing: asyncio.Task[bool] | None = None
+    watched_work: asyncio.Task[Any] | None = None
+    cleanup_pending: bool = False
+    late_cleanup_recorded: bool = False
     cancelled: bool = False
     failure: str | None = None
     cleanup_complete: bool = False
@@ -518,45 +522,95 @@ class LabRunner:
             "delivered_to": delivered,
         }
 
+    def _schedule_late_cleanup(self, job: _Job) -> None:
+        self._own(asyncio.create_task(self._cleanup(job)))
+
+    async def _wait_owned_work(self, job: _Job) -> bool:
+        if job.work is None or job.work.done():
+            return True
+        if job.adapter:
+            self._own(asyncio.create_task(asyncio.to_thread(job.adapter.cancel)))
+        finished, _ = await asyncio.wait({job.work}, timeout=self.cleanup_seconds)
+        if not finished:
+            job.cleanup_pending = True
+            if job.watched_work is not job.work:
+                job.watched_work = job.work
+                job.work.add_done_callback(
+                    lambda _done: self._schedule_late_cleanup(job)
+                )
+        return bool(finished)
+
+    def _close_finished(self, job: _Job, task: asyncio.Task[bool]) -> None:
+        if not job.cleanup_pending or task.cancelled():
+            return
+        try:
+            closed = task.result()
+        except Exception:
+            return
+        if closed:
+            self._schedule_late_cleanup(job)
+
+    async def _close_owned_adapter(self, job: _Job) -> bool:
+        if job.adapter is None:
+            return True
+        if job.closing is None:
+
+            def close() -> bool:
+                with job.lease.cleanup(confirm_quiescent=job.adapter.is_quiescent):
+                    return bool(job.adapter.close())
+
+            job.closing = self._own(asyncio.create_task(asyncio.to_thread(close)))
+            job.closing.add_done_callback(lambda done: self._close_finished(job, done))
+        closing = job.closing
+        finished, _ = await asyncio.wait({closing}, timeout=self.cleanup_seconds)
+        if not finished:
+            job.cleanup_pending = True
+            return False
+        try:
+            closed = closing.result()
+        except Exception:
+            # A later explicit recovery may retry after this close really ended.
+            job.closing = None
+            raise
+        if not closed or not job.adapter.is_quiescent():
+            job.closing = None
+            return False
+        return True
+
+    def _record_late_cleanup(self, job: _Job) -> None:
+        if not job.cleanup_pending or job.late_cleanup_recorded:
+            return
+        try:
+            row = self.store.get_run(job.run_id, owner=OWNER)
+            if row["status"] not in TERMINAL:
+                return
+            self._emit(
+                job,
+                "run",
+                {"status": row["status"], "quiescent": True, "cleanup_late": True},
+            )
+            job.late_cleanup_recorded = True
+        except (LabError, PermissionError):
+            # Resource proof remains true; never invent a persisted event.
+            pass
+
     async def _cleanup(self, job: _Job) -> bool:
         async with job.cleanup_lock:
             if job.cleanup_complete:
+                self._record_late_cleanup(job)
                 return True
-            if job.work and not job.work.done():
-                if job.adapter:
-                    self._own(
-                        asyncio.create_task(asyncio.to_thread(job.adapter.cancel))
-                    )
-                finished, _ = await asyncio.wait(
-                    {job.work}, timeout=self.cleanup_seconds
-                )
-                if not finished:
-                    job.work.add_done_callback(
-                        lambda _done: self._own(asyncio.create_task(self._cleanup(job)))
-                    )
-                    return False
+            if not await self._wait_owned_work(job):
+                return False
             try:
-                if job.adapter is not None:
-
-                    def close() -> bool:
-                        with job.lease.cleanup(
-                            confirm_quiescent=job.adapter.is_quiescent
-                        ):
-                            return bool(job.adapter.close())
-
-                    closing = self._own(asyncio.create_task(asyncio.to_thread(close)))
-                    finished, _ = await asyncio.wait(
-                        {closing}, timeout=self.cleanup_seconds
-                    )
-                    if (
-                        not finished
-                        or not closing.result()
-                        or not job.adapter.is_quiescent()
-                    ):
-                        return False
+                if not await self._close_owned_adapter(job):
+                    job.cleanup_pending = True
+                    return False
                 job.cleanup_complete = bool(job.lease.release())
+                if job.cleanup_complete:
+                    self._record_late_cleanup(job)
                 return job.cleanup_complete
             except Exception:
+                job.cleanup_pending = True
                 return False
 
     def _finish(self, job: _Job, status: str) -> None:

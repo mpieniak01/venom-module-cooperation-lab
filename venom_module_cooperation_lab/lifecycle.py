@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import Callable
-from contextlib import asynccontextmanager
+from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from typing import Any
 
 from .storage import LabStore
@@ -40,10 +40,34 @@ class LabLifecycle:
             self.store = self.factory()
             # SQLite operations have a one-second lock timeout. No executor worker
             # can survive a cancelled lifecycle and secretly mutate after shutdown.
-            self.store.open()
+            admission_check: AbstractContextManager[None] = nullcontext()
+            if admission_enabled():
+                from venom_core.services.runtime_admission import get_runtime_admission
+
+                admission = get_runtime_admission()
+                if not admission.enabled:
+                    from .errors import LabError
+
+                    raise LabError("runtime_admission_disabled", 503)
+                admission_check = admission.operation(kind="module_startup_check")
+            # Own the host namespace before any module DB open/restart recovery.
+            # A second API process must not mark the live worker's run interrupted.
+            with admission_check:
+                self.store.open()
             await asyncio.sleep(0)
-        except Exception:
-            self.state, self.reason = "not_ready", "storage_unavailable"
+        except Exception as exc:
+            code = getattr(exc, "code", None)
+            reason = (
+                code
+                if code
+                in {
+                    "runtime_topology_unsupported",
+                    "runtime_busy",
+                    "runtime_admission_disabled",
+                }
+                else "storage_unavailable"
+            )
+            self.state, self.reason = "not_ready", reason
             await self.close()
 
     async def close(self) -> None:

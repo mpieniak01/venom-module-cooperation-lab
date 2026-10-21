@@ -90,3 +90,21 @@ malformed identities, conservative usage, storage failure, replay/SSE and host
 access policy. They are not GPU qualification. Real host SSE proxy and actual
 control/new-model sessions belong to the combined L4/L5 acceptance. No robot,
 model download, host restart or live registration is performed by these tests.
+
+
+## Lifecycle/late-close review hardening
+
+The enabled module acquires C0 `module_startup_check` before opening/migrating or
+recovering its own database. A real second API PID sharing the runtime namespace
+is rejected before it can mark a live run interrupted. Module OFF has no storage
+or admission IO; C0 OFF retains storage-only not-ready behavior. SQLite busy
+wait is bounded, but synchronous filesystem work is not claimed to be a hard
+async timeout.
+
+Cleanup retains exactly one `job.closing` task. A timeout preserves that real
+worker and C0 ownership; another cleanup attempt waits on the same task rather
+than spawning a second close. Once actual close/join confirms quiescence, the
+owned completion callback performs idempotent final release and writes a durable
+`run` event with unchanged terminal status, `quiescent=true`, `cleanup_late=true`.
+The failed experiment never resumes. Failed close can be retried only after its
+previous task has actually completed, without concurrent close workers.

@@ -426,3 +426,55 @@ async def test_cancel_preparation_and_owned_task_shutdown(rig):
     assert adapter.cancelled
     assert adapter.recorded == []
     assert runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_late_close_is_single_owned_task_then_releases_and_journals(rig):
+    import threading
+
+    runner, adapters = rig
+    runner.cleanup_seconds = 0.02
+    closing_entered = threading.Event()
+    release_close = threading.Event()
+    calls = []
+
+    def slow_close():
+        calls.append("close")
+        closing_entered.set()
+        return release_close.wait(2)
+
+    configure(runner, close=slow_close)
+    row, _ = await runner.start(request(mode="single"), "late-close")
+    try:
+        async with asyncio.timeout(1):
+            while not closing_entered.is_set():
+                await asyncio.sleep(0.001)
+        result = await finish(runner, row)
+        assert result["status"] == "failed"
+        job = runner.jobs[row["id"]]
+        assert not job.cleanup_complete
+        assert runner.admission.snapshot()["status"] != "available"
+        assert await runner._cleanup(job) is False
+        assert calls == ["close"]
+        release_close.set()
+        async with asyncio.timeout(1):
+            while not job.cleanup_complete:
+                await asyncio.sleep(0.001)
+        assert await runner._cleanup(job) is True
+        assert calls == ["close"]
+        assert runner.admission.snapshot()["status"] == "available"
+        assert runner.snapshot(row["id"])["run"]["status"] == "failed"
+        late = [
+            event
+            for event in runner.store.events(row["id"], owner=OWNER)
+            if event["payload"].get("cleanup_late")
+        ]
+        assert len(late) == 1
+        assert late[0]["payload"] == {
+            "status": "failed",
+            "quiescent": True,
+            "cleanup_late": True,
+        }
+        assert len(adapters[0].recorded) == 1
+    finally:
+        release_close.set()
