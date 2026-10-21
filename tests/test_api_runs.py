@@ -44,7 +44,7 @@ async def test_operator_can_discover_start_observe_export_and_delete(client, rig
     caps = (await client.get("/api/v1/cooperation-lab/capabilities")).json()
     assert caps["ready"] and caps["generation"]
     assert caps["qualified_models"] == [SPEC.model_id]
-    assert len(caps["scenarios"]) == 3
+    assert len(caps["scenarios"]) == 4
     assert adapters == []
     started = await client.post(
         "/api/v1/cooperation-lab/runs",

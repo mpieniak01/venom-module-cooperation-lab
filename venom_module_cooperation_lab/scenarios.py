@@ -54,6 +54,20 @@ SCENARIOS = (
         "Your private number is 25.",
         "42",
     ),
+    Scenario(
+        "tic_tac_toe",
+        "1",
+        "Tic-tac-toe",
+        "Play tic-tac-toe on a 3x3 board. A is X and starts; B is O. "
+        "Rows are A, B, C and columns are 1, 2, 3. "
+        "Take turns placing one mark on an empty square. "
+        "Three marks in a row, column or diagonal win; a full board is a draw. "
+        "Return only the coordinate of your move, e.g. B2. "
+        "The host validates moves and decides when the game ends.",
+        "You play X. Try to win, or prevent losing.",
+        "You play O. Try to win, or prevent losing.",
+        "",
+    ),
 )
 
 
@@ -68,6 +82,18 @@ DialogueLanguage = Literal["pl", "en"]
 
 # Localized dialogue profiles are separate from the frozen benchmark v1.
 _POLISH_SCENARIOS = {
+    "tic_tac_toe": (
+        "Kółko i krzyżyk",
+        "Zagraj w kółko i krzyżyk na planszy 3x3. A gra X i zaczyna; B gra O. "
+        "Wiersze to A, B, C, a kolumny 1, 2, 3. "
+        "Wykonujcie na zmianę po jednym ruchu na wolnym polu. "
+        "Trzy znaki w wierszu, kolumnie lub przekątnej oznaczają wygraną; "
+        "pełna plansza oznacza remis. "
+        "Zwróć wyłącznie współrzędne ruchu, np. B2. "
+        "Host sprawdza ruchy i rozstrzyga zakończenie partii.",
+        "Grasz X. Spróbuj wygrać lub zapobiec przegranej.",
+        "Grasz O. Spróbuj wygrać lub zapobiec przegranej.",
+    ),
     "split_facts": (
         "Rozdzielone informacje",
         "Ustal dwuliterowy kod.",

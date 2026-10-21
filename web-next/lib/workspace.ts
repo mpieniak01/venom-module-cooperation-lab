@@ -46,6 +46,12 @@ export const workspaceStyles = `
 .coop-workspace .coop-message-meta { margin:4px 0 0; color:#94a3b8; font-size:11px; }
 .coop-workspace .coop-reply { display:block; margin-top:6px; font-size:12px; color:#a5b4fc; overflow-wrap:anywhere; }
 .coop-workspace .coop-message:target { outline:2px solid #94a3b8; outline-offset:2px; }
+.coop-workspace .coop-game-board { border-collapse:collapse; margin:8px 0; font-variant-numeric:tabular-nums; }
+.coop-workspace .coop-game-board caption { text-align:left; font-size:12px; color:#94a3b8; margin-bottom:6px; }
+.coop-workspace .coop-game-board td { width:42px; height:42px; border:1px solid #94a3b866; text-align:center; font-size:22px; font-weight:600; }
+.coop-workspace .coop-game-board th { padding:4px 8px; font-size:12px; color:#94a3b8; }
+.coop-workspace .coop-game-state { font-size:13px; margin:6px 0 0; }
+
 
 .coop-workspace .coop-panel pre { max-height:20rem; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
 .coop-workspace .coop-usage { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin-top:8px; font-size:12px; }
@@ -91,12 +97,12 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   const result: Partial<SavedSettings> = {};
   const model = record(config.model).model_id ?? config.model_id;
   if (typeof model === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(model)) result.model = model;
-  if (typeof config.scenario_id === "string" && ["split_facts", "organization", "correction"].includes(config.scenario_id)) result.scenario = config.scenario_id;
+  if (typeof config.scenario_id === "string" && ["split_facts", "organization", "correction", "tic_tac_toe"].includes(config.scenario_id)) result.scenario = config.scenario_id;
   if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged"].includes(config.mode)) result.mode = config.mode;
   if (config.communication_language === "pl" || config.communication_language === "en") result.communicationLanguage = config.communication_language;
   else if (config.schema_version === 1 || Array.isArray(config.prompts)) result.communicationLanguage = "en";
   const budgets = record(config.budgets);
-  const pairs = [["turns", budgets.max_turns, 1, 8], ["tokens", budgets.max_new_tokens, 1, 256], ["seed", config.seed, 0, 2147483647]] as const;
+  const pairs = [["turns", budgets.max_turns, 1, config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 256], ["seed", config.seed, 0, 2147483647]] as const;
   for (const [name, value, minimum, maximum] of pairs) {
     if (typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum) result[name] = value;
   }

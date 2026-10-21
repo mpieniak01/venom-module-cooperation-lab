@@ -7,7 +7,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .scenarios import DialogueLanguage, get_dialogue_scenario, get_scenario
 
@@ -24,10 +24,23 @@ class RunRequest(BaseModel):
     communication_language: DialogueLanguage | None = None
     mode: Mode = "dialog_encouraged"
     seed: int = Field(default=0, ge=0, le=2**31 - 1)
-    max_turns: int = Field(default=8, ge=1, le=8)
+    max_turns: int = Field(default=8, ge=1, le=9)
     max_new_tokens: int = Field(default=128, ge=1, le=256)
     temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
     top_p: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_scenario_limits(self) -> RunRequest:
+        if self.scenario_id == "tic_tac_toe":
+            if "mode" not in self.model_fields_set:
+                self.mode = "dialog"
+            if "max_turns" not in self.model_fields_set:
+                self.max_turns = 9
+            if self.mode != "dialog":
+                raise ValueError("tic_tac_toe_requires_dialog")
+        elif self.max_turns > 8:
+            raise ValueError("scenario_turn_limit_exceeded")
+        return self
 
 
 @dataclass(frozen=True)
@@ -130,8 +143,18 @@ class RunConfig:
             scenario_goal=scenario.goal,
             mode=request.mode,
             prompts=(prompts[0], prompts[1]),
-            budgets=Budgets(
-                max_turns=request.max_turns, max_new_tokens=request.max_new_tokens
+            budgets=(
+                Budgets(
+                    max_turns=request.max_turns,
+                    max_new_tokens=request.max_new_tokens,
+                    total_input_tokens=9 * 2048,
+                    total_output_tokens=9 * request.max_new_tokens,
+                    processing_steps=9 * (2048 + request.max_new_tokens),
+                )
+                if request.scenario_id == "tic_tac_toe"
+                else Budgets(
+                    max_turns=request.max_turns, max_new_tokens=request.max_new_tokens
+                )
             ),
             seed=request.seed,
             temperature=request.temperature,

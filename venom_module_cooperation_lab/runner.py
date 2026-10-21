@@ -14,6 +14,7 @@ from uuid import uuid4
 from .errors import LabError
 from .run_config import RunConfig, RunRequest
 from .storage import TERMINAL, LabStore, _identifier
+from .tic_tac_toe import TicTacToe
 
 OWNER = "local_operator"
 _ALLOWED_KINDS = {"message", "proposal", "accept", "ask", "evidence", "complete"}
@@ -42,6 +43,7 @@ class _Job:
     work: asyncio.Task[Any] | None = None
     closing: asyncio.Task[bool] | None = None
     watched_work: asyncio.Task[Any] | None = None
+    game: TicTacToe | None = None
     cleanup_pending: bool = False
     late_cleanup_recorded: bool = False
     cancelled: bool = False
@@ -159,6 +161,8 @@ class LabRunner:
                 )
                 raise LabError(getattr(exc, "code", "runtime_busy")) from exc
             job = _Job(run_id, config, lease, started + config.budgets.wall_seconds)
+            if config.scenario_id == "tic_tac_toe":
+                job.game = TicTacToe()
             self.jobs[run_id] = job
             try:
                 self.store.set_run_status(run_id, "queued", owner=OWNER)
@@ -256,6 +260,8 @@ class LabRunner:
             self._prepare_histories(job)
             self.store.set_run_status(job.run_id, "running", owner=OWNER)
             self._emit(job, "run", {"status": "running"})
+            if job.game is not None:
+                self._emit(job, "game", job.game.public())
             await self._turns(job)
             outcome = "completed"
         except LabError as exc:
@@ -384,6 +390,14 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         history = job.histories[participant]
+        if job.game is not None:
+            history.append(
+                ChatMessage(
+                    "user",
+                    job.game.prompt(participant, job.config.communication_language),
+                )
+            )
+            return history
         if history[-1].role != "user":
             followup = (
                 "Verify your previous answer."
@@ -441,6 +455,10 @@ class LabRunner:
                 ),
             )
             message = self._publish_result(job, participant, turn_id, result)
+            if job.game is not None:
+                if job.game.finished:
+                    break
+                continue
             if message["kind"] == "complete":
                 completed.add(participant)
                 if config.mode in {"single", "self_correction"} or completed == {
@@ -460,7 +478,17 @@ class LabRunner:
         usage = self._charge(job, result)
         self._emit(job, "usage", {"turn_id": turn_id, **usage})
         message = self._message(job, participant, turn_id, result.text)
+        board = None
+        if job.game is not None:
+            try:
+                board = job.game.play(participant, message["content"])
+            except LabError:
+                message["delivered_to"] = []
+                self._emit(job, "message", message)
+                raise
         self._emit(job, "message", message)
+        if board is not None:
+            self._emit(job, "game", board)
         job.histories[participant].append(ChatMessage("assistant", message["content"]))
         for recipient in message["delivered_to"]:
             job.histories[recipient].append(

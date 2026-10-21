@@ -63,3 +63,10 @@ test("scenario labels are Polish while conversation language restores independen
   assert.equal(savedSettings({schema_version:1}).communicationLanguage, "en");
   assert.equal(savedSettings({communication_language:"fr"}).communicationLanguage, undefined);
 });
+
+
+test("tic-tac-toe labels and nine-move history remain scenario scoped",()=>{
+ assert.equal(scenarioLabel(texts("pl"),"tic_tac_toe"),"Kółko i krzyżyk");
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",budgets:{max_turns:9}}).turns,9);
+ assert.equal(savedSettings({scenario_id:"split_facts",budgets:{max_turns:9}}).turns,undefined);
+});

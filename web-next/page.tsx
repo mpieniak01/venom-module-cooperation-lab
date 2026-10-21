@@ -2,12 +2,13 @@
 import { useState } from "react";
 import { useLanguage } from "@/lib/i18n";
 import { messageKindLabel, modeLabel, scenarioLabel, statusLabel, texts } from "./lib/i18n";
-import { modelId, type Json, type LabEvent } from "./lib/protocol";
+import { modelId, terminal, type Json, type LabEvent } from "./lib/protocol";
 import { useLab } from "./lib/use-lab";
 import { computationLabel, noticePresentation } from "./lib/presentation";
 import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSettings } from "./lib/workspace";
 
 import { Conversation } from "./lib/chat";
+import { GameBoard } from "./lib/game-board";
 
 const button = "coop-button";
 const field = "coop-field";
@@ -39,6 +40,8 @@ export default function CooperationLabPage() {
   const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error);
   const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued);
   const organizations = lab.events.filter((event) => event.kind === "organization");
+  const isGame = scenario === "tic_tac_toe";
+  const gameEvent = lab.events.findLast(event => event.kind === "game");
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
@@ -74,13 +77,13 @@ export default function CooperationLabPage() {
           </select>
         </label>
         <label className="coop-setting coop-setting-wide">{t.scenario}
-          <select className={field} value={scenario} onChange={(event) => setForm({...form, scenario:event.target.value})}>
+          <select className={field} value={scenario} onChange={(event) => { const next=event.target.value; setForm({...form, scenario:next, mode:next === "tic_tac_toe" ? "dialog" : mode, turns:next === "tic_tac_toe" ? 9 : Math.min(turns, 8)}); }}>
             {(lab.capabilities?.scenarios ?? []).map((item) => <option value={item.scenario_id} key={item.scenario_id}>{scenarioLabel(t, item.scenario_id, item.title)}</option>)}
           </select>
         </label>
         <label className="coop-setting coop-setting-wide">{t.mode}
           <select className={field} value={mode} onChange={(event) => setForm({...form, mode:event.target.value})}>
-            {(lab.capabilities?.modes ?? []).map((item) => <option value={item} key={item}>{modeLabel(t, item)}</option>)}
+            {(lab.capabilities?.modes ?? []).filter(item => !isGame || item === "dialog").map((item) => <option value={item} key={item}>{isGame ? t.gameAlternating : modeLabel(t, item)}</option>)}
           </select>
         </label>
         <label className="coop-setting coop-setting-wide">{t.communicationLanguage}
@@ -88,7 +91,7 @@ export default function CooperationLabPage() {
             <option value="pl">{t.polish}</option><option value="en">{t.english}</option>
           </select>
         </label>
-        <label className="coop-setting">{t.turns}<input className={field} type="number" min={1} max={8} value={turns} onChange={(event) => setForm({...form, turns:Number(event.target.value)})} /></label>
+        <label className="coop-setting">{t.turns}<input className={field} type="number" min={1} max={isGame ? 9 : 8} value={turns} onChange={(event) => setForm({...form, turns:Number(event.target.value)})} /></label>
         <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={256} value={tokens} onChange={(event) => setForm({...form, tokens:Number(event.target.value)})} /></label>
         <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={(event) => setForm({...form, seed:Number(event.target.value)})} /></label>
       </fieldset>}
@@ -114,6 +117,7 @@ export default function CooperationLabPage() {
               </div>;
             })}
           </fieldset>
+          {isGame && <GameBoard event={gameEvent} ended={!!lab.run && terminal(lab.run.status)} language={language} />}
           <section className="coop-panel" aria-label={t.dialog}>
             <h2 className="mb-2 font-semibold">{t.dialog}</h2>
             {!messageEvents.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}

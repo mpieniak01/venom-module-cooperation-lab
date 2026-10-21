@@ -50,6 +50,16 @@ const translations = {
   communicationLanguage: ["Język rozmowy modeli", "Model conversation language", "Gesprächssprache der Modelle"],
   polish: ["Polski", "Polish", "Polnisch"],
   english: ["Angielski", "English", "Englisch"],
+  scenarioTicTacToe: ["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],
+  gameAlternating: ["Gra naprzemienna", "Alternating play", "Abwechselndes Spiel"],
+  gameBoard: ["Plansza", "Board", "Spielfeld"],
+  gameNext: ["Następny ruch", "Next move", "Nächster Zug"],
+  gameWinner: ["Wygrywa", "Winner", "Gewinner"],
+  gameDraw: ["Remis", "Draw", "Unentschieden"],
+  gameIncomplete: ["Partia nierozstrzygnięta", "Game unfinished", "Partie nicht entschieden"],
+  gameStateUnknown: ["Stan planszy nieznany", "Board state unknown", "Spielfeldzustand unbekannt"],
+  problemGameMove: ["Model podał nieprawidłowy ruch. Wymagane jedno pole, np. B2.", "The model returned an invalid move. One square is required, e.g. B2.", "Das Modell hat einen ungültigen Zug ausgegeben. Ein Feld ist erforderlich, z. B. B2."],
+  problemGameSquare: ["Model wybrał zajęte pole.", "The model chose an occupied square.", "Das Modell hat ein belegtes Feld gewählt."],
   scenarioSplitFacts: ["Rozdzielone informacje", "Split facts", "Verteilte Informationen"],
   scenarioOrganization: ["Wspólne obliczenie", "Shared calculation", "Gemeinsame Berechnung"],
   scenarioCorrection: ["Sprawdzenie i poprawa propozycji", "Correct a proposal", "Vorschlag überprüfen und korrigieren"],
@@ -137,6 +147,8 @@ export function modeLabel(t: ReturnType<typeof texts>, mode: string) { return st
 
 // Backend codes stay stable; operator text is translated independently.
 const reasonKeys: Record<string, keyof typeof messages.en> = {
+  invalid_game_move: "problemGameMove",
+  occupied_game_square: "problemGameSquare",
   connection_unavailable: "problemConnection",
   runtime_transport_failed: "problemConnection",
   invalid_response: "problemResponse",
@@ -233,7 +245,7 @@ export function reasonLabel(t: ReturnType<typeof texts>, code: unknown): string 
 
 
 export function scenarioLabel(t: ReturnType<typeof texts>, id: string, fallback?: string) {
-  const labels: Record<string, string> = { split_facts:t.scenarioSplitFacts, organization:t.scenarioOrganization, correction:t.scenarioCorrection };
+  const labels: Record<string, string> = { split_facts:t.scenarioSplitFacts, organization:t.scenarioOrganization, correction:t.scenarioCorrection, tic_tac_toe:t.scenarioTicTacToe };
   return Object.hasOwn(labels, id) ? labels[id] : fallback || id;
 }
 export function messageKindLabel(t: ReturnType<typeof texts>, kind: string) {

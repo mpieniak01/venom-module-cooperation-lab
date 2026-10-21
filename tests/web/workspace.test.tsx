@@ -227,3 +227,36 @@ test("switching Qwen history to RWKV replaces the model with its dotted immutabl
     await act(async () => root.unmount()); box.remove(); globalThis.fetch=oldFetch; localStorage.clear();
   }
 });
+
+
+test("tic-tac-toe selects dialog and nine moves and live game events update the board",async()=>{
+ const old=globalThis.fetch;localStorage.clear();Stream.instances=[];
+ const game:Run={...aRun(),config:{model_id:"rwkv7-g1d-0.4b",scenario_id:"tic_tac_toe",mode:"dialog",communication_language:"pl",budgets:{max_turns:9,max_new_tokens:128}}};
+ let posted:Record<string,unknown>|null=null;
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(path.endsWith("/capabilities"))return response(caps);
+  if(init?.method==="POST"&&path.endsWith("/runs")){posted=JSON.parse(String(init.body));return response({run:game,created:true},202);}
+  if(path.endsWith("/events"))return response({events:[],last_seq:0});
+  if(path.endsWith("/runs/r1"))return response({run:game});
+  return response({runs:[]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await settle();
+  const selector=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Scenariusz"))!;
+  await act(async()=>{selector.value="tic_tac_toe";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  const mode=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Wariant"))!;
+  assert.equal(mode.value,"dialog");assert.equal(mode.options.length,1);assert.equal(mode.options[0].textContent,"Gra naprzemienna");
+  const turns=box.querySelector<HTMLInputElement>('input[type="number"]')!;
+  assert.equal(turns.value,"9");assert.equal(turns.max,"9");assert.equal(posted,null);
+  assert.equal(box.querySelectorAll(".coop-game-board tbody td").length,9);
+  await act(async()=>findButton(box,"Rozpocznij eksperyment").click());await settle();
+  assert.equal((posted as unknown as Record<string,unknown>).scenario_id,"tic_tac_toe");
+  assert.equal((posted as unknown as Record<string,unknown>).max_turns,9);
+  assert.ok(Stream.instances[0].listeners.has("game"));
+  await act(async()=>Stream.instances[0].emit({run_id:"r1",seq:1,kind:"game",timestamp:1,payload:{board:["X","X","X","O","O","","","",""],winner:"A",finished:true,draw:false,next_player:null}}));
+  assert.match(box.querySelector(".coop-game-state")?.textContent??"",/Wygrywa: A/);
+  assert.equal(box.querySelector('[aria-label="A1"]')?.textContent,"X");
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
+});
