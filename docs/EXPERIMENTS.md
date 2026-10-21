@@ -1,9 +1,12 @@
 # Małe eksperymenty współpracy — L5
 
-Status: kod planowania/oceny i testy deterministyczne są lokalnie zaimplementowane.
-Realny odbiór wspólnego C0 + L2 + L3 + L4 pozostaje **pending**, dopóki koordynator
-nie zapisze rzeczywistych receiptów i dokładnych SHA. Test fixture nie jest próbą
-modelu, a poprawny transport nie dowodzi nauki lub przewagi jakościowej.
+Status: formalna kwalifikacja GPU C0/L2 i rzeczywista pełna macierz L5 wykonane.
+30/30 runów zakończyło się technicznie, komunikacja 12/12 w trybach dialogowych.
+Strict-v1: 30/30 unscorable z powodu formatu, accuracy=null (nie 0%). Realny OFF
+API/danych PASS; browser/layout/cancel i końcowe bramki pozostają pending.
+[Dokładne wyniki](RELEASE_ACCEPTANCE.md), [zredagowany JSON](EXPERIMENT_RESULTS_V1.json).
+Test fixture nie jest próbą modelu, a poprawny transport nie dowodzi nauki lub
+przewagi jakościowej.
 
 ## Zamrożony zestaw
 
@@ -108,3 +111,13 @@ CLI może odczytywać ponownie **ten sam export** przez maksymalnie20s (do20
 odczytów), bez ponawiania generacji, zmiany statusu lub zwalniania lease.
 Trwała quarantine po tym limicie blokuje następną próbę/usuwanie i kończy batch
 jawnym acceptance_quiescence_unconfirmed; nie ma nieograniczonego polling loop.
+
+
+## Wniosek z rzeczywistej macierzy v1
+
+Prompt v1 nie narzucił formatu końcowej odpowiedzi, podczas gdy niezależna rubryka
+wymaga krótkiego jednoznacznego wyniku. Qwen 27/27 generacji osiągnął limit 32 tokenów;
+RWKV 6/27 także został obcięty. Każdy z 30 wyników ma unscorable/ambiguous_format,
+nie incorrect. Kontrakt v1, fakty i reguły parsowania pozostają niezmienione.
+Kolejny research to osobny explicit final-answer contract v2 z nowymi promptami,
+wersją datasetu/rubryki i budżetem; bez retrospektywnego podnoszenia oceny v1.

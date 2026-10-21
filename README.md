@@ -2,7 +2,7 @@
 
 Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie.
 
-**Stan: planowanie.** Nie ma jeszcze działającego modułu, modeli ani wyników benchmarków. Pierwszy cel: zakwalifikować nowy model o interesujących właściwościach i zapewnić operatorowi widoczną, rzeczywistą wymianę między dwoma niezależnymi sesjami tych samych wag.
+**Stan: implementacja i odbiór.** Kwalifikacja GPU C0/L2, rzeczywista macierz 30 prób i OFF API/danych wykonane. Wszystkie próby zakończone technicznie; jakość strict-v1 jest nieocenialna, bez twierdzenia o zerowej trafności lub nauce. Odbiór przeglądarki i końcowe bramki wydania pozostają w toku. [Wyniki i ograniczenia](docs/RELEASE_ACCEPTANCE.md).
 
 - [Plan i kolejność PR](docs/PLAN.md)
 - [Zadania GitHub i PR planu](docs/ISSUES.md)
@@ -15,7 +15,7 @@ Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie
 
 Core zapewnia kontrakty hosta. Własny ekran nie zastępuje Council, Academy, Inspector ani THE HIVE. Wyłączenie modułu ma zwalniać jego zasoby i nie blokować core. MVP nie obejmuje treningu i płatnej infrastruktury.
 
-C0 oraz L1–L5 są ID planowanych implementacyjnych PR; numery GH powstaną przy kodzie. Nie tworzymy pustych PR udających realizację. Repo na razie prywatne; licencję ustalić przed publicznym wydaniem kodu.
+C0 oraz L1–L5 są ID etapów implementacji; status kodu, odbioru i scalenia opisują osobne dowody. Implementacja lokalna nie oznacza automatycznie ukończonego wydania. Repo na razie prywatne; licencję ustalić przed publicznym wydaniem kodu.
 
 ## Fundament L1
 

@@ -38,7 +38,7 @@ Nie tworzyć następnej kopii Full/venv ani nie ładować dwóch engine LLM nara
    device/precision, load/gen/cancel/reset/quiescence. `qualified=false`/not_ready
    jest poprawne do odbioru, nie wolno wpisywać pozornego PASS ręcznie.
 6. Sprawdzić `/cooperation-lab` oraz same-origin `/api/v1/cooperation-lab/health` i
-   `/capabilities`. HTTP200 strony głównej nie potwierdza działania modułu.
+   `/capabilities`. HTTP 200 strony głównej nie potwierdza działania modułu.
 
 ## Operator i mała próba
 
@@ -113,13 +113,12 @@ nie wymaga niszczącego downgrade; przed odmienną migracją osobny backup/plan.
 
 ## Stan obecnego odbioru
 
-Kod i testy CPU/HTTP-fixture: zaimplementowane lokalnie. Realna wspólna
-kwalifikacja C0+overlay, mały eksperyment GPU obu modeli, browser/reconnect/STOP,
-OFF/restore oraz końcowe skany i exact deployment SHA: **pending** do faktycznych
-receiptów koordynatora. Nie archiwizować zadania jako ukończonego przed odbiorem.
+Formalna kwalifikacja C0/L2 na GPU PASS. Realna macierz 2 modeli × 3 scenariuszy × 5
+trybów:30/30 technical completed, 12/12 komunikacji, 30/30 strict-v1 unscorable;
+accuracy pozostaje nieznane. Realny OFF API/danych PASS: route absent, hash bazy
+bez zmian, Rider obecny, health 200 i Ollama ps[]. Szczegóły i ograniczenia:
+[RELEASE_ACCEPTANCE](RELEASE_ACCEPTANCE.md).
 
-
-Przy terminalnym failed z niepotwierdzonym cleanup CLI może przez maksymalnie20s
-ponownie pobrać ten sam export. Wyłącznie trwały późny marker `cleanup_late=true`
-ze zgodnym statusem/run_id potwierdza zwolnienie; failed pozostaje failed.
-Trwała quarantine kończy batch błędem, bez kolejnej generacji lub Delete.
+Browser/layout/cancel, końcowy deployment SHA, przywrócenie zwykłej rozmowy oraz
+wymagane skany/CI pozostają pending do dowodów koordynatora. Nie archiwizować
+całego zadania przed tym odbiorem; nie poprawiać parsera v1 dla pozornej jakości.

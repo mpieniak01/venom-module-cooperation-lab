@@ -1,7 +1,7 @@
 # Odbiór Cooperation Lab — 2026-10-21
 
-Stan: **kwalifikacja techniczna C0/L2 wykonana; końcowy odbiór operatora i wydania
-pozostaje w toku**. Wynik testów CPU, rzeczywistej inferencji i bramek wydania
+Stan: **kwalifikacja GPU C0/L2, rzeczywista macierz 30 prób i odbiór OFF wykonane;
+końcowy odbiór przeglądarki i wydania pozostaje w toku**. Wynik testów CPU, rzeczywistej inferencji i bramek wydania
 jest rozdzielony poniżej. Samo przejście kwalifikacji adaptera nie dowodzi
 współpracy ani poprawy jakości modeli.
 
@@ -67,6 +67,93 @@ nie wykonano. C0 blokował zwykły `host_chat` podczas lease obu modeli. Po pró
 koordynator przywrócił API i UI; odbiór normalnej rozmowy po przywróceniu jest
 osobnym krokiem.
 
+## Rzeczywista macierz L5 — zamrożone v1
+
+Koordynator wykonał pełne 2 modele × 3 scenariusze × 5 trybów. Tabela obejmuje
+jeden kompletny przebieg po poprawce czasu cleanup, bez mieszania go z wcześniejszą
+przerwaną próbą i bez wybierania najlepszych odpowiedzi. Wszystkie **30/30**
+runów zakończyły się technicznie `completed` i potwierdzonym quiescence.
+W **12/12** runach dialog/dialog_encouraged jest dowód dostarczenia wiadomości
+oraz późniejszej odpowiedzi uczestnika. Pozostałe 18 runów to warianty kontrolne
+bez komunikacji. To dowód działania przepływu, bez twierdzenia o wykonanej
+samoorganizacji czy jakości rozwiązania.
+
+Ścisła rubryka v1 oznaczyła **30/30 jako `unscorable`**, z powodem
+`ambiguous_format`: zero wyników ocenialnych, zatem **accuracy jest nieznane
+(`null`), a nie 0%**. Prompt v1 prosi o zwięzłą odpowiedź albo wiadomość i opcjonalny
+envelope JSON; nie wymaga końcowego formatu, który dałby się niezależnie ocenić
+ścisłą rubryką. Wszystkie 27 generacji Qwen skończyły się `length` przy 32 tokenach;
+6 z 27 generacji RWKV też osiągnęło limit. Nie poprawiamy parsera po zobaczeniu
+wyniku i nie wybieramy najlepszego fragmentu wypowiedzi.
+
+Preset: seed 17, temperature 0, top_p 0, maks. 2 tury i 32 output tokeny/turę,
+kontekst 2048. `single` wykonał jedną turę; inne tryby po dwie. Łącznie 54 generacje,
+7371 input / 1293 output tokeny, 146.37 s generacji i 221.39 s sumy czasów runów.
+Czas runu obejmuje także przygotowanie i cleanup. To nie jest czas samej inferencji
+ani ranking modeli. Pełne precyzyjne liczby i przypięte tożsamości modeli:
+[zredagowane wyniki JSON](EXPERIMENT_RESULTS_V1.json), bez promptów, odpowiedzi,
+idempotency keys, prywatnych ścieżek lub surowych eksportów.
+
+W tabelach: komunikacja `tak` = journal potwierdza dostarczenie i późniejszą
+odpowiedź; `—` = wariant bez komunikacji. Ocena `U` = `unscorable` w niezmienionej
+rubryce v1. Wszystkie wiersze mają status techniczny `completed` i quiescence.
+`Obcięcia` liczą generacje, nie całe runy.
+
+### RWKV-7 G1d 0.4B
+
+| Nr | Scenariusz | Tryb | Tury | Input/output | Generacja [s] | Run [s] | Obcięcia | Komunikacja | Ocena |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| 1 | split_facts | single | 1 | 120/8 | 2.79 | 5.63 | 0 | — | U |
+| 2 | split_facts | self_correction | 2 | 132/17 | 3.19 | 5.98 | 0 | — | U |
+| 3 | split_facts | no_contact | 2 | 228/17 | 3.87 | 6.68 | 0 | — | U |
+| 4 | split_facts | dialog | 2 | 266/41 | 4.77 | 11.13 | 1 | tak | U |
+| 5 | split_facts | dialog_encouraged | 2 | 324/41 | 5.54 | 8.36 | 1 | tak | U |
+| 6 | organization | single | 1 | 124/9 | 2.71 | 5.55 | 0 | — | U |
+| 7 | organization | self_correction | 2 | 136/19 | 3.38 | 6.30 | 0 | — | U |
+| 8 | organization | no_contact | 2 | 236/15 | 3.89 | 6.88 | 0 | — | U |
+| 9 | organization | dialog | 2 | 274/42 | 5.47 | 12.79 | 1 | tak | U |
+| 10 | organization | dialog_encouraged | 2 | 333/42 | 5.45 | 9.58 | 1 | tak | U |
+| 11 | correction | single | 1 | 136/12 | 2.73 | 5.66 | 0 | — | U |
+| 12 | correction | self_correction | 2 | 148/25 | 3.61 | 6.54 | 0 | — | U |
+| 13 | correction | no_contact | 2 | 260/29 | 4.77 | 11.15 | 0 | — | U |
+| 14 | correction | dialog | 2 | 309/56 | 5.48 | 8.37 | 1 | tak | U |
+| 15 | correction | dialog_encouraged | 2 | 371/56 | 6.07 | 8.84 | 1 | tak | U |
+
+### Qwen3:4b — kontrola
+
+| Nr | Scenariusz | Tryb | Tury | Input/output | Generacja [s] | Run [s] | Obcięcia | Komunikacja | Ocena |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| 16 | split_facts | single | 1 | 114/32 | 10.02 | 14.16 | 1 | — | U |
+| 17 | split_facts | self_correction | 2 | 275/64 | 12.78 | 13.39 | 2 | — | U |
+| 18 | split_facts | no_contact | 2 | 216/64 | 5.35 | 5.94 | 2 | — | U |
+| 19 | split_facts | dialog | 2 | 280/64 | 5.31 | 5.90 | 2 | tak | U |
+| 20 | split_facts | dialog_encouraged | 2 | 340/64 | 5.21 | 9.37 | 2 | tak | U |
+| 21 | organization | single | 1 | 124/32 | 2.38 | 2.91 | 1 | — | U |
+| 22 | organization | self_correction | 2 | 294/64 | 4.77 | 5.37 | 2 | — | U |
+| 23 | organization | no_contact | 2 | 232/64 | 4.93 | 5.50 | 2 | — | U |
+| 24 | organization | dialog | 2 | 296/64 | 4.75 | 5.31 | 2 | tak | U |
+| 25 | organization | dialog_encouraged | 2 | 357/64 | 4.73 | 5.29 | 2 | tak | U |
+| 26 | correction | single | 1 | 140/32 | 2.88 | 3.44 | 1 | — | U |
+| 27 | correction | self_correction | 2 | 327/64 | 4.88 | 9.00 | 2 | — | U |
+| 28 | correction | no_contact | 2 | 264/64 | 5.01 | 5.57 | 2 | — | U |
+| 29 | correction | dialog | 2 | 328/64 | 4.84 | 5.40 | 2 | tak | U |
+| 30 | correction | dialog_encouraged | 2 | 387/64 | 4.82 | 5.38 | 2 | tak | U |
+
+Następny research wymaga **jawnego kontraktu końcowej odpowiedzi v2**: nowa wersja
+promptu/datasetu/rubryki, wymagany format odpowiedzi, odpowiedni budżet i osobne
+wyniki. Dataset, prompty i parser v1 pozostają zamrożone; nie przeliczamy tej
+macierzy jako sukcesu po zmianie reguł.
+
+## Rzeczywisty odbiór OFF
+
+PASS na podstawie zapisanego `off-acceptance.json`: po uruchomieniu hosta z
+wyłączonym modułem jego trasy API były nieobecne, hash bazy laboratorium pozostał
+bez zmian, trasy Rider nadal były obecne, health hosta zwrócił HTTP 200 i
+Ollama `/api/ps` było puste. Pierwszy probe 10 s był zbyt krótki na start hosta;
+PASS dotyczy późniejszego potwierdzonego wyniku, a nie pominięcia tego oczekiwania.
+To odbiór API/stanu danych. Widoczność menu w przeglądarce, ponowne włączenie,
+normalna rozmowa hosta oraz końcowy deployment pozostają osobnymi krokami.
+
 ## Testy regresji i niezależne przeglądy
 
 | Zakres i dowód | Wynik |
@@ -102,15 +189,16 @@ C0; nie zastępują testu GPU/przeglądarki.
    podatności. Szczegóły i granice znajdują się w [L2](RWKV_L2.md); decyzja ryzyka
    pozostaje osobnym warunkiem wydania.
 
-## Oczekujące potwierdzenia końcowego odbioru
+## Stan końcowego odbioru i pozostałe potwierdzenia
 
 | Warunek | Stan / wymagany dowód |
 | --- | --- |
 | Rzeczywisty browser flow L4: start, A/B, STOP, reconnect, responsive | PENDING — wynik koordynatora i exact deployment SHA |
 | Same-origin SSE proxy: brak buforowania, replay/Last-Event-ID i przerwanie | PENDING — test rzeczywistego hosta/proxy |
-| Mała realna próba L5 obu modeli z niezależną rubryką i śladem delivery | PENDING — receipty runnera; formalny harness adaptera jej nie zastępuje |
-| Pełna opcjonalna macierz 30 przypadków | PENDING / opcjonalna; nie jest obowiązkowym benchmarkiem wydania ani pretekstem do wielogodzinnego ponawiania modeli |
-| OFF → restart → brak menu/model work; ponowne włączenie | PENDING — odbiór lifecycle rzeczywistej instancji |
+| Realna macierz L5 obu modeli z niezależną rubryką i śladem delivery | PASS techniczny 30/30 i komunikacja 12/12; jakość 30/30 unscorable, accuracy=null |
+| Pełna macierz 30 przypadków | WYKONANA; wyniki powyżej i w zredagowanym JSON; bez zmiany zamrożonej rubryki v1 |
+| OFF → restart: API nieobecne, baza bez zmian, Rider obecny, Ollama puste | PASS — realny off-acceptance.json |
+| Menu OFF/ponowne włączenie w przeglądarce | PENDING — odbiór operatora |
 | Przywrócona zwykła rozmowa hosta bez zmiany modelu operatora | PENDING — realny smoke po zwolnieniu zasobu |
 | Końcowy zbiorczy `make check`, CI/review/Snyk/Sonar/GitGuardian | PENDING dla końcowych SHA; wcześniejsze wyniki nie zastępują tych bramek |
 | Dokładne SHA końcowego core/module/deployment i decyzja ryzyka | PENDING — uzupełnia koordynator przed zamknięciem odbioru |
