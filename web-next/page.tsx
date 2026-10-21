@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useLanguage } from "@/lib/i18n";
-import { diagnosticCode, modeLabel, reasonLabel, statusLabel, texts } from "./lib/i18n";
+import { modeLabel, statusLabel, texts } from "./lib/i18n";
 import { modelId, type Json, type LabEvent } from "./lib/protocol";
 import { useLab } from "./lib/use-lab";
+import { computationLabel, noticePresentation } from "./lib/presentation";
 import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSettings } from "./lib/workspace";
 
 const button = "coop-button";
@@ -33,11 +34,10 @@ export default function CooperationLabPage() {
   const chosen = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
   const canStart = lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && m.qualified);
   const messageEvents = lab.events.filter((event) => event.kind === "message");
-  const reason = lab.error || (lab.capabilities && !lab.capabilities.ready ? lab.capabilities.reason_code ?? "request_failed" : undefined);
-  const noticeCode = diagnosticCode(reason);
-  const notice = reason ? reasonLabel(t, reason) : !lab.capabilities ? t.loading : "";
+  const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error);
+  const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued);
   const organizations = lab.events.filter((event) => event.kind === "organization");
-  const usage = lab.events.filter((event) => event.kind === "usage").at(-1);
+  const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens };
     setConfirmDelete(null); setSettings(false); void lab.start(input);
@@ -48,20 +48,20 @@ export default function CooperationLabPage() {
       <div><h1 id="cooperation-lab-title" className="text-xl font-semibold">{t.title}</h1><p className="text-xs text-slate-400">{t.description}</p></div>
       <button type="button" className={button} onClick={lab.refresh} disabled={lab.pending}>{t.refresh}</button>
     </header>
-    <div className="coop-controls" role="group" aria-label={t.title}>
+    <fieldset className="coop-controls" aria-label={t.title}>
       <button type="button" className={button + " coop-start"} disabled={!canStart || lab.active || lab.pending} onClick={start}>{t.start}</button>
       <button type="button" className={button + " coop-stop"} disabled={!lab.active && !lab.starting} onClick={() => { void lab.stop(); }}>{t.stop}</button>
       <button type="button" className={button} aria-expanded={settings} onClick={() => setSettings((v) => !v)}>{t.settings}</button>
       {!lab.active && lab.run && <button type="button" className={button} onClick={() => { setConfirmDelete(null); lab.select(null); }}>{t.newRun}</button>}
       <div className="coop-run-state" aria-live="polite">
-        <span>{t.runStatus}: <strong>{lab.stopQueued ? t.cancelPending : lab.run ? statusLabel(t, lab.run.status) : lab.capabilities?.ready ? t.ready : t.notReady}</strong></span>
+        <span>{t.runStatus}: <strong>{computation}</strong></span>
         <span className="ml-3">{t.connection}: {statusLabel(t, lab.connection)}</span>
       </div>
       {lab.connection === "disconnected" && lab.run && <button type="button" className={button} onClick={lab.reconnect}>{t.reconnect}</button>}
-    </div>
-    <div role="status" className="coop-notice h-5" title={notice || undefined}>
+    </fieldset>
+    <output aria-live="polite" className="coop-notice h-5" title={notice || undefined}>
       {notice}
-    </div>
+    </output>
     <div className="coop-body">
       {settings && <fieldset disabled={lab.active || lab.pending} className="coop-settings">
         <legend className="px-1 text-sm">{t.settings}</legend>
@@ -98,15 +98,15 @@ export default function CooperationLabPage() {
       </div>
       <div className="coop-main">
         <div className="coop-column">
-          <div className="coop-participants" role="group" aria-label={t.participants}>
+          <fieldset className="coop-participants" aria-label={t.participants}>
             {["A", "B"].map((participant) => {
-              const last = messageEvents.filter((event) => value(event, "sender") === participant).at(-1);
+              const last = messageEvents.findLast((event) => value(event, "sender") === participant);
               return <div key={participant} className="coop-panel">
                 <strong className="text-lg">{participant}</strong><span className="ml-2 text-xs text-slate-400">{t.local}</span>
                 <p className="mt-1 truncate text-xs">{last ? value(last, "kind") : t.waiting}</p>
               </div>;
             })}
-          </div>
+          </fieldset>
           <section className="coop-panel" aria-label={t.dialog}>
             <h2 className="mb-2 font-semibold">{t.dialog}</h2>
             {!messageEvents.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}
