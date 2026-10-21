@@ -41,6 +41,7 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install -r requirements-ci-lite.txt
+          .venv/bin/python -m pip install setuptools==83.0.0 wheel==0.48.0
           cd web-next
           npm ci --ignore-scripts
       - name: Verify pinned host and module package installation
