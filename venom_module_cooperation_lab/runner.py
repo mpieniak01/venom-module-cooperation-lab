@@ -66,7 +66,7 @@ class LabRunner:
         model_catalog: Callable[[], list[Any]],
         adapter_factory: Callable[[str, Any], Any],
         *,
-        cleanup_seconds: float = 2.0,
+        cleanup_seconds: float = 10.0,
     ) -> None:
         self.store, self.admission = store, admission
         self.model_catalog, self.adapter_factory = model_catalog, adapter_factory
