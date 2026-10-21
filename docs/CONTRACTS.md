@@ -4,7 +4,7 @@ Specyfikacja do implementacji. API nie istnieje jeszcze.
 
 ## Host
 
-Manifest: cooperation_lab, module_api_version i min_core_version zgodne z zakwalifikowanym hostem; zakwalifikowany host af81e32279186203ea812cc114b3c09d345c826a ma module_api_version=1.0.0 i min_core_version=1.6.0. To różne kontrakty, nie jeden numer ABI. Backend FEATURE_COOPERATION_LAB, frontend NEXT_PUBLIC_FEATURE_COOPERATION_LAB, enabled_by_default=false. Async bounded lifecycle i własne i18n. Błędy manifestu kwarantannują moduł.
+Manifest: cooperation_lab, module_api_version i min_core_version zgodne z zakwalifikowanym hostem; zakwalifikowany host aa2d612434949f1149d27f64ff10e5dd05334e8e ma module_api_version=1.0.0 i min_core_version=1.6.0. To różne kontrakty, nie jeden numer ABI. Backend FEATURE_COOPERATION_LAB, frontend NEXT_PUBLIC_FEATURE_COOPERATION_LAB, enabled_by_default=false. Async bounded lifecycle i własne i18n. Błędy manifestu kwarantannują moduł.
 
 Wszystkie mutacje respektują host environment policy, odczyty/eksport/usuwanie jego politykę dostępu. Actor i owner/runtime pochodzą z hosta, nie od modelu lub niezaufanego JSON. Endpoint wybierany przez prekonfigurowane ID; brak dowolnych URL/redirectów z przeglądarki lub LLM. Zdalne API poza MVP. Brak własnego systemu kont.
 
@@ -16,7 +16,7 @@ Zamrożone limity v1 w L1: 100 runów, 14 dni retencji, 512MiB bazy wraz z WAL/S
 
 ## Model i niezależność
 
-ModelSpec: ID i revision/digest, artefakt/kwantyzacja, tokenizer/template hash, runtime/version, schema capabilities/parametrów i receipt kwalifikacji. Stan available/loading/ready/unsupported/failed potwierdza adapter. Unknown/estymowany usage jest jawny, nie zerowy.
+ModelSpec: ID i revision/digest, artefakt/kwantyzacja, tokenizer/template hash, runtime/version, schema capabilities/parametrów i receipt kwalifikacji. Kwalifikacja wymaga `qualified=true`, niepustego `receipt_id` oraz dokładnej zgodności wszystkich niezmiennych pól: `model_id`, `architecture`, `provider`, `artifact`, `revision`, `digest`, `tokenizer_hash`, `template_hash`, `runtime`, `quantization`. Brak pola albo zmiana runtime (także overlay zależności), rewizji lub kwantyzacji unieważnia poprzedni receipt. Metadane gotowości nie należą do tożsamości modelu. SHA kodu hosta/modułu i ABI zapisuje rzeczywisty raport kwalifikacji jako osobny dowód; discovery pozostaje czystym odczytem metadanych, bez haszowania filesystemu. Stan available/loading/ready/unsupported/failed potwierdza adapter. Unknown/estymowany usage jest jawny, nie zerowy.
 
 Participant: run_id, participant_id A/B, immutable model reference, private history/state handle i prompt encouragement. Wagi współdzielone tylko gdy niezmienne. Mutowalny KV/state/fast weights/optimizer odseparowany per uczestnik; reset także między runami. Brak obsługi specyficznego stanu daje unsupported, nie wspólną historię ukrytą pod dwoma ID.
 

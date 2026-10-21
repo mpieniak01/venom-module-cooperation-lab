@@ -1,0 +1,93 @@
+{
+  "models": [
+    {
+      "model_id": "rwkv7-g1d-0.4b",
+      "architecture": "rwkv7",
+      "provider": "local_component",
+      "artifact": "rwkv7-g1d-0.4b-20260210-ctx8192.pth",
+      "revision": "2a17e911155a5be23a4ed2792e978c77038f14e2",
+      "digest": "947cb9b8013224e06b112b72204256bec65096cc935a7767ce63d8e3ddef83bb",
+      "tokenizer_hash": "8324476023347dec2964625ccb2075c864d250a9c6d9a74f36daba628de8c008",
+      "template_hash": "319c9360535a42f56157584680f2fb8fa173f4fbf44c30c17e80a11b05507f47",
+      "runtime": "rwkv==0.8.32;torch==2.13.0;cuda13.0;certifi==2026.10.19;filelock==4.2.1",
+      "quantization": "float16",
+      "qualification": "host_acceptance_pending",
+      "qualified": false,
+      "availability_reason": "host_acceptance_pending",
+      "capabilities": [
+        "text",
+        "two_private_contexts",
+        "cancel",
+        "reset"
+      ]
+    },
+    {
+      "model_id": "qwen3-4b-control",
+      "architecture": "qwen3",
+      "provider": "ollama",
+      "artifact": "qwen3:4b",
+      "revision": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+      "digest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+      "tokenizer_hash": "bundled-in-gguf-covered-by-model-digest",
+      "template_hash": "2d54db2b9bb29ce7db54fea63a891f5859603813c555b1f88b5e0994652897f9",
+      "runtime": "ollama==0.40.6",
+      "quantization": "Q4_K_M",
+      "qualification": "host_acceptance_pending",
+      "qualified": false,
+      "availability_reason": "host_acceptance_pending",
+      "capabilities": [
+        "text",
+        "two_private_contexts",
+        "cancel",
+        "reset"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "split_facts",
+      "version": "1",
+      "title": "Split facts",
+      "goal": "Find the two-letter code."
+    },
+    {
+      "scenario_id": "organization",
+      "version": "1",
+      "title": "Shared calculation",
+      "goal": "Find the sum of the two private numbers."
+    },
+    {
+      "scenario_id": "correction",
+      "version": "1",
+      "title": "Correct a proposal",
+      "goal": "A proposed sum is 41. Verify or correct it using both private numbers."
+    }
+  ],
+  "modes": [
+    "single",
+    "self_correction",
+    "no_contact",
+    "dialog",
+    "dialog_encouraged"
+  ],
+  "preset": {
+    "max_turns": 8,
+    "max_new_tokens": 128,
+    "max_context_tokens": 2048,
+    "total_input_tokens": 16384,
+    "total_output_tokens": 2048,
+    "processing_steps": 18432,
+    "wall_seconds": 360
+  },
+  "participant_count": 2,
+  "auto_start": false,
+  "limits": {
+    "max_runs": 100,
+    "retention_days": 14,
+    "database_bytes": 536870912,
+    "run_bytes": 2097152,
+    "event_bytes": 65536,
+    "minimum_free_bytes": 67108864
+  },
+  "host_module_api": "1.0.0"
+}

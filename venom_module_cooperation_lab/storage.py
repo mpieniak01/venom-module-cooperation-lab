@@ -23,7 +23,7 @@ from .limits import Limits
 STATE_FILES = ("lab.sqlite3", "lab.sqlite3-wal", "lab.sqlite3-shm")
 ACTIVE = ("created", "queued", "preparing", "running", "cancelling")
 TERMINAL = ("completed", "failed", "cancelled", "interrupted")
-_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
 def _identifier(value: str) -> str:
@@ -294,7 +294,7 @@ class LabStore:
         with self._lock:
             self._row(run_id, owner)
             self._access(owner, "runs.update")
-            with self._transaction("runs.update"):
+            with self._transaction("runs.update", reclaim=status in TERMINAL):
                 self._connection().execute(
                     "UPDATE runs SET status=? WHERE id=?", (status, run_id)
                 )

@@ -87,7 +87,11 @@ def test_public_discovery_true_not_ready_no_generation(
         caps = client.get("/api/v1/cooperation-lab/capabilities").json()
         assert caps["ready"] is False and caps["generation"] is False
         assert caps["limits"]["database_bytes"] == 512 * 1024 * 1024
-        denied = client.post("/api/v1/cooperation-lab/runs", json={})
+        denied = client.post(
+            "/api/v1/cooperation-lab/runs",
+            json={"model_id": "unqualified", "scenario_id": "split_facts"},
+            headers={"Idempotency-Key": "unqualified"},
+        )
         assert denied.status_code == 503
         assert denied.json()["detail"]["reason_code"] == "model_not_qualified"
     configured_host_settings.FEATURE_COOPERATION_LAB = True
@@ -159,3 +163,15 @@ def test_host_settings_are_the_only_feature_flag_truth(
     monkeypatch.delenv("FEATURE_COOPERATION_LAB")
     configured_host_settings.FEATURE_COOPERATION_LAB = True
     assert enabled()
+
+
+def test_admission_flag_uses_host_settings_without_process_override(
+    monkeypatch, configured_host_settings
+):
+    from venom_module_cooperation_lab.lifecycle import admission_enabled
+
+    monkeypatch.setenv("RUNTIME_ADMISSION_ENABLED", "true")
+    assert not admission_enabled()
+    monkeypatch.delenv("RUNTIME_ADMISSION_ENABLED")
+    configured_host_settings.RUNTIME_ADMISSION_ENABLED = True
+    assert admission_enabled()
