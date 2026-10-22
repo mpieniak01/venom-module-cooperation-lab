@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import importlib
 import json
 import os
 import sys
 import tempfile
 import time
+import traceback
 from typing import Any
 
 
@@ -24,7 +26,13 @@ def prompt_text(
     )
     # HRM is PrefixLM, not an assistant-tuned chat model; make the task explicit.
     task = "\n".join(m["role"].title() + ": " + m["content"] for m in messages)
-    task += "\nAssistant:"
+    if structured:
+        task = (
+            "Examples of short direct answers:\n"
+            "Question: What is 2 + 2? Answer: 4\n"
+            "Question: What is the capital of France? Answer: Paris\n"
+            "Task:\n" + task
+        )
     return (
         "<|im_start|>" + condition + task + "<|im_end|>",
         "direct" if structured else "synth,cot",
@@ -32,8 +40,8 @@ def prompt_text(
 
 
 def load_models(config: dict[str, Any]) -> tuple[Any, Any, Any]:
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    torch: Any = importlib.import_module("torch")
+    transformers: Any = importlib.import_module("transformers")
 
     if not torch.cuda.is_available():
         raise RuntimeError("cuda_unavailable")
@@ -42,9 +50,23 @@ def load_models(config: dict[str, Any]) -> tuple[Any, Any, Any]:
         < (4 if config["model_id"] == "hrm-text-1b" else 9) * 1024**3
     ):
         raise RuntimeError("insufficient_gpu_memory")
+    if (
+        torch.__version__.split("+")[0] != "2.13.0"
+        or transformers.__version__ != "5.17.0"
+    ):
+        raise RuntimeError("runtime_identity_changed")
+    torch.cuda.reset_peak_memory_stats()
     root = config["root"]
-    tokenizer = AutoTokenizer.from_pretrained(root, local_files_only=True)
-    factory: Any = AutoModelForCausalLM
+    tokenizer = transformers.AutoTokenizer.from_pretrained(root, local_files_only=True)
+    factory: Any = transformers.AutoModelForCausalLM
+    if config["model_id"] == "huginn-0125":
+        dynamic: Any = importlib.import_module("transformers.dynamic_module_utils")
+        factory = dynamic.get_class_from_dynamic_module(
+            "raven_modeling_minimal.RavenForCausalLM", root, local_files_only=True
+        )
+        # Upstream 4.44 lists targets; Transformers 5 requires target -> source.
+        # This is scoped to the pinned Huginn class in this disposable worker.
+        factory._tied_weights_keys = {"lm_head.weight": "transformer.wte.weight"}
     model: Any = factory.from_pretrained(
         root,
         dtype=torch.bfloat16,
@@ -158,6 +180,7 @@ def generate(
         "output_tokens": len(output),
         "ttft_s": ttft,
         "generation_s": time.monotonic() - started,
+        "peak_vram_bytes": torch.cuda.max_memory_allocated(),
         "quiescent": True,
         "effective_parameters": {
             **params,
@@ -197,6 +220,7 @@ def worker_main(
                         "torch_version": torch.__version__,
                         "precision": "bfloat16",
                         "device": "cuda:0",
+                        "peak_vram_bytes": torch.cuda.max_memory_allocated(),
                     }
                 ).encode()
             )
@@ -214,12 +238,14 @@ def worker_main(
                     else:
                         raise RuntimeError("unsupported_command")
                 except Exception as exc:
+                    traceback.print_exc()
                     result = {"error": error_code(exc)}
                 result["request_id"] = command.get("request_id")
                 connection.send_bytes(json.dumps(result, allow_nan=False).encode())
         except (EOFError, OSError):
             pass
         except Exception as exc:
+            traceback.print_exc()
             connection.send_bytes(json.dumps({"error": error_code(exc)}).encode())
         finally:
             connection.close()
@@ -227,6 +253,7 @@ def worker_main(
 
 def error_code(exc: Exception) -> str:
     allowed = {
+        "runtime_identity_changed",
         "cuda_unavailable",
         "insufficient_gpu_memory",
         "context_budget_exceeded",

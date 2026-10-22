@@ -8,6 +8,7 @@ Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie
 - [Zadania GitHub i PR planu](docs/ISSUES.md)
 - [Kontrakty](docs/CONTRACTS.md)
 - [Kwalifikacja modeli](docs/MODEL_QUALIFICATION.md)
+- [HRM-Text i Huginn: wdrożenie lokalne, użycie i ograniczenia](docs/HF_RESEARCH_MODELS.md)
 - [Odbiór](docs/ACCEPTANCE.md)
 - [Wyniki odbioru i jawne ograniczenia](docs/RELEASE_ACCEPTANCE.md)
 - [Przegląd luk](docs/GAP_REVIEW.md)

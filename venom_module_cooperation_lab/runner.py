@@ -546,6 +546,7 @@ class LabRunner:
             "model_digest",
             "quantization",
             "weights_loaded",
+            "peak_vram_bytes",
             "metadata_verified",
             "think",
         }
@@ -648,6 +649,10 @@ class LabRunner:
                 seed=config.seed,
                 profile="structured",
             )
+        if job.qualifying and config.public()["model"]["architecture"] == "hrm_text":
+            parameters = replace(
+                parameters, profile="structured", temperature=0.0, top_p=0.0
+            )
         completed: set[str] = set()
         turns = 1 if config.mode == "single" else config.budgets.max_turns
         for index in range(turns):
@@ -728,10 +733,11 @@ class LabRunner:
                 **({"phase": phase} if phase else {}),
             },
         )
-        if (
-            job.game is not None
-            and job.config.public()["model"]["architecture"] == "rwkv7"
-        ):
+        if job.game is not None and job.config.public()["model"]["architecture"] in {
+            "rwkv7",
+            "hrm_text",
+            "huginn_raven",
+        }:
             parameters = replace(
                 parameters,
                 allowed_outputs=tuple(

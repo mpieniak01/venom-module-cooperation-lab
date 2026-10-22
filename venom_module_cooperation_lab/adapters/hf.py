@@ -26,10 +26,12 @@ from .rwkv_process import RwkvAdapter, RwkvError, RwkvParameters
 PINS = json.loads(Path(__file__).with_name("hf_artifacts.json").read_text())
 TEMPLATES = {
     "hrm-text-1b": (
-        "prefixlm-v1:direct=object_ref_start;"
+        "prefixlm-v2:fewshot2;direct=object_ref_start;"
         "synth,cot=quad_end,object_ref_end;token_type_ids=1;replay"
     ),
-    "huginn-0125": "huginn-native-template-v1:bf16;num_steps=8;cache=false;replay",
+    "huginn-0125": (
+        "huginn-native-template-v2:tied-map-v5;bf16;num_steps=8;cache=false;replay"
+    ),
 }
 
 

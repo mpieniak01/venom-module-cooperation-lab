@@ -245,3 +245,49 @@ def test_unknown_error_is_sanitized():
         pass
 
     assert worker.error_code(OutOfMemoryError()) == "out_of_memory"
+
+
+def test_huginn_loader_adapts_only_pinned_class(monkeypatch):
+    calls = []
+
+    class Factory:
+        _tied_weights_keys = ["lm_head.weight"]
+
+        @classmethod
+        def from_pretrained(cls, root, **kwargs):
+            calls.append((root, kwargs, cls._tied_weights_keys))
+            return SimpleNamespace(
+                to=lambda device: SimpleNamespace(eval=lambda: "model")
+            )
+
+    torch = SimpleNamespace(
+        __version__="2.13.0+cu130",
+        bfloat16="bf16",
+        cuda=SimpleNamespace(
+            is_available=lambda: True,
+            mem_get_info=lambda: (12 * 1024**3, 0),
+            reset_peak_memory_stats=lambda: None,
+            synchronize=lambda: None,
+        ),
+    )
+    transformers = SimpleNamespace(
+        __version__="5.17.0",
+        AutoModelForCausalLM=None,
+        AutoTokenizer=SimpleNamespace(from_pretrained=lambda *a, **k: "tokenizer"),
+    )
+    dynamic = SimpleNamespace(get_class_from_dynamic_module=lambda *a, **k: Factory)
+    monkeypatch.setattr(
+        worker.importlib,
+        "import_module",
+        lambda name: {
+            "torch": torch,
+            "transformers": transformers,
+            "transformers.dynamic_module_utils": dynamic,
+        }[name],
+    )
+    assert worker.load_models({"model_id": "huginn-0125", "root": "/pinned"})[:2] == (
+        "model",
+        "tokenizer",
+    )
+    assert calls[0][2] == {"lm_head.weight": "transformer.wte.weight"}
+    assert calls[0][1]["local_files_only"] is True

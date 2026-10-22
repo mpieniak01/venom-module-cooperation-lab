@@ -130,7 +130,7 @@ class ModelCatalog:
         self.engines = [
             {
                 "engine_id": "local_component",
-                "name": "RWKV / HF research",
+                "name": "RWKV / HRM / Huginn",
                 "status": "available",
                 "supported": True,
             }
