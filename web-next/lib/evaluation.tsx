@@ -33,7 +33,8 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function safeValue(value: Json | undefined, missing: string): string {
   if (value === null || value === undefined) return missing;
   if (typeof value === "object") return JSON.stringify(value);
-  return typeof value === "number" && !Number.isFinite(value) ? missing : String(value);
+  if (typeof value === "number") return Number.isFinite(value) ? String(Number(value.toFixed(3))) : missing;
+  return String(value);
 }
 function reasonText(t: EvaluationTexts, language: string, reason: string) {
   return Object.hasOwn(t, reason) ? evaluationLabel(t, reason) : reasonLabel(texts(language), reason);

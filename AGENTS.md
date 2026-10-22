@@ -13,3 +13,16 @@
 - Kod musi przejść make check i kontrakty opcjonalnego modułu. Ruff/mypy/pytest>=90% oraz TS/lint/unit i browser smoke są oddzielnymi dowodami; nie zgłaszaj ich jako PASS przed wykonaniem.
 - Dla zmian wyłącznie Markdown: kontrola lokalnych linków i spójności planu; runtime tests/coverage N/A. Implementacja L1 zapewnia osobne bramki kodu; brak skanu lub limit planu nie jest PASS.
 - Ten plik nie ogranicza narzędzi przeglądarki/Node/komputera Codex do WSL lub aplikacji Venom.
+
+## Lokalny L7 — 2026-10-22
+
+Cały zaległy kod i ewaluacja gier są na `codex/rwkv7-g1k-2.9b`, bez publikacji
+GH. Instrukcja operatora: docs/GAME_EVALUATION.md; dowody i negatywne wyniki
+modeli: docs/L7_LOCAL_ACCEPTANCE.md. Cztery gry, replay/native i fresh/carry mają
+nowy protokół game-eval-v2; nie zmieniaj retrospektywnie parsera ani wyników v1.
+Pełna bramka: make pr-fast HOST=/home/ubuntu/venom, module-owned katalog/grupy
+oraz coverage nowych linii. Nie przedstawiaj zaliczonych testów środowiska jako
+zaliczonych strategii LLM: obecne realne próby mają błędy formatu/ruchów i timeouty.
+Jeden silnik naraz, bez autostartu. Dalsza publikacja wymaga aktualnego polecenia
+użytkownika. Po zmianie modułu używaj oficjalnego mirroru hosta; nie restartuj
+API z aktywnym eksperymentem.
