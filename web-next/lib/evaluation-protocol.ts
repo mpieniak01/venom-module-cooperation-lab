@@ -93,8 +93,20 @@ export function evaluationDefaults(): EvaluationRequest {
   return { model_id:"", case_ids:[], repetitions:1, observation_mode:"history_replay", episode_memory:"fresh", reflection:"off", decoding:"greedy", temperature:0.8, top_p:0.9, seed:17, num_steps:8, legal_moves:"listed", opponent:"optimal", swap_sides:true, max_new_tokens:64, decision_timeout_s:30 };
 }
 export function validEvaluationRequest(input: EvaluationRequest): boolean {
-  return !!input.model_id && input.case_ids.length > 0 && Number.isInteger(input.repetitions) && input.repetitions >= 1 && input.repetitions <= 10 &&
+  return typeof input.model_id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(input.model_id) &&
+    Array.isArray(input.case_ids) && input.case_ids.length > 0 && input.case_ids.length <= 32 && input.case_ids.every(id=>typeof id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(id)) && new Set(input.case_ids).size === input.case_ids.length &&
+    ["history_replay", "native_incremental"].includes(input.observation_mode) && ["fresh", "carry"].includes(input.episode_memory) && ["off", "episode_note"].includes(input.reflection) &&
+    ["greedy", "sampled"].includes(input.decoding) && [8,16,32,64].includes(input.num_steps) && ["hidden", "listed"].includes(input.legal_moves) &&
+    ["optimal", "random", "remembering", "model"].includes(input.opponent) && typeof input.swap_sides === "boolean" && Number.isInteger(input.repetitions) && input.repetitions >= 1 && input.repetitions <= 10 &&
     Number.isInteger(input.seed) && input.seed >= 0 && input.seed <= 2147483647 && Number.isInteger(input.max_new_tokens) && input.max_new_tokens >= 8 && input.max_new_tokens <= 256 &&
     Number.isInteger(input.decision_timeout_s) && input.decision_timeout_s >= 1 && input.decision_timeout_s <= 90 && Number.isFinite(input.temperature) && input.temperature >= 0 && input.temperature <= 2 && (input.decoding !== "sampled" || input.temperature > 0) &&
     Number.isFinite(input.top_p) && input.top_p > 0 && input.top_p <= 1;
+}
+
+export function savedEvaluationRequest(config: Record<string, Json>): EvaluationRequest | null {
+  const source = object(config.request) ? config.request : config;
+  const defaults = evaluationDefaults();
+  // Restore only the public form contract, never metadata or backend-only keys.
+  const candidate = Object.fromEntries(Object.entries(defaults).map(([key, fallback])=>[key, Object.hasOwn(source,key) ? source[key] : fallback])) as EvaluationRequest;
+  return validEvaluationRequest(candidate) ? {...candidate, case_ids:[...candidate.case_ids]} : null;
 }

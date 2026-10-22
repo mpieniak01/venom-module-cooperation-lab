@@ -4,7 +4,7 @@ import { API } from "./api";
 import { diagnosticCode, reasonLabel, texts } from "./i18n";
 import { modelId, type Json } from "./protocol";
 import { workspaceStyles, useWorkspaceViewport } from "./workspace";
-import { evaluationDefaults, validEvaluationRequest, type EvaluationRequest, type EvaluationSnapshot } from "./evaluation-protocol";
+import { evaluationDefaults, savedEvaluationRequest, validEvaluationRequest, type EvaluationRequest, type EvaluationSnapshot } from "./evaluation-protocol";
 import { evaluationTexts, evaluationLabel, gameLabel, type EvaluationTexts } from "./evaluation-i18n";
 import { useEvaluations } from "./evaluation-use";
 
@@ -117,7 +117,8 @@ export function EvaluationWorkspace({language}: {language:string}) {
       {settings && <fieldset className="coop-settings" disabled={!editable}><legend>{t.settings}</legend>
         <div className="coop-settings-group">
           <Field label={t.model}><select className={field} value={input.model_id} onChange={event=>patch({model_id:event.target.value,num_steps:8})}>
-            {!models.length&&<option value="">{t.unavailable}</option>}
+            {!models.length&&!input.model_id&&<option value="">{t.unavailable}</option>}
+            {input.model_id&&!model&&<option value={input.model_id}>{input.model_id} — {t.unavailable}</option>}
             {models.map(item=><option key={modelId(item)} value={modelId(item)}>{item.display_name ?? modelId(item)}{(item.can_run ?? item.qualified) ? "" : ` — ${t.unavailable}`}</option>)}
           </select></Field>
           <Field label={t.observation}><select className={field} value={input.observation_mode} onChange={event=>patch({observation_mode:event.target.value as EvaluationRequest["observation_mode"]})}>
@@ -158,7 +159,12 @@ export function EvaluationWorkspace({language}: {language:string}) {
           <details><summary>{t.actual}</summary><pre>{JSON.stringify(checked.configuration,null,2)}</pre></details>
         </>}
       </div>
-      <div className="coop-history"><Field label={t.history}><select className={field+" evaluation-history"} disabled={lab.pending || lab.active} value={lab.selected?.id ?? ""} onChange={event=>lab.select(event.target.value)}><option value="">{t.draft}</option>{lab.evaluations.map(item=><option key={item.id} value={item.id}>{item.id.slice(0,8)} · {evaluationLabel(t,item.status)}</option>)}</select></Field><span className="coop-message-meta">{t.version}: {lab.capabilities?.manifest_version ?? t.noData}</span>{lab.capabilities?.storage&&<span className="coop-message-meta">{t.stored}: {lab.capabilities.storage.series_used}/{lab.capabilities.storage.max_series} · {t.retention}: {lab.capabilities.storage.retention_days}</span>}</div>
+      <div className="coop-history"><Field label={t.history}><select className={field+" evaluation-history"} disabled={lab.pending || lab.active} value={lab.selected?.id ?? ""} onChange={event=>{
+        const selected = lab.evaluations.find(item=>item.id === event.target.value);
+        const restored = selected ? savedEvaluationRequest(selected.config) : null;
+        if (restored) setDraft(restored);
+        lab.select(event.target.value);
+      }}><option value="">{t.draft}</option>{lab.evaluations.map(item=><option key={item.id} value={item.id}>{item.id.slice(0,8)} · {evaluationLabel(t,item.status)}</option>)}</select></Field><span className="coop-message-meta">{t.version}: {lab.capabilities?.manifest_version ?? t.noData}</span>{lab.capabilities?.storage&&<span className="coop-message-meta">{t.stored}: {lab.capabilities.storage.series_used}/{lab.capabilities.storage.max_series} · {t.retention}: {lab.capabilities.storage.retention_days}</span>}</div>
       <div className="coop-panel evaluation-counts" aria-label={t.plan}>
         {(["planned","started","terminal","success","skipped"] as const).map(key=><span key={key}>{t[key]}: <strong data-counter={key}>{counts[key]}</strong></span>)}
       </div>

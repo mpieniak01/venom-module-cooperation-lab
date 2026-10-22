@@ -4,7 +4,7 @@ import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { EvaluationWorkspace } from "../../web-next/lib/evaluation";
-import { evaluationDefaults, isEvaluationCapabilities, isEvaluationPreflight, isEvaluationSnapshot, validEvaluationRequest, type EvaluationSnapshot } from "../../web-next/lib/evaluation-protocol";
+import { evaluationDefaults, isEvaluationCapabilities, isEvaluationPreflight, isEvaluationSnapshot, savedEvaluationRequest, validEvaluationRequest, type EvaluationSnapshot } from "../../web-next/lib/evaluation-protocol";
 import { evaluationTexts } from "../../web-next/lib/evaluation-i18n";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {url:"http://localhost:3300/cooperation-lab"});
@@ -205,4 +205,41 @@ test("terminal series deletes with one click and updates capacity without confir
     assert.equal(select(box,"Historia serii").value,"");assert.equal(findButton(box,"Usuń serię").disabled,true);
     assert.match(box.textContent??"",/Zapisane serie: 0\/100/);assert.equal(box.querySelector('[data-counter="planned"]')?.textContent,"0");
   }finally{await close();Object.defineProperty(globalThis,"confirm",{value:oldConfirm,configurable:true});}
+});
+
+test("selecting active Huginn history restores its exact settings and polling never overwrites later edits",async()=>{
+  const request={...evaluationDefaults(),model_id:"huginn-0125",case_ids:["ttt-start","memory-1","nim-last","sokoban-push"],repetitions:3,num_steps:32 as const,episode_memory:"carry" as const,reflection:"episode_note" as const,max_new_tokens:96,seed:9,decision_timeout_s:60};
+  const historic={...saved(),config:{request},can_resume:false};
+  const historyCaps={...caps,models:[{model_id:"rwkv7-g1k-2.9b",display_name:"RWKV",can_run:true,compute_steps:[]},...caps.models],cases:[...caps.cases,{id:"nim-last",game:"nim",max_actions:1},{id:"sokoban-push",game:"sokoban",max_actions:16}]};
+  const {box,close}=await setup(async(url)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response(historyCaps);
+    if(path.endsWith("/evaluations/series-1"))return response({evaluation:{...historic,status:"completed"}});
+    return response({evaluations:[historic]});
+  });
+  try{
+    assert.equal(select(box,"Model").value,"rwkv7-g1k-2.9b");
+    await choose(box,"Historia serii","series-1");
+    assert.equal(select(box,"Model").value,"huginn-0125");assert.equal(select(box,"Kroki Huginn").value,"32");
+    assert.equal(select(box,"Pamięć między partiami").value,"carry");assert.equal(select(box,"Notatka po partii").value,"episode_note");
+    assert.equal(box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")?.disabled,true);
+    assert.equal(box.querySelectorAll('.evaluation-case-list input:checked').length,4);
+    const tokens=()=>[...box.querySelectorAll<HTMLInputElement>('input[type="number"]')].find(node=>node.parentElement?.textContent?.startsWith("Tokenów na decyzję"))!;
+    assert.equal(tokens().value,"96");
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,2100));});
+    assert.equal(box.querySelector<HTMLFieldSetElement>("fieldset.coop-settings")?.disabled,false);
+    await number(box,"Tokenów na decyzję","128");
+    await act(async()=>findButton(box,"Odśwież").click());await settle();
+    assert.equal(tokens().value,"128","snapshot refresh must not overwrite the operator's terminal draft");
+    assert.equal(select(box,"Model").value,"huginn-0125");
+  }finally{await close();}
+});
+
+test("saved evaluation settings whitelist the public form and reject malformed history",()=>{
+  const request={...evaluationDefaults(),model_id:"huginn-0125",case_ids:["ttt-start"]};
+  assert.deepEqual(savedEvaluationRequest({request:{...request,unexpected:"discarded"},other:"ignored"}),request);
+  assert.deepEqual(savedEvaluationRequest({...request,snapshot_restore:false}),request);
+  assert.equal(savedEvaluationRequest({request:{...request,num_steps:7}}),null);
+  assert.equal(savedEvaluationRequest({request:{...request,case_ids:"bad"}}),null);
+  assert.equal(savedEvaluationRequest({request:{...request,episode_memory:"unrecognized"}}),null);
 });
