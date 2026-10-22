@@ -70,3 +70,9 @@ test("tic-tac-toe labels and nine-move history remain scenario scoped",()=>{
  assert.equal(savedSettings({scenario_id:"tic_tac_toe",budgets:{max_turns:9}}).turns,9);
  assert.equal(savedSettings({scenario_id:"split_facts",budgets:{max_turns:9}}).turns,undefined);
 });
+
+
+test("competitive game variant restores with a distinct translated label",()=>{
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode:"game_competitive"}).mode,"game_competitive");
+ assert.equal(texts("pl").gameCompetitive,"Gra, aby wygrać");
+});

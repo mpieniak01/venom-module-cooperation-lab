@@ -32,3 +32,40 @@ Kółko i krzyżyk / Gra naprzemienna / 9 tur / Polski, dziewięć pól planszy,
 „Następny ruch: A (X)”, 0 pageerror. Nie klikano START — testy gry używały
 jawnych adapterów CPU fixture, nie dowodzą poprawnych ruchów rzeczywistego modelu.
 Wdrożono lokalny moduł i kopię UI; odświeżono tylko API przy pustym runtime.
+
+
+## Warianty celu gry
+
+- Gra naprzemienna (`dialog`): dotychczasowe instrukcje, wybór legalnego pola.
+- Gra, aby wygrać (`game_competitive`): jawny cel zwycięstwa, sprawdzanie własnej
+  wygranej i blokowania przeciwnika oraz dążenie do remisu, gdy nie można wygrać.
+
+Oba warianty dostają tę samą aktualną planszę i mają identyczne limity oraz
+parametry generacji. Host nie podpowiada ruchów ani nie zastępuje decyzji modelu.
+Cel zostaje zapisany w niezmiennej konfiguracji próby; stare partie pozostają
+wariantem naprzemiennym. Instrukcje nowego wariantu obsługują PL/EN, etykiety UI
+PL/EN/DE. Zakres przygotowany do publikacji jako wspólny PR wariantów gry.
+
+
+### Jawny stan pól — board-context-3
+
+Każda tura obu wariantów otrzymuje planszę oraz listy pól zajętych przez X,
+zajętych przez O i dozwolonych wolnych pól. Instrukcja zabrania nadpisywania także
+własnego znaku. Listy powstają z tego samego stanu sędziego, bez rankingu ruchów,
+automatycznej zamiany odpowiedzi lub ukrytych powtórek. Historyczne próby zachowują
+swój numer wersji. Powodem zmiany są cztery próby Gemma4 zakończone błędem zajętego
+pola w czwartej turze; sama nowa instrukcja nie dowodzi poprawy jakości modelu.
+
+
+## Odbiór i ograniczenia
+
+Operator potwierdził 2026-10-22 poprawne działanie Gemma4 po wprowadzeniu jawnych
+list pól. To odbiór użytkowy, nie dowód optymalnej strategii ani wynik benchmarku.
+RWKV7 0,4B w próbie tego samego dnia zwrócił w drugiej turze opis zamiast jednego
+ruchu; sędzia prawidłowo odrzucił odpowiedź jako invalid_game_move. Nie maskujemy
+tego ograniczenia skracaniem lub automatycznym poprawianiem odpowiedzi.
+
+Walidacja końcowa: make check HOST=/home/ubuntu/venom — 327 Python PASS,
+coverage 97,56%, 28 frontend PASS, Ruff/mypy/TypeScript/lint i kontrakt hosta PASS.
+Pełne partie PL/EN obu wariantów sprawdzono przez produkcyjny guard kontekstu
+z kontrolowanym transportem bez generacji LLM. Brak nowych zależności i zmian core.

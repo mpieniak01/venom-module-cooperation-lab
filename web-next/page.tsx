@@ -110,7 +110,7 @@ export default function CooperationLabPage() {
           </label>
           <label className="coop-setting">{t.mode}
             <select className={field} value={mode} disabled={availableModes.length===1} onChange={event=>setForm(selectMode(form,event.target.value))}>
-              {availableModes.map(item=><option value={item} key={item}>{scenario==="tic_tac_toe"?t.gameAlternating:modeLabel(t,item)}</option>)}
+              {availableModes.map(item=><option value={item} key={item}>{scenario==="tic_tac_toe"?(item==="game_competitive"?t.gameCompetitive:t.gameAlternating):modeLabel(t,item)}</option>)}
             </select>
           </label>
           {availableModes.length===1&&<p className="coop-message-meta">{t.fixedWorkflow}</p>}
