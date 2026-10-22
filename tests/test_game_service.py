@@ -301,6 +301,27 @@ async def test_cancel_queued_never_loads_and_is_idempotent(eval_rig):
 
 
 @pytest.mark.asyncio
+async def test_task_cancellation_propagates_after_cleanup_and_persists_interruption(
+    eval_rig,
+):
+    service, adapters, settings, _ = eval_rig
+    settings["block"] = True
+    row, _ = await service.start(request(), "task-cancel-cleanup")
+    adapter = await wait_entered(adapters)
+    job = service.jobs[row["id"]]
+
+    job.task.cancel()
+    adapter.released.set()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(asyncio.shield(job.task), timeout=3)
+
+    assert job.task.cancelled()
+    assert job.released and adapter.closed
+    assert service.snapshot(row["id"])["status"] == "cancelled"
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
 async def test_cancel_live_generation_keeps_owned_thread_and_lease_until_quiescent(
     eval_rig,
 ):

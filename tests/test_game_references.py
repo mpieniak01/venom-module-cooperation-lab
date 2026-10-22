@@ -122,9 +122,10 @@ def test_sokoban_deadlock_and_bounded_solver_failures_are_environment_errors():
 
 def test_reference_random_is_seeded_and_unsupported_is_explicit():
     env = NimEnvironment({})
-    assert reference_action(env, "random", random.Random(3)) == reference_action(
-        env, "random", random.Random(3)
-    )
+    first = reference_action(env, "random", random.Random(3))
+    second = reference_action(env, "random", random.Random(3))
+    assert first == {"heap": 1, "take": 1}
+    assert second == first
     with pytest.raises(LabError, match="unsupported_reference"):
         reference_action(env, "remembering", random.Random(3))
     assert assess(env, "B", {"heap": 0, "take": 1}) == {

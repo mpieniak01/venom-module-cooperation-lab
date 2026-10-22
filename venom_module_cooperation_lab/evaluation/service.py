@@ -497,6 +497,7 @@ class EvaluationService:
 
     async def _execute(self, job: EvaluationJob) -> None:
         request = EvaluationRequest(**job.state["config"]["request"])
+        task_cancelled = False
         try:
             from .sessions import SessionDriver
 
@@ -534,6 +535,7 @@ class EvaluationService:
                     block_failed = True
             job.state["status"] = "completed"
         except asyncio.CancelledError:
+            task_cancelled = True
             job.cancelled = True
             job.lease.cancel()
             job.state.update(status="interrupted", error="process_stopping")
@@ -571,6 +573,8 @@ class EvaluationService:
                     job.state["status"],
                     job.state.get("error") or "storage_full",
                 )
+        if task_cancelled:
+            raise asyncio.CancelledError
 
     async def _response(
         self,
