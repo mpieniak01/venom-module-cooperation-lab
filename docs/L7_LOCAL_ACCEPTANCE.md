@@ -97,3 +97,12 @@ Zrzuty i pobrany eksport pozostają w prywatnym output/playwright hostaWindows.
 Nie wykonano ani push, ani utworzenia PR, ani merge. Kolejnym krokiem wydania
 mogą być zdalne kontrole po osobnej autoryzacji publikacji, z jawnymi
 ograniczeniami jakości modeli i bez przypisywania im zaliczonych rozgrywek.
+
+
+## Cztery modele / trzy nowe gry
+
+Lokalny adapter Ollama został podłączony do replay v2 w c86b655. Aktualne bramki
+617 Python / 44 frontend PASS, coverage 96,93%, nowe linie 96,04%.
+[Raport 12 prób](NEW_GAMES_FOUR_MODELS_20261022.md) rozdziela błędy formatu,
+strategii i ograniczenie adaptera kontekstu. Jedna rozgrywka ukończona (Gemma4 Nim,
+porażka), zero wygranych/rozwiązań. Nie deklarujemy zaliczenia jakości nowych gier.

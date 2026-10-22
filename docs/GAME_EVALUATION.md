@@ -45,6 +45,10 @@ wartości. Historia nie jest potajemnie skracana. Przekroczenie kontekstu daje
 ## Modele i budżety
 
 RWKV-7, HRM-Text i Huginn korzystają z istniejących, zakwalifikowanych adapterów.
+Modele istniejącego adaptera Ollama (w tym Gemma4) obsługują history_replay
+oraz fresh/carry przez historię tekstową; nie deklarują natywnego stanu ani iteracji.
+Adapter zachowuje weryfikację checkpointu/runtime/template, izolację graczy
+i konserwatywny limit kontekstu. Sam wpis w katalogu nie kwalifikuje modelu.
 Lista pokazuje również inne modele katalogu, ale brak adaptera protokołu v2
 blokuje START z przyczyną. Nie następuje niewidoczna zamiana modelu.
 Huginn stosuje rzeczywiste `num_steps` 8/16/32/64; pozostałe modele raportują
