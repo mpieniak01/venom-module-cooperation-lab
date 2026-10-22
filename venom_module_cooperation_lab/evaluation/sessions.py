@@ -27,7 +27,10 @@ SUPPORTED_ARCHITECTURES = {"rwkv7", "hrm_text", "huginn_raven"}
 def capabilities_for(model_spec: dict[str, Any]) -> dict[str, Any]:
     """Capabilities of these adapters, not claims inferred from a model name."""
     architecture = model_spec.get("architecture")
-    supported = architecture in SUPPORTED_ARCHITECTURES
+    ollama_replay = model_spec.get("provider") == "ollama" and str(
+        model_spec.get("runtime", "")
+    ).startswith("ollama==")
+    supported = architecture in SUPPORTED_ARCHITECTURES or ollama_replay
     native = architecture == "rwkv7" and "rwkv-chat-v2" in str(
         model_spec.get("runtime", "")
     )

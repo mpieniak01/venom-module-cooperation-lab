@@ -436,3 +436,33 @@ def test_allowed_outputs_contract_is_bounded(parameters, outputs):
 def test_allowed_outputs_requires_structured_greedy_profile(parameters):
     with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
         parameters(allowed_outputs=("A1",))
+
+
+def test_ollama_game_replay_preserves_isolation_and_legacy_message_limit():
+    adapter, _, _ = configured_ollama()
+    adapter.load(time.monotonic() + 3)
+    messages = [ChatMessage("user", "x")] * 25
+    with pytest.raises(LabError, match="invalid_messages"):
+        adapter.generate("A", messages, GenerationParameters(), time.monotonic() + 3)
+    from venom_module_cooperation_lab.evaluation.sessions import SessionDriver
+
+    driver = SessionDriver(adapter, "history_replay", "carry")
+    driver.begin_episode()
+    for actor in ("A", "B"):
+        stream(adapter, [{"message": {"content": "{}"}}, {"done": True}])
+        result = driver.generate(
+            actor, "public observation", GenerationParameters(), time.monotonic() + 3
+        )
+        assert result.effective_parameters["num_steps_applied"] is None
+        assert result.effective_parameters["memory_kind"] == "text_history"
+    assert adapter.state()["history_messages"] == {"A": 2, "B": 2}
+    adapter.reset("A")
+    stream(adapter, [{"done": True}])
+    adapter.generate(
+        "A",
+        messages,
+        GenerationParameters(session_protocol="game-eval-v2"),
+        time.monotonic() + 3,
+    )
+    assert adapter.state()["history_messages"] == {"A": 26, "B": 2}
+    assert adapter.close()

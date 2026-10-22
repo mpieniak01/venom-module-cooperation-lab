@@ -436,3 +436,17 @@ def test_history_capability_tracks_participant_and_fresh_boundary():
     assert not driver.has_history("A")
     with pytest.raises(LabError, match="invalid_participant"):
         driver.has_history("C")
+
+
+def test_ollama_replay_capabilities_require_provider_and_runtime():
+    spec = {"architecture": "gemma4", "provider": "ollama", "runtime": "ollama==0.40.6"}
+    caps = capabilities_for(spec)
+    assert caps["observation_modes"] == ["history_replay"]
+    assert caps["episode_memories"] == ["fresh", "carry"]
+    assert caps["compute_steps"] == []
+    assert caps["snapshot_restore"] is False
+    for changes in ({"provider": "unknown"}, {"runtime": "unknown"}):
+        assert (
+            capabilities_for({**spec, **changes})["reason"]
+            == "unsupported_model_adapter"
+        )
