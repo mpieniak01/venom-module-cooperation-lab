@@ -239,6 +239,9 @@ test("saved evaluation settings whitelist the public form and reject malformed h
   const request={...evaluationDefaults(),model_id:"huginn-0125",case_ids:["ttt-start"]};
   assert.deepEqual(savedEvaluationRequest({request:{...request,unexpected:"discarded"},other:"ignored"}),request);
   assert.deepEqual(savedEvaluationRequest({...request,snapshot_restore:false}),request);
+  const legacy:Partial<typeof request>={...request};delete legacy.response_mode;
+  assert.equal(savedEvaluationRequest(legacy)?.response_mode,"strict_json");
+  assert.equal(evaluationDefaults().response_mode,"mapped");
   assert.equal(savedEvaluationRequest({request:{...request,num_steps:7}}),null);
   assert.equal(savedEvaluationRequest({request:{...request,case_ids:"bad"}}),null);
   assert.equal(savedEvaluationRequest({request:{...request,episode_memory:"unrecognized"}}),null);

@@ -22,6 +22,22 @@ Poprzednie podejście zostaje w `attempt_history`. Niedozwolony ruch lub zły fo
 nie uruchamiają automatycznie drugiej szansy. Wznowienie po zmianie modelu,
 checkpointu lub reguł jest blokowane; należy utworzyć nową serię.
 
+## Format odpowiedzi
+
+Nowe próby w formularzu domyślnie używają **Mapowania odpowiedzi**.
+**Ścisły JSON** pozostaje do porównania; API bez response_mode i historyczne
+konfiguracje zachowują tryb ścisły. Tryb jest częścią zapisanej konfiguracji.
+
+Mapowanie action-map-v1 zamienia wyłącznie jednoznaczną odpowiedź na akcję:
+np. move right → obiekt move, take 1 stone from heap 0 → heap/take.
+Obsługuje również uzgodnione koperty JSON move/value, pojedynczy blok json
+i końcową odpowiedź po zamkniętym think. Nie wybiera ruchu za model, nie zgaduje
+indeksów i nie naprawia ruchów niedozwolonych. Niejednoznaczność lub brak końcowej
+akcji nadal kończą próbę. Surowy tekst i response_mapping zostają w dzienniku.
+Wyników ścisłego JSON i mapowania nie należy mieszać bez oznaczenia trybu.
+
+[Odbiór i ograniczenia mapowania](ACTION_MAPPING_20261022.md).
+
 ## Pamięć i interpretacja
 
 - `history_replay`: przed decyzją reset i pełna dozwolona historia własnej sesji.
@@ -53,7 +69,7 @@ Lista pokazuje również inne modele katalogu, ale brak adaptera protokołu v2
 blokuje START z przyczyną. Nie następuje niewidoczna zamiana modelu.
 Huginn stosuje rzeczywiste `num_steps` 8/16/32/64; pozostałe modele raportują
 zastosowane iteracje jako brak danych. Każda decyzja ma jeden limit odpowiedzi
-(8–256 tokenów) i czasu (1–90 s), bez naprawy lub ponawiania ruchu przez parser.
+(8–256 tokenów) i czasu (1–90 s), bez ponawiania decyzji ani zmiany wybranego ruchu przez parser.
 
 **Ograniczenie obecnego odbioru:** modele mogą odpowiedzieć rozumowaniem lub
 niepoprawnym JSON. Ruch jest wtedy `invalid_format`, a nie poprawną grą.
