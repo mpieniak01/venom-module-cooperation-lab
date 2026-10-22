@@ -421,3 +421,18 @@ def test_recurrent_append_preserves_exact_round_boundary(reason, prefix):
 def test_unknown_generation_profile_is_rejected(parameters):
     with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
         parameters(profile="unknown")
+
+
+@pytest.mark.parametrize("outputs", [("A1", "A1"), ("A4",), ("A1 or C3",), ["A1"]])
+@pytest.mark.parametrize("parameters", [GenerationParameters, RwkvParameters])
+def test_allowed_outputs_contract_is_bounded(parameters, outputs):
+    with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
+        parameters(
+            profile="structured", temperature=0, top_p=0, allowed_outputs=outputs
+        )
+
+
+@pytest.mark.parametrize("parameters", [GenerationParameters, RwkvParameters])
+def test_allowed_outputs_requires_structured_greedy_profile(parameters):
+    with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
+        parameters(allowed_outputs=("A1",))

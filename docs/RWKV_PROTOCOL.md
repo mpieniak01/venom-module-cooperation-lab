@@ -33,7 +33,7 @@ w `raw_content`; tekst użytkowy w `content`, przyczyna zakończenia w usage.
 
 ## Gra
 
-Nowe próby: board-context-4 / board-state-v3. Dotychczasowe próbki nie są
+Nowe próby: board-context-5 / board-state-v4. Dotychczasowe próbki nie są
 przeliczane. Zwykłe modele zachowują kompaktowy kontekst planszy. RWKV ma
 rosnącą historię własnych tur i krótkie autorytatywne obserwacje planszy,
 zamiast resetu w każdej turze. Własna poprzednia odpowiedź pozostaje w stanie,
@@ -54,3 +54,22 @@ bez zastąpienia oryginalnego content. Dawne błędy pozostają widoczne.
 
 Nie włączamy automatycznie trybu think, nie zgadujemy odpowiedzi z rozumowania,
 nie wybieramy najlepszego pola za model i nie ponawiamy ruchu do skutku.
+
+Po pierwszej próbie poprawionego protokołu (da968e3d…): A1/B2/A3 było poprawne,
+a następne B2 było już realnym wyborem zajętego pola. Dlatego profil gry RWKV
+jawnie ogranicza tokeny wyjścia do zakodowanych współrzędnych aktualnie wolnych
+pól. Host wyznacza legalny zbiór, model wybiera tokeny według własnych logits;
+nie ma minimax ani zastępczego wyboru ruchu. Usage zawiera allowed_outputs oraz
+decoding_constraint=allowed_outputs, stop_reason=allowed_output. To gra z
+ograniczeniem legalności, a nie dowód spontanicznego przestrzegania reguł.
+Zwykły czat nie stosuje tego ograniczenia. Sędzia nadal niezależnie waliduje ruch.
+
+## Końcowy odbiór lokalny 2026-10-22
+
+- make check: 359 Python PASS, coverage 97,58%; frontend/TS/lint i kontrakt hosta PASS.
+- Odtworzenie obu wcześniejszych błędów: 3 legalne ruchy, ostatnie C3/C1; historia bez zmian.
+- Ponowna kwalifikacja obu RWKV po zmianie runtime identity: completed, quiescent=true.
+- Jedna gra 2,9B z legal-choice: `76e21bfb4c8241e8aa7b11e6247699fc`, completed.
+- Ruchów: 9; zwycięzca: A; remis: False.
+- Usage potwierdza replay przy pierwszym wejściu każdego uczestnika i append w kontynuacji, allowed_outputs i zerowe kary.
+- Po cleanup admission available, active_operations=0. Nie jest to benchmark siły gry ani samoorganizacji.

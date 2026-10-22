@@ -153,8 +153,8 @@ async def test_game_runner_uses_authoritative_board_and_stops_on_actual_result(
     from test_adapters import configured_ollama, stream
 
     config = row["config"]
-    assert config["scheduler"] == "board-state-v3"
-    assert config["scenario_version"].endswith("-board-context-4")
+    assert config["scheduler"] == "board-state-v4"
+    assert config["scenario_version"].endswith("-board-context-5")
     for index, (participant, history, parameters) in enumerate(adapters[0].recorded):
         assert len(history) <= 3
         assert (
@@ -332,6 +332,11 @@ async def test_recurrent_game_preserves_history_and_structured_profile(rig):
     recorded = adapters[0].recorded
     for index, (_, history, parameters) in enumerate(recorded):
         assert parameters.profile == "structured"
+        assert len(parameters.allowed_outputs) == 9 - index
+        assert all(
+            move not in parameters.allowed_outputs
+            for move in ["A1", "B1"][: min(index, 2)]
+        )
         assert parameters.temperature == parameters.top_p == 0
         assert not any("Message " in m.content for m in history if m.role == "user")
         if index >= 2:

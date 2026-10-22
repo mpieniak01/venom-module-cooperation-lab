@@ -33,9 +33,31 @@ class GenerationParameters:
     top_p: float = 0.5
     seed: int = 0
     profile: str = "chat"
+    allowed_outputs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.profile not in {"chat", "structured"}:
+            raise LabError("invalid_parameters", 422)
+        if (
+            not isinstance(self.allowed_outputs, tuple)
+            or len(self.allowed_outputs) > 9
+            or any(
+                not isinstance(v, str)
+                or len(v) != 2
+                or v[0] not in "ABC"
+                or v[1] not in "123"
+                for v in self.allowed_outputs
+            )
+            or len(set(self.allowed_outputs)) != len(self.allowed_outputs)
+            or (
+                self.allowed_outputs
+                and (
+                    self.profile != "structured"
+                    or self.temperature != 0
+                    or self.top_p != 0
+                )
+            )
+        ):
             raise LabError("invalid_parameters", 422)
         for name, lower, upper in (
             ("max_new_tokens", 1, 256),

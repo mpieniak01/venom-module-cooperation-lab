@@ -212,7 +212,11 @@ def _prefill(
 
 
 def _sample_token(
-    logits: Any, occurrence: dict[int, float], params: dict[str, Any], torch: Any
+    logits: Any,
+    occurrence: dict[int, float],
+    params: dict[str, Any],
+    torch: Any,
+    allowed_tokens: list[int] | None = None,
 ) -> int | None:
     logits = logits.float()
     if not bool(torch.isfinite(logits).all()):
@@ -220,6 +224,8 @@ def _sample_token(
     if params.get("profile", "chat") != "structured":
         for token, frequency in occurrence.items():
             logits[token] -= 2.0 + frequency * 0.1
+    if allowed_tokens is not None:
+        return max(sorted(allowed_tokens), key=lambda t: float(logits[t].item()))
     if params["temperature"] == 0 or params["top_p"] == 0:
         return int(torch.argmax(logits).item())
     probabilities = torch.softmax(logits, dim=-1)
@@ -247,13 +253,27 @@ def _decode_steps(
     use_cuda: bool,
 ) -> bool:
     occurrence: dict[int, float] = {}
+    choices = [tokenizer.encode(value) for value in params.get("allowed_outputs", ())]
     for _ in range(params["max_new_tokens"]):
         stopped = _stop_reason(cancel, generation.deadline)
         if stopped:
             generation.reason = stopped
             break
         assert generation.logits is not None
-        token = _sample_token(generation.logits, occurrence, params, torch)
+        allowed = None
+        if choices:
+            prefix = generation.output
+            allowed = sorted(
+                {
+                    candidate[len(prefix)]
+                    for candidate in choices
+                    if candidate[: len(prefix)] == prefix
+                    and len(candidate) > len(prefix)
+                }
+            )
+            if not allowed:
+                return False
+        token = _sample_token(generation.logits, occurrence, params, torch, allowed)
         if token is None:
             return False
         if token == 0:
@@ -268,6 +288,9 @@ def _decode_steps(
             torch.cuda.synchronize()
         if generation.ttft is None:
             generation.ttft = time.monotonic() - generation.started
+        if choices and generation.output in choices:
+            generation.reason = "allowed_output"
+            break
         if "\n\n" in tokenizer.decode(generation.output):
             generation.reason = "stop_sequence"
             break
@@ -296,6 +319,9 @@ def _generation_receipt(
             "alpha_frequency": 0.0 if params.get("profile") == "structured" else 0.1,
             "alpha_decay": 0.99,
             "prefill_chunk_tokens": 16,
+            "decoding_constraint": "allowed_outputs"
+            if params.get("allowed_outputs")
+            else "none",
         },
         "peak_vram_bytes": torch.cuda.max_memory_allocated() if use_cuda else 0,
         "peak_ram_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,

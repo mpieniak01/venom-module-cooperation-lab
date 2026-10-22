@@ -362,3 +362,33 @@ def test_structured_profile_has_no_chat_penalties_and_preserves_raw_separator(
     assert result["text"] == ""
     assert result["effective_parameters"]["alpha_presence"] == 0
     assert result["effective_parameters"]["alpha_frequency"] == 0
+
+
+def test_allowed_output_decoder_uses_model_logits_among_legal_choices(tmp_path):
+    vocab = tmp_path / "coordinates.txt"
+    vocab.write_text("1 b'A' 1\n2 b'B' 1\n3 b'C' 1\n4 b'1' 1\n5 b'2' 1\n6 b'3' 1\n")
+    tokenizer = SafeRwkvTokenizer(vocab)
+
+    class CoordinateModel(Model):
+        def forward(self, tokens, state):
+            _, state = super().forward(tokens, state)
+            logits = torch.zeros(7)
+            for token, score in [(1, 100), (2, 10), (3, 9), (4, 100), (5, 10), (6, 9)]:
+                logits[token] = score
+            return logits, state
+
+    request = command(
+        profile="structured",
+        allowed_outputs=("B2", "C3"),
+        max_new_tokens=4,
+        max_context_tokens=32,
+    )
+    request["prompt"] = "A"
+    result = worker._generate(
+        CoordinateModel(), tokenizer, states(), threading.Event(), request, torch, False
+    )
+    # Highest unrestricted logits would produce A1; both tokens are forbidden here.
+    assert result["text"] == result["raw_text"] == "B2"
+    assert result["stop_reason"] == "allowed_output"
+    assert result["effective_parameters"]["allowed_outputs"] == ("B2", "C3")
+    assert result["effective_parameters"]["decoding_constraint"] == "allowed_outputs"
