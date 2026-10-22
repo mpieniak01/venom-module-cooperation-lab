@@ -21,3 +21,12 @@ scalono jako `4346a66`; lokalne wdrożenie na obu main odebrano w API i DOM.
 Kontrole PR oraz niezależny review odebranego kodu PASS. Cleanup C0 po HTTP 400
 odebrany; legacy chat śledzi osobny [Venom #554](https://github.com/mpieniak01/Venom/issues/554), a nową metodologię
 [research #14](https://github.com/mpieniak01/venom-module-cooperation-lab/issues/14). Trening i dalsza rozbudowa są poza MVP.
+
+
+## Lokalny backlog — L7
+
+**TODO:** [Gry jako ewaluacja strategii, pamięci i planowania](prs/L7-game-evaluation.md).
+Jeden planowany PR w tym repo; bez utworzonego issue/PR GitHub i bez nadawania
+mu fikcyjnego numeru. Zakres: TTT, Nim, Memory, Sokoban; wspólne kontrakty,
+prawdziwe tryby pamięci, referencje, metryki jakości i wznowienie. Realizacja G0–G5
+oraz warunki wydania w specyfikacji. Niezależne od ukończonego MVP L1–L5.
