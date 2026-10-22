@@ -28,8 +28,9 @@ Nowe próby w formularzu domyślnie używają **Mapowania odpowiedzi**.
 **Ścisły JSON** pozostaje do porównania; API bez response_mode i historyczne
 konfiguracje zachowują tryb ścisły. Tryb jest częścią zapisanej konfiguracji.
 
-Mapowanie action-map-v1 zamienia wyłącznie jednoznaczną odpowiedź na akcję:
+Mapowanie action-map-v2 zamienia wyłącznie jednoznaczną odpowiedź na akcję:
 np. move right → obiekt move, take 1 stone from heap 0 → heap/take.
+Memory przyjmuje również parę indeksów jako tablicę [I,J]; Nim zapis heap=H take=N.
 Obsługuje również uzgodnione koperty JSON move/value, pojedynczy blok json
 i końcową odpowiedź po zamkniętym think. Nie wybiera ruchu za model, nie zgaduje
 indeksów i nie naprawia ruchów niedozwolonych. Niejednoznaczność lub brak końcowej
@@ -56,7 +57,10 @@ Reguły i schemat akcji podawane są raz na gracza/blok; kolejne obserwacje zawi
 aktualny stan. W Memory lista wszystkich 120 par jest zapisana równoważnie jako
 wybór dwóch różnych indeksów spośród niesparowanych kart. Nie ujawnia to ich
 wartości. Historia nie jest potajemnie skracana. Przekroczenie kontekstu daje
-`context_limit`. Długi blok carry może celowo wyczerpać ograniczenie 2048 tokenów.
+`context_limit`. Budżet wynosi domyślnie 2048; zweryfikowana Gemma4/Ollama w v2 może użyć
+do 8192 przez pole Budżet kontekstu. Pozostałe adaptery nadal do 2048.
+Historia nie jest obcinana; konserwatywny limit bajtowy Ollama może zatrzymać
+próbę wcześniej niż rzeczywisty limit tokenów. [Wyniki Nim/Memory](NIM_MEMORY_FORMAT_20261022.md).
 
 ## Modele i budżety
 

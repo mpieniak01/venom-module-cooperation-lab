@@ -27,7 +27,7 @@ Nie zmieniano historycznych wyników ani parsera v1.
 
 ## Rzeczywiste próby modeli
 
-Przypadki: ttt-win-v1, nim-last-stone-v1, memory-seed17-v1, sokoban-push-v1.
+Przypadki: ttt-win-v1, nim-last-stone-v1, memory-seed 17-v1, sokoban-push-v1.
 Jedna odpowiedź na decyzję; brak maskowania, retry i naprawiania odpowiedzi.
 Najpierw RWKV przy 64 tokenach (4 invalid_format), następnie jawna nowa seria
 z 256 tokenami, limitem 30 s i seed=17. Surowe dane zachowano poza Git.
@@ -106,3 +106,13 @@ Lokalny adapter Ollama został podłączony do replay v2 w c86b655. Aktualne bra
 [Raport 12 prób](NEW_GAMES_FOUR_MODELS_20261022.md) rozdziela błędy formatu,
 strategii i ograniczenie adaptera kontekstu. Jedna rozgrywka ukończona (Gemma4 Nim,
 porażka), zero wygranych/rozwiązań. Nie deklarujemy zaliczenia jakości nowych gier.
+
+
+## Nim/Memory — końcowa lokalna optymalizacja
+
+[Nim/Memory: kontrakty i wyniki](NIM_MEMORY_FORMAT_20261022.md).
+Mapper v2, kompaktowe instrukcje, osobna polityka HRM bez obcych przykładów,
+jawny kontekst Gemmy4 do 8192. Końcowe bramki657Python/44 frontend PASS.
+Gemma rozegrała Nim i 12 legalnych ruchów Memory (1 para, potem limit adaptera);
+HRM Memory trafia parę, następnie powtarza dopasowane karty. Brak deklaracji
+zaliczonej strategii wszystkich modeli. Kod 1e1405d wdrożony lokalnie, bez GH.
