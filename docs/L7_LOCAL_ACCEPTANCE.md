@@ -116,3 +116,9 @@ jawny kontekst Gemmy4 do 8192. Końcowe bramki657Python/44 frontend PASS.
 Gemma rozegrała Nim i 12 legalnych ruchów Memory (1 para, potem limit adaptera);
 HRM Memory trafia parę, następnie powtarza dopasowane karty. Brak deklaracji
 zaliczonej strategii wszystkich modeli. Kod 1e1405d wdrożony lokalnie, bez GH.
+
+## Powtórzenia prób ograniczonych budżetami
+
+[Raport siedmiu powtórzeń](LIMIT_RETRIES_20261022.md): większe budżety,
+odtworzenie ruchów i jawne przyczyny przerwania; bez deklarowania zaliczonych gier.
+Kod 361bf40, lokalny pr-fast: 663 Python i 45 frontend PASS.

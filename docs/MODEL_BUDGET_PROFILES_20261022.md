@@ -10,7 +10,7 @@ Użytkownik wymaga przywracania ostatnio zapisanych wartości po zmianie modelu.
 | RWKV-7 G1k 2.9B | nazwa przypiętego checkpointu ctx25600 | 8192 | 1024 |
 | HRM-Text 1B | max_position_embeddings=4096 | 4096 | 1024 |
 | Huginn-0125 | block_size=4096 | 4096 | 1024 |
-| Gemma4/Ollama | istniejący adapter v2 | 8192 | 1024 |
+| Gemma4/Ollama | lokalne metadata: context_length=131072 | 16384 | 1024 |
 
 Dotychczasowe 2048/256 były częściowo limitami naszej implementacji.
 Zmiana przechodzi przez formularz, API, GenerationParameters i RwkvParameters,
@@ -81,3 +81,9 @@ LLM ani panelu klasycznych rozmów. Limity dotyczą nowego toru ewaluacji gier.
 Prywatny zapis odbioru:
 ~/.local/state/venom/cooperation-lab/acceptance/model-budgets-20261022/.
 Nie pobierano nowych pakietów ani wag, nie publikowano na GH.
+
+## Powtórzenia po zwiększeniu budżetów
+
+Kod 361bf40 udostępnia Gemmie4/Ollama kontekst do 16384 w v2.
+Domyślne i zapisane profile operatora pozostają bez automatycznego nadpisania.
+[Wyniki siedmiu prób](LIMIT_RETRIES_20261022.md) pokazują także ograniczenia jakości.

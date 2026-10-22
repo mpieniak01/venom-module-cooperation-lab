@@ -58,7 +58,7 @@ aktualny stan. W Memory lista wszystkich 120 par jest zapisana równoważnie jak
 wybór dwóch różnych indeksów spośród niesparowanych kart. Nie ujawnia to ich
 wartości. Historia nie jest potajemnie skracana. Przekroczenie kontekstu daje
 `context_limit`. Budżet wynosi domyślnie 2048; zweryfikowana Gemma4/Ollama w v2 może użyć
-do 8192 przez pole Budżet kontekstu. RWKV również do 8192; HRM/Huginn do 4096.
+do 16384 przez pole Budżet kontekstu. RWKV do 8192; HRM/Huginn do 4096.
 Historia nie jest obcinana; konserwatywny limit bajtowy Ollama może zatrzymać
 próbę wcześniej niż rzeczywisty limit tokenów. [Wyniki Nim/Memory](NIM_MEMORY_FORMAT_20261022.md).
 
