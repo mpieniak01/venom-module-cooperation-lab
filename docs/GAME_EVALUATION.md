@@ -58,7 +58,7 @@ aktualny stan. W Memory lista wszystkich 120 par jest zapisana równoważnie jak
 wybór dwóch różnych indeksów spośród niesparowanych kart. Nie ujawnia to ich
 wartości. Historia nie jest potajemnie skracana. Przekroczenie kontekstu daje
 `context_limit`. Budżet wynosi domyślnie 2048; zweryfikowana Gemma4/Ollama w v2 może użyć
-do 8192 przez pole Budżet kontekstu. Pozostałe adaptery nadal do 2048.
+do 8192 przez pole Budżet kontekstu. RWKV również do 8192; HRM/Huginn do 4096.
 Historia nie jest obcinana; konserwatywny limit bajtowy Ollama może zatrzymać
 próbę wcześniej niż rzeczywisty limit tokenów. [Wyniki Nim/Memory](NIM_MEMORY_FORMAT_20261022.md).
 
@@ -73,7 +73,7 @@ Lista pokazuje również inne modele katalogu, ale brak adaptera protokołu v2
 blokuje START z przyczyną. Nie następuje niewidoczna zamiana modelu.
 Huginn stosuje rzeczywiste `num_steps` 8/16/32/64; pozostałe modele raportują
 zastosowane iteracje jako brak danych. Każda decyzja ma jeden limit odpowiedzi
-(8–256 tokenów) i czasu (1–90 s), bez ponawiania decyzji ani zmiany wybranego ruchu przez parser.
+(8–1024 tokenów) i czasu (1–300 s), bez ponawiania decyzji ani zmiany wybranego ruchu przez parser.
 
 **Ograniczenie obecnego odbioru:** modele mogą odpowiedzieć rozumowaniem lub
 niepoprawnym JSON. Ruch jest wtedy `invalid_format`, a nie poprawną grą.
@@ -83,6 +83,14 @@ Nie deklarujemy zaliczonej jakości strategii ani poprawy dzięki carry.
 Surowych wyników nie należy zestawiać bezpośrednio z dawnymi współrzędnymi TTT,
 gdzie maskowanie wymuszało legalną odpowiedź. Wyniki odbioru są oddzielone od
 zaliczenia technicznej poprawności środowiska.
+
+## Limity pamiętane dla modelu
+
+Wybór modelu automatycznie przywraca jego ostatnio zapisany kontekst, tokeny
+odpowiedzi i czas decyzji. **Zapisz limity modelu** utrwala je w Venomie;
+niezapisane zmiany nie przechodzą na inne modele. Profile przetrwają odświeżenie
+strony. Bez wcześniejszego zapisu model korzysta z wartości domyślnych.
+[Analiza, zakres i odbiór profili](MODEL_BUDGET_PROFILES_20261022.md).
 
 ## Reguły i odniesienia
 
