@@ -21,7 +21,7 @@ RWKV_SPEC = ModelSpec(
     digest=MODEL_SHA256,
     tokenizer_hash=TOKENIZER_SHA256,
     template_hash=hashlib.sha256(RWKV_TEMPLATE.encode()).hexdigest(),
-    runtime=f"rwkv==0.8.32;torch==2.13.0;cuda13.0;{OVERLAY_RUNTIME}",
+    runtime=f"rwkv==0.8.32;torch==2.13.0;cuda13.0;{OVERLAY_RUNTIME};rwkv-chat-v2",
     quantization="float16",
 )
 RWKV_29_SPEC = ModelSpec(

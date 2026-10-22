@@ -32,8 +32,11 @@ class GenerationParameters:
     temperature: float = 0.8
     top_p: float = 0.5
     seed: int = 0
+    profile: str = "chat"
 
     def __post_init__(self) -> None:
+        if self.profile not in {"chat", "structured"}:
+            raise LabError("invalid_parameters", 422)
         for name, lower, upper in (
             ("max_new_tokens", 1, 256),
             ("seed", 0, 2**31 - 1),
@@ -80,6 +83,7 @@ class GenerationResult:
     stop_reason: str
     effective_parameters: Mapping[str, Any]
     quiescent: bool
+    raw_text: str | None = None
 
 
 class Lease(Protocol):

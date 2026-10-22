@@ -325,3 +325,40 @@ def test_cancel_during_work_never_commits_partial_private_state(phase, tokenizer
     assert result["input_tokens"] == (16 if phase == "prefill" else 1)
     assert result["output_tokens"] == (0 if phase == "prefill" else 1)
     assert private == states()
+
+
+def test_structured_profile_has_no_chat_penalties_and_preserves_raw_separator(
+    tokenizer,
+):
+    logits = torch.zeros(4)
+    logits[2] = 1
+    assert (
+        worker._sample_token(
+            logits,
+            {2: 10.0},
+            {"profile": "structured", "temperature": 0, "top_p": 0},
+            torch,
+        )
+        == 2
+    )
+    assert (
+        worker._sample_token(
+            logits, {2: 10.0}, {"profile": "chat", "temperature": 0, "top_p": 0}, torch
+        )
+        != 2
+    )
+    model = Model()
+    model.stop = True
+    result = worker._generate(
+        model,
+        tokenizer,
+        states(),
+        threading.Event(),
+        command(profile="structured"),
+        torch,
+        False,
+    )
+    assert result["raw_text"] == "\n\n"
+    assert result["text"] == ""
+    assert result["effective_parameters"]["alpha_presence"] == 0
+    assert result["effective_parameters"]["alpha_frequency"] == 0

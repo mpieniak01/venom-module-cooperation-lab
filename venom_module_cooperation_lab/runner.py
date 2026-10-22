@@ -16,7 +16,7 @@ from .errors import LabError
 from .peer_review import review_step
 from .run_config import OPERATOR_MODES, Budgets, RunConfig, RunRequest
 from .storage import TERMINAL, LabStore, _identifier
-from .tic_tac_toe import TicTacToe
+from .tic_tac_toe import TicTacToe, parse_move
 
 OWNER = "local_operator"
 _ALLOWED_KINDS = {"message", "proposal", "accept", "ask", "evidence", "complete"}
@@ -568,6 +568,20 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         history = job.histories[participant]
+        if (
+            job.game is not None
+            and job.config.public()["model"]["architecture"] == "rwkv7"
+        ):
+            observation = job.game.recurrent_prompt(
+                participant, job.config.communication_language
+            )
+            if history[-1].role == "user":
+                history[-1] = ChatMessage(
+                    "user", history[-1].content + "\n" + observation
+                )
+            else:
+                history.append(ChatMessage("user", observation))
+            return history
         if job.game is not None:
             # The authoritative board already contains every accepted move.
             # Keep the last actual peer message for causal delivery/reply tracing,
@@ -621,6 +635,15 @@ class LabRunner:
             top_p=config.top_p,
             seed=config.seed,
         )
+        if job.game is not None and config.public()["model"]["architecture"] == "rwkv7":
+            parameters = GenerationParameters(
+                max_new_tokens=config.budgets.max_new_tokens,
+                max_context_tokens=config.budgets.max_context_tokens,
+                temperature=0.0,
+                top_p=0.0,
+                seed=config.seed,
+                profile="structured",
+            )
         completed: set[str] = set()
         turns = 1 if config.mode == "single" else config.budgets.max_turns
         for index in range(turns):
@@ -724,10 +747,16 @@ class LabRunner:
         usage = self._charge(job, result)
         self._emit(job, "usage", {"turn_id": turn_id, **usage})
         message = self._message(job, participant, turn_id, result.text)
+        if getattr(result, "raw_text", None) is not None:
+            message["raw_content"] = result.raw_text
         board = None
         if job.game is not None:
+            message["raw_content"] = getattr(result, "raw_text", None) or result.text
             try:
-                board = job.game.play(participant, message["content"])
+                move, move_format = parse_move(message["content"])
+                message["game_move"] = move
+                message["move_format"] = move_format
+                board = job.game.play(participant, move)
             except LabError:
                 message["delivered_to"] = []
                 self._emit(job, "message", message)
@@ -743,11 +772,20 @@ class LabRunner:
                 ChatMessage(
                     "user",
                     (
-                        f"Wiadomość {message['message_id']} od {participant}: "
-                        if job.config.communication_language == "pl"
-                        else f"Message {message['message_id']} from {participant}: "
-                    )
-                    + message["content"],
+                        (
+                            f"Przeciwnik zagrał {board['last_move']}."
+                            if job.config.communication_language == "pl"
+                            else f"Opponent played {board['last_move']}."
+                        )
+                        if board is not None
+                        and job.config.public()["model"]["architecture"] == "rwkv7"
+                        else (
+                            f"Wiadomość {message['message_id']} od {participant}: "
+                            if job.config.communication_language == "pl"
+                            else f"Message {message['message_id']} from {participant}: "
+                        )
+                        + message["content"]
+                    ),
                 )
             )
             job.last_delivered[recipient] = message["message_id"]

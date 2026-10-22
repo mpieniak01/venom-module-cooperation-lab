@@ -68,8 +68,11 @@ class RwkvParameters:
     top_p: float = 0.5
     seed: int = 0
     max_context_tokens: int = 2048
+    profile: str = "chat"
 
     def __post_init__(self) -> None:
+        if self.profile not in {"chat", "structured"}:
+            raise RwkvError("invalid_parameters")
         for name, lower, upper in (
             ("max_new_tokens", 1, 256),
             ("seed", 0, 2**31 - 1),

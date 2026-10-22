@@ -153,8 +153,8 @@ async def test_game_runner_uses_authoritative_board_and_stops_on_actual_result(
     from test_adapters import configured_ollama, stream
 
     config = row["config"]
-    assert config["scheduler"] == "board-state-v2"
-    assert config["scenario_version"].endswith("-board-context-3")
+    assert config["scheduler"] == "board-state-v3"
+    assert config["scenario_version"].endswith("-board-context-4")
     for index, (participant, history, parameters) in enumerate(adapters[0].recorded):
         assert len(history) <= 3
         assert (
@@ -256,3 +256,94 @@ def test_empty_and_full_board_lists_have_explicit_empty_marker():
     for i, move in enumerate(DRAW):
         game.play("A" if i % 2 == 0 else "B", move)
     assert "Allowed empty squares: none." in game.prompt("A", "en")
+
+
+@pytest.mark.parametrize(
+    "text,style",
+    [
+        ("C3", "coordinate"),
+        ("`c3`", "inline_code"),
+        ("```\nC3\n```", "code_block"),
+        ("Move: C3.", "label"),
+        ("Ruch: C3", "label"),
+        ("Message " + "a" * 32 + " from A: C3", "message_echo"),
+    ],
+)
+def test_explicit_move_formats_preserve_legality(text, style):
+    from venom_module_cooperation_lab.tic_tac_toe import parse_move
+
+    assert parse_move(text) == ("C3", style)
+    game = TicTacToe()
+    game.play("A", text)
+    with pytest.raises(LabError, match="occupied_game_square"):
+        game.play("B", text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "A1 or C3",
+        "I might block A1, but choose C3",
+        "Move: C3\nMove: A1",
+        "1 2 3\nA X . .\nB . O .\nC . . .",
+        "<think>C3</think>",
+        "Message " + "a" * 32 + " from A: A1 C3",
+    ],
+)
+def test_move_parser_never_guesses_from_boards_or_multiple_options(text):
+    from venom_module_cooperation_lab.tic_tac_toe import parse_move
+
+    with pytest.raises(LabError, match="invalid_game_move"):
+        parse_move(text)
+
+
+@pytest.mark.asyncio
+async def test_recurrent_game_preserves_history_and_structured_profile(rig):
+    from dataclasses import asdict, replace
+
+    spec = replace(SPEC, architecture="rwkv7")
+    runner, adapters = rig
+    runner.model_catalog = lambda: [spec]
+    runner.store.put_document(
+        "qualifications",
+        spec.model_id,
+        {**asdict(spec), "qualified": True, "receipt_id": "test-recurrent"},
+        owner=OWNER,
+    )
+    factory = runner.adapter_factory
+
+    def configured(model, lease):
+        adapter = factory(model, lease)
+        adapter.responses = [
+            "A1",
+            "B1",
+            "Message " + "a" * 32 + " from A: A2",
+            "B2",
+            "A3",
+        ]
+        return adapter
+
+    runner.adapter_factory = configured
+    row, _ = await runner.start(
+        request(communication_language="en", mode="game_competitive"), "recurrent-game"
+    )
+    await asyncio.wait_for(runner.jobs[row["id"]].task, timeout=5)
+    assert runner.snapshot(row["id"])["run"]["status"] == "completed"
+    recorded = adapters[0].recorded
+    for index, (_, history, parameters) in enumerate(recorded):
+        assert parameters.profile == "structured"
+        assert parameters.temperature == parameters.top_p == 0
+        assert not any("Message " in m.content for m in history if m.role == "user")
+        if index >= 2:
+            previous = recorded[index - 2][1]
+            assert list(history[: len(previous)]) == list(previous)
+            assert history[len(previous)].role == "assistant"
+    events = runner.store.events(row["id"], owner=OWNER)
+    wrapped = next(
+        e["payload"]
+        for e in events
+        if e["kind"] == "message" and e["payload"].get("move_format") == "message_echo"
+    )
+    assert wrapped["raw_content"].endswith("A2")
+    assert wrapped["game_move"] == "A2"
+    assert wrapped["content"].startswith("Message ")

@@ -251,7 +251,7 @@ class RunConfig:
             model_json=json.dumps(model, sort_keys=True, ensure_ascii=False),
             scenario_id=scenario.scenario_id,
             scenario_version=(
-                scenario.version + "-board-context-3"
+                scenario.version + "-board-context-4"
                 if request.scenario_id == "tic_tac_toe"
                 else scenario.version
             ),
@@ -279,7 +279,7 @@ class RunConfig:
             if request.mode in OPERATOR_MODES or request.scenario_id == "tic_tac_toe"
             else (1 if language is None else 2),
             participant_count=3 if request.mode in OPERATOR_MODES else 2,
-            scheduler="board-state-v2"
+            scheduler="board-state-v3"
             if request.scenario_id == "tic_tac_toe"
             else (
                 "author-review-revise-v1"

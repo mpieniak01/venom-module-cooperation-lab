@@ -19,6 +19,7 @@ from venom_module_cooperation_lab.adapters.base import (
 )
 from venom_module_cooperation_lab.adapters.ollama import NoRedirect, OllamaAdapter
 from venom_module_cooperation_lab.adapters.rwkv import RecurrentAdapter
+from venom_module_cooperation_lab.adapters.rwkv_process import RwkvError, RwkvParameters
 from venom_module_cooperation_lab.errors import LabError
 
 
@@ -165,7 +166,7 @@ def test_recurrent_contexts_append_replay_and_cleanup():
         ).effective_parameters["context_mode"]
         == "append"
     )
-    assert process.calls[-1][1].startswith("\n\nUser: continue")
+    assert process.calls[-1][1].startswith("User: continue")
     adapter.generate("B", first, GenerationParameters(), time.monotonic() + 2)
     assert adapter.state()["history_messages"] == {"A": 4, "B": 2}
     adapter.generate("A", first, GenerationParameters(), time.monotonic() + 2)
@@ -392,3 +393,31 @@ def test_rwkv_29_identity_and_factory():
     assert adapter._process.config.model_path.name == spec.artifact
     assert spec.digest != registry.RWKV_SPEC.digest
     assert spec.tokenizer_hash == registry.RWKV_SPEC.tokenizer_hash
+
+
+@pytest.mark.parametrize(
+    "reason,prefix", [("eos", "\n\n"), ("stop_sequence", ""), ("length", "\n\n")]
+)
+def test_recurrent_append_preserves_exact_round_boundary(reason, prefix):
+    adapter = RecurrentAdapter(
+        registry.RWKV_SPEC, Lease(), Path("/unused"), Path("/unused")
+    )
+    process = adapter._process = Process()
+    process.reason = reason
+    first = [ChatMessage("user", "start")]
+    adapter.generate("A", first, GenerationParameters(), time.monotonic() + 5)
+    adapter.generate(
+        "A",
+        [*first, ChatMessage("assistant", "answer"), ChatMessage("user", "next")],
+        GenerationParameters(),
+        time.monotonic() + 5,
+    )
+    assert process.calls[-1][1] == prefix + "User: next\n\nAssistant:"
+    adapter.reset("A")
+    assert adapter._round_ended["A"] is False
+
+
+@pytest.mark.parametrize("parameters", [GenerationParameters, RwkvParameters])
+def test_unknown_generation_profile_is_rejected(parameters):
+    with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
+        parameters(profile="unknown")

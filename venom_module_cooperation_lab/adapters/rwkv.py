@@ -31,6 +31,7 @@ class RecurrentAdapter(ModelAdapter):
             RwkvConfig(model_path, runtime_root, model_sha256=spec.digest)
         )
         self._histories: dict[str, list[ChatMessage]] = {"A": [], "B": []}
+        self._round_ended = {"A": False, "B": False}
 
     def load(self, deadline_s: float) -> dict[str, Any]:
         with self._lease.operation(kind="generation"):
@@ -64,7 +65,7 @@ class RecurrentAdapter(ModelAdapter):
                 )
                 + "\n\nAssistant:"
             )
-            if appending:
+            if appending and not self._round_ended[participant_id]:
                 prompt = "\n\n" + prompt
             try:
                 response = self._process.generate(
@@ -76,12 +77,16 @@ class RecurrentAdapter(ModelAdapter):
             except RwkvError as exc:
                 raise LabError(str(exc)) from exc
             if response["stop_reason"] not in {"cancelled", "deadline"}:
+                self._round_ended[participant_id] = (
+                    response["stop_reason"] == "stop_sequence"
+                )
                 self._histories[participant_id] = [
                     *messages,
                     ChatMessage("assistant", response["text"]),
                 ]
             return GenerationResult(
                 text=response["text"],
+                raw_text=response.get("raw_text", response["text"]),
                 input_tokens=response["input_tokens"],
                 output_tokens=response["output_tokens"],
                 ttft_s=response.get("ttft_s"),
@@ -105,6 +110,7 @@ class RecurrentAdapter(ModelAdapter):
             result = self._process.reset(participant_id)
             for participant in (participant_id,) if participant_id else ("A", "B"):
                 self._histories[participant] = []
+                self._round_ended[participant] = False
             return result
 
     def state(self) -> dict[str, Any]:
@@ -124,6 +130,7 @@ class RecurrentAdapter(ModelAdapter):
         with self._lease.cleanup(confirm_quiescent=self.is_quiescent):
             result = self._process.close()
             self._histories = {"A": [], "B": []}
+            self._round_ended = {"A": False, "B": False}
             return result
 
     def is_quiescent(self) -> bool:

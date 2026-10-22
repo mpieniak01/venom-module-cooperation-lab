@@ -217,8 +217,9 @@ def _sample_token(
     logits = logits.float()
     if not bool(torch.isfinite(logits).all()):
         return None
-    for token, frequency in occurrence.items():
-        logits[token] -= 2.0 + frequency * 0.1
+    if params.get("profile", "chat") != "structured":
+        for token, frequency in occurrence.items():
+            logits[token] -= 2.0 + frequency * 0.1
     if params["temperature"] == 0 or params["top_p"] == 0:
         return int(torch.argmax(logits).item())
     probabilities = torch.softmax(logits, dim=-1)
@@ -282,6 +283,7 @@ def _generation_receipt(
 ) -> dict[str, Any]:
     return {
         "text": tokenizer.decode(generation.output).split("\n\n", 1)[0].strip(),
+        "raw_text": tokenizer.decode(generation.output),
         "stop_reason": generation.reason,
         "input_tokens": generation.consumed,
         "output_tokens": len(generation.output),
@@ -290,8 +292,8 @@ def _generation_receipt(
         "quiescent": True,
         "effective_parameters": {
             **params,
-            "alpha_presence": 2.0,
-            "alpha_frequency": 0.1,
+            "alpha_presence": 0.0 if params.get("profile") == "structured" else 2.0,
+            "alpha_frequency": 0.0 if params.get("profile") == "structured" else 0.1,
             "alpha_decay": 0.99,
             "prefill_chunk_tokens": 16,
         },
