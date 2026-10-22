@@ -27,7 +27,9 @@ class RecurrentAdapter(ModelAdapter):
         self, spec: ModelSpec, lease: Lease, model_path: Path, runtime_root: Path
     ) -> None:
         self.spec, self._lease = spec, lease
-        self._process = RwkvAdapter(RwkvConfig(model_path, runtime_root))
+        self._process = RwkvAdapter(
+            RwkvConfig(model_path, runtime_root, model_sha256=spec.digest)
+        )
         self._histories: dict[str, list[ChatMessage]] = {"A": [], "B": []}
 
     def load(self, deadline_s: float) -> dict[str, Any]:

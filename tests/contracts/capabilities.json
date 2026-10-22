@@ -22,6 +22,27 @@
       ]
     },
     {
+      "model_id": "rwkv7-g1k-2.9b",
+      "architecture": "rwkv7",
+      "provider": "local_component",
+      "artifact": "rwkv7-g1k-2.9b-20260930-ctx25600.pth",
+      "revision": "2a17e911155a5be23a4ed2792e978c77038f14e2",
+      "digest": "d8f8ecd4af8d706f867ac8a74284f35c0e3b9f863e7b09bb4d4031480c8b28b2",
+      "tokenizer_hash": "8324476023347dec2964625ccb2075c864d250a9c6d9a74f36daba628de8c008",
+      "template_hash": "319c9360535a42f56157584680f2fb8fa173f4fbf44c30c17e80a11b05507f47",
+      "runtime": "rwkv==0.8.32;torch==2.13.0;cuda13.0;certifi==2026.10.19;filelock==4.2.1",
+      "quantization": "float16",
+      "qualification": "host_acceptance_pending",
+      "qualified": false,
+      "availability_reason": "host_acceptance_pending",
+      "capabilities": [
+        "text",
+        "two_private_contexts",
+        "cancel",
+        "reset"
+      ]
+    },
+    {
       "model_id": "qwen3-4b-control",
       "architecture": "qwen3",
       "provider": "ollama",

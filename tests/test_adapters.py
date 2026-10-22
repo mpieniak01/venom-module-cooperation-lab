@@ -49,7 +49,7 @@ class Lease:
 
 def test_registry_is_pure_and_fixed(monkeypatch):
     models = registry.list_model_specs()
-    assert len(models) == 2
+    assert len(models) == 3
     assert all(not spec.qualified for spec in models)
     assert "http" not in json.dumps([asdict(model) for model in models])
     assert registry.get_model_spec("rwkv7-g1d-0.4b").digest
@@ -382,3 +382,13 @@ def test_ollama_close_refuses_unconfirmed_model_unload(monkeypatch):
     with pytest.raises(LabError, match="runtime_not_quiescent"):
         adapter.close()
     assert not adapter.is_quiescent()
+
+
+def test_rwkv_29_identity_and_factory():
+    spec = registry.get_model_spec("rwkv7-g1k-2.9b")
+    adapter = registry.create_adapter(spec.model_id, Lease())
+    assert isinstance(adapter, RecurrentAdapter)
+    assert adapter._process.config.model_sha256 == spec.digest
+    assert adapter._process.config.model_path.name == spec.artifact
+    assert spec.digest != registry.RWKV_SPEC.digest
+    assert spec.tokenizer_hash == registry.RWKV_SPEC.tokenizer_hash

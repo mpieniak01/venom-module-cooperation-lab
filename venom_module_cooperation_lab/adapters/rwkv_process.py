@@ -39,12 +39,13 @@ class RwkvConfig:
     model_path: Path
     runtime_root: Path
     strategy: str = "cuda fp16"
+    model_sha256: str | None = None
 
     def validate(self) -> None:
         if self.strategy not in {"cuda fp16", "cpu fp32"}:
             raise RwkvError("unsupported_precision")
         expected = (
-            (self.model_path, MODEL_SHA256),
+            (self.model_path, self.model_sha256 or MODEL_SHA256),
             (self.runtime_root / "rwkv" / "model.py", RUNTIME_SHA256),
             (self.runtime_root / "rwkv" / "rwkv_vocab_v20230424.txt", TOKENIZER_SHA256),
         )
