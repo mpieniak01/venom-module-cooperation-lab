@@ -136,6 +136,9 @@ class EvaluationService:
             "model": model,
             "model_identity": {k: model.get(k) for k in MODEL_IDENTITY_FIELDS},
             "snapshot_restore": False,
+            "prompt_policy": "direct-game-v2"
+            if model.get("architecture") == "hrm_text"
+            else "model-template",
             "generation_planned": {
                 "temperature": 0.0
                 if request.decoding == "greedy"
@@ -291,6 +294,13 @@ class EvaluationService:
                     else "strict-json-v2",
                 )
                 != check["configuration"]["response_mapper"]
+                or previous["config"].get(
+                    "prompt_policy",
+                    "legacy-direct-examples"
+                    if check["configuration"]["model"].get("architecture") == "hrm_text"
+                    else "model-template",
+                )
+                != check["configuration"]["prompt_policy"]
             ):
                 raise LabError("evaluation_identity_changed", 409)
             state = copy.deepcopy(previous)
@@ -581,6 +591,7 @@ class EvaluationService:
             ),
             profile="structured",
             num_steps=request.num_steps,
+            session_protocol="game-eval-v2",
         )
         event_id = ":".join(
             str(v)

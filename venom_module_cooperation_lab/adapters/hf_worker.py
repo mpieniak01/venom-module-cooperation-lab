@@ -15,7 +15,11 @@ from typing import Any
 
 
 def prompt_text(
-    model_id: str, messages: list[dict[str, str]], tokenizer: Any, structured: bool
+    model_id: str,
+    messages: list[dict[str, str]],
+    tokenizer: Any,
+    structured: bool,
+    session_protocol: str = "v1",
 ) -> tuple[str, str]:
     if model_id == "huginn-0125":
         return tokenizer.apply_chat_template(
@@ -26,7 +30,7 @@ def prompt_text(
     )
     # HRM is PrefixLM, not an assistant-tuned chat model; make the task explicit.
     task = "\n".join(m["role"].title() + ": " + m["content"] for m in messages)
-    if structured:
+    if structured and session_protocol != "game-eval-v2":
         task = (
             "Examples of short direct answers:\n"
             "Question: What is 2 + 2? Answer: 4\n"
@@ -35,7 +39,9 @@ def prompt_text(
         )
     return (
         "<|im_start|>" + condition + task + "<|im_end|>",
-        "direct" if structured else "synth,cot",
+        "direct-game-v2"
+        if structured and session_protocol == "game-eval-v2"
+        else ("direct" if structured else "synth,cot"),
     )
 
 
@@ -96,7 +102,11 @@ def generate(
         raise RuntimeError("unsupported_compute_steps")
     messages = json.loads(command["prompt"])
     text, condition = prompt_text(
-        config["model_id"], messages, tokenizer, params["profile"] == "structured"
+        config["model_id"],
+        messages,
+        tokenizer,
+        params["profile"] == "structured",
+        params.get("session_protocol", "v1"),
     )
     tokens = tokenizer.encode(text, add_special_tokens=False)
     if len(tokens) + params["max_new_tokens"] > params["max_context_tokens"]:

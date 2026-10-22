@@ -291,3 +291,22 @@ def test_huginn_loader_adapts_only_pinned_class(monkeypatch):
     )
     assert calls[0][2] == {"lm_head.weight": "transformer.wte.weight"}
     assert calls[0][1]["local_files_only"] is True
+
+
+def test_hrm_game_prompt_uses_actual_observation_without_foreign_examples():
+    messages = [
+        {
+            "role": "user",
+            "content": (
+                '{"instruction":"Reply cards=I,J","observation":{"last_reveal":[]}}'
+            ),
+        }
+    ]
+    text, condition = worker.prompt_text(
+        "hrm-text-1b", messages, Tokenizer(), True, "game-eval-v2"
+    )
+    assert condition == "direct-game-v2"
+    assert messages[0]["content"] in text
+    assert "Paris" not in text and "2 + 2" not in text and "Examples" not in text
+    legacy, condition = worker.prompt_text("hrm-text-1b", messages, Tokenizer(), True)
+    assert condition == "direct" and "Paris" in legacy

@@ -792,3 +792,32 @@ async def test_memory_prompt_requires_indices_not_generic_match(eval_rig):
     assert wire["observation"]["last_reveal"] == []
     assert all(value is None for value in wire["observation"]["board"])
     assert adapters[-1].calls == 1
+
+
+@pytest.mark.asyncio
+async def test_gemma_large_budget_reaches_generation_not_legacy_parameter_validation(
+    eval_rig,
+):
+    service, adapters, _, specs = eval_rig
+    specs[0] = replace(
+        specs[0], architecture="gemma4", provider="ollama", runtime="ollama==0.40.6"
+    )
+    service.runner.store.put_document(
+        "qualifications",
+        specs[0].model_id,
+        {
+            **asdict(specs[0]),
+            "qualified": True,
+            "receipt_id": "cpu-fixture-not-model-qualification",
+        },
+        owner=OWNER,
+    )
+    row, _ = await service.start(
+        request(response_mode="mapped", max_context_tokens=8192), "gemma-context"
+    )
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "game_completed"
+    actual = adapters[-1].recorded[0][2]
+    assert (
+        actual.max_context_tokens == 8192 and actual.session_protocol == "game-eval-v2"
+    )
