@@ -54,3 +54,6 @@ nowe linie 96,04% przy progu 80%. Test SQLite 101. zapisu obejmuje obie historie
 kaskadowe usunięcie zdarzeń, aktywny cleanup, obcego ownera i rollback błędu.
 Pierwszy przebieg frontendu odrzucił poprzednią etykietę licznika; poprawiono
 oczekiwanie na „Zapisane próby i serie” i ponowiono frontend/pozostałe bramki.
+
+
+Późniejsza próba na [klasycznej grze](CLASSIC_FIVE_20261022.md) ukończyła 15/15 partii przy istniejącym ograniczniku legalnych współrzędnych. To inny protokół; wyniki obu badań pozostają osobne.
