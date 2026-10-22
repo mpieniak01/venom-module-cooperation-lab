@@ -76,7 +76,7 @@ class GenerationParameters:
             (
                 "max_context_tokens",
                 1,
-                8192 if self.session_protocol == "game-eval-v2" else 2048,
+                16384 if self.session_protocol == "game-eval-v2" else 2048,
             ),
         ):
             value = getattr(self, name)

@@ -92,7 +92,7 @@ class EvaluationService:
                 "episodes": 128,
                 "decisions": 384,
                 "snapshot_bytes": self.runner.store.limits.run_bytes,
-                "context_tokens": 8192,
+                "context_tokens": 16384,
                 "wall_seconds": 1800,
                 "snapshot_restore": False,
             },

@@ -14,7 +14,7 @@ from .sessions import capabilities_for
 
 class ModelBudgets(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    max_context_tokens: int = Field(ge=128, le=8192)
+    max_context_tokens: int = Field(ge=128, le=16384)
     max_new_tokens: int = Field(ge=8, le=1024)
     decision_timeout_s: int = Field(ge=1, le=300)
 

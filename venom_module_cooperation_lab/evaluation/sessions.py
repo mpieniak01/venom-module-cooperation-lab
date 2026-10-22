@@ -41,9 +41,13 @@ def capabilities_for(model_spec: dict[str, Any]) -> dict[str, Any]:
         "episode_memories": ["fresh", "carry"] if supported else [],
         "compute_steps": [8, 16, 32, 64] if architecture == "huginn_raven" else [],
         "snapshot_restore": False,
-        "max_context_tokens": 8192
-        if architecture == "rwkv7" or (ollama_replay and architecture == "gemma4")
-        else (4096 if architecture in {"hrm_text", "huginn_raven"} else 2048),
+        "max_context_tokens": 16384
+        if ollama_replay and architecture == "gemma4"
+        else (
+            8192
+            if architecture == "rwkv7"
+            else (4096 if architecture in {"hrm_text", "huginn_raven"} else 2048)
+        ),
         "max_new_tokens": 1024 if supported else 256,
         "max_decision_timeout_s": 300,
         "max_history_bytes": 16384,
