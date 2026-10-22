@@ -18,8 +18,9 @@ jego obserwacji. Brak treningu wag, promocji modelu i pobierania nowych checkpoi
 Plan sprawdzono na lokalnym module `c7e11cc` (gałąź `codex/rwkv7-g1k-2.9b`),
 core `4ef755a6`. Baza GitHub main modułu i bieżąca gałąź wymagają ponownego
 porównania przed rozpoczęciem implementacji. Lokalne adaptery HRM/Huginn i serie
-nie mogą zniknąć przy zakładaniu nowej gałęzi. Docelowa gałąź implementacji:
-`codex/l7-game-evaluation`; utworzyć po ustaleniu wydania jej wymaganych poprzedników.
+nie mogą zniknąć przy zakładaniu nowej gałęzi. Sprawdzenie po fetch 2026-10-22: nie jesteśmy na main, wszystkie 9 zaległych
+commitów są na `codex/rwkv7-g1k-2.9b`; całość L7 kontynuujemy na tej wspólnej
+gałęzi. Nie tworzymy następnej kopii ani stosu cherry-picków.
 Nie zakładać, że lokalny kod jest już na zdalnym main ani tworzyć PR ze złą bazą.
 
 W badaniu operatora 2026-10-22:
@@ -39,6 +40,15 @@ Wykryte ograniczenia: runner nadpisuje temperaturę 0.8/top_p 0.5 na 0/0,
 dekoder wymusza legalne współrzędne, stany są resetowane przed kolejną partią,
 pamięć to publiczne wyniki ostatnich 3 gier, brak etapu refleksji i zamiany stron.
 Nie wolno przedstawiać dotychczasowych testów transportu jako dowodu nauki.
+
+## Reuse zamiast ponownego budowania wszystkiego
+
+[Decyzja po researchu kodu i licencji](L7-reuse-decision.md): zachować lokalny TTT,
+adaptować mały podzbiór TextArena (MIT, przypięty SHA) dla Nim/Memory/Sokobana.
+Bez instalacji całego frameworka i jego dodatkowych SDK. W G0 zapisać provenance,
+licencje i rzeczywiście przejęte fragmenty; G1/G2 zawierają dostosowanie reguł,
+RNG, parsera, widoczności i referencji. Samo istnienie gry upstream nie oznacza
+zgodności z naszymi zasadami ani z odbiorem.
 
 ## Scope i integracja
 

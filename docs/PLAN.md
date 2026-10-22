@@ -97,4 +97,6 @@ Repo: cooperation-lab; TTT/Nim/Memory/Sokoban, referencje, replay/native,
 fresh/carry, jawne dekodowanie i compute budget, raport i bezpieczne wznowienie.
 Stan **TODO / dokumentacja**, bez implementacji ani numeru PR GitHub. Plan
 uwzględnia powtarzalne błędy z prób operatora; nie zmienia historycznych wyników.
-Przed nową gałęzią ustalić wydanie lokalnych zależności z `codex/rwkv7-g1k-2.9b`.
+Cały zaległy kod jest już na `codex/rwkv7-g1k-2.9b` (9 commitów ponad zdalnym
+main po fetch); na tej gałęzi kontynuujemy. [Decyzja reuse](prs/L7-reuse-decision.md):
+lokalny TTT + adaptacja wybranych fragmentów TextArena, bez całej biblioteki.
