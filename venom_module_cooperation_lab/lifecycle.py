@@ -115,9 +115,9 @@ async def lifespan(app: Any):
             app.state.cooperation_lab_evaluations = evaluations
         yield
     finally:
-        evaluations = getattr(app.state, "cooperation_lab_evaluations", None)
-        if evaluations is not None:
-            await evaluations.close()
+        evaluation_service = getattr(app.state, "cooperation_lab_evaluations", None)
+        if evaluation_service is not None:
+            await evaluation_service.close()
         runner = getattr(app.state, "cooperation_lab_runner", None)
         if runner is not None:
             await runner.close()

@@ -80,6 +80,7 @@ class GameAdapter(FakeAdapter):
                 input_tokens=20,
                 output_tokens=8,
                 ttft_s=0.001,
+                peak_vram_bytes=self.settings.get("peak_vram_bytes"),
                 generation_s=0.002,
                 stop_reason=self.settings.get("stop_reason", "length"),
                 effective_parameters={
@@ -569,3 +570,13 @@ async def test_reflection_failure_is_visible_and_stops_carry_block(eval_rig):
     assert final["episodes"][0]["status"] == "game_completed"
     assert final["episodes"][0]["reflection_error"] == "runtime_error"
     assert final["episodes"][1]["status"] == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_available_vram_is_retained_and_missing_is_not_zero(eval_rig):
+    service, _adapters, settings, _specs = eval_rig
+    settings["peak_vram_bytes"] = 12345
+    row, _ = await service.start(request(), "vram-receipt")
+    result = await finish(service, row)
+    assert result["episodes"][0]["decisions"][0]["usage"]["peak_vram_bytes"] == 12345
+    assert result["summary"]["by_game"][0]["peak_vram_bytes"] == 12345

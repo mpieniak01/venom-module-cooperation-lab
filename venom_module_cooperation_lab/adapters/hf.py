@@ -144,5 +144,6 @@ class HfAdapter(RecurrentAdapter):
                 generation_s=result["generation_s"],
                 stop_reason=result["stop_reason"],
                 effective_parameters=result["effective_parameters"],
+                peak_vram_bytes=result.get("peak_vram_bytes"),
                 quiescent=result["quiescent"],
             )

@@ -595,6 +595,7 @@ class EvaluationService:
                 "input_tokens": result.input_tokens,
                 "output_tokens": result.output_tokens,
                 "ttft_s": result.ttft_s,
+                "peak_vram_bytes": result.peak_vram_bytes,
                 "effective_parameters": dict(result.effective_parameters),
             },
             "assessment": {},

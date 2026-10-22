@@ -100,6 +100,7 @@ class RecurrentAdapter(ModelAdapter):
                     **response.get("effective_parameters", {}),
                     "context_mode": "append" if appending else "replay",
                 },
+                peak_vram_bytes=response.get("peak_vram_bytes"),
                 quiescent=response.get("quiescent", False),
             )
 

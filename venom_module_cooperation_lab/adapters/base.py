@@ -113,6 +113,7 @@ class GenerationResult:
     effective_parameters: Mapping[str, Any]
     quiescent: bool
     raw_text: str | None = None
+    peak_vram_bytes: int | None = None
 
 
 class Lease(Protocol):
