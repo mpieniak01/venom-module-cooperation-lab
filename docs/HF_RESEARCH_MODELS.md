@@ -88,3 +88,11 @@ PASS, 96,09% coverage, 28 frontend PASS, Ruff/mypy/TS/lint/kontrakt hosta PASS**
 - [Huginn-0125 — karta modelu](https://huggingface.co/tomg-group-umd/huginn-0125)
 - [Recurrent pretraining — kod autorów](https://github.com/seal-rg/recurrent-pretraining)
 - [Wcześniejsza analiza HRM/Huginn/CTM](HUGINN_HRM_CTM_FEASIBILITY.md)
+
+
+## Porządkowanie historii — 2026-10-22
+
+Na polecenie operatora usunięto wszystkie pozostałe 94 próby przez API modułu.
+Kwalifikacje modeli i ustawienia pozostały zachowane. Przycisk **Usuń próbę**
+usuwa teraz wybraną zakończoną próbę po jednym kliknięciu, bez potwierdzenia.
+Podczas żądania jest zablokowany; aktywnej próby nadal nie można usunąć.

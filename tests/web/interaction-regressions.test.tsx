@@ -22,7 +22,7 @@ const run=(id:string,status:string):Run=>({id,status,created:1,last_seq:0,bytes:
 const response=(body:unknown,status=200)=>({ok:status<400,status,json:async()=>body})as Response;
 const flush=()=>act(async()=>{await new Promise((r)=>setImmediate(r));});
 const button=(box:Element,text:string)=>[...box.querySelectorAll("button")].find((b)=>b.textContent===text)!;
-test("history cannot hide STOP; late cancel cannot replace a newly selected run; deletion confirms a single ID",async()=>{
+test("history cannot hide STOP; late cancel cannot replace a newly selected run",async()=>{
  const old=globalThis.fetch;localStorage.clear();Source.all=[];
  let cancelResolve:((value:Response)=>void)|undefined;
  const active=run("active","running"),archive=run("archive","completed");
@@ -42,9 +42,8 @@ test("history cannot hide STOP; late cancel cannot replace a newly selected run;
   assert.equal(history.disabled,true);assert.equal(button(box,"Zatrzymaj").disabled,false);
   await act(async()=>button(box,"Zatrzymaj").click());
   await act(async()=>Source.all[0].emit({run_id:"active",seq:1,kind:"end",payload:{status:"completed"},timestamp:1}));
-  await act(async()=>button(box,"Usuń próbę").click());assert.ok(button(box,"Potwierdź usunięcie"));
   await act(async()=>{history.value="archive";history.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});await flush();
-  assert.equal(history.value,"archive");assert.equal(button(box,"Potwierdź usunięcie"),undefined);
+  assert.equal(history.value,"archive");
   await act(async()=>cancelResolve?.(response({run:run("active","cancelling")},202)));await flush();
   assert.equal(history.value,"archive");
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
@@ -145,5 +144,36 @@ test("operator prompt reaches the API once per key; retry retains draft, replies
   });
   assert.match(box.textContent!,/Odpowiedź A/);assert.match(box.textContent!,/Odpowiedź B/);
   assert.match(box.textContent!,/Czat czeka na Twój wpis/);
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
+});
+
+
+test("delete removes the selected terminal run with one click and blocks repeats while pending", async()=>{
+ const old=globalThis.fetch;localStorage.clear();Source.all=[];
+ const archive=run("archive","completed");
+ localStorage.setItem("cooperation-lab.run","archive");
+ let finish:((value:Response)=>void)|undefined;
+ const deleted:string[]=[];
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(init?.method==="DELETE"){
+   deleted.push(path);return new Promise<Response>(r=>{finish=r;});
+  }
+  if(path.endsWith("/capabilities"))return response(caps);
+  if(path.endsWith("/events"))return response({events:[]});
+  if(path.endsWith("/runs/archive"))return response({run:archive});
+  return response({runs:[archive]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await flush();
+  await act(async()=>button(box,"Usuń próbę").click());
+  assert.deepEqual(deleted,["/api/v1/cooperation-lab/runs/archive"]);
+  assert.equal(button(box,"Potwierdź usunięcie"),undefined);
+  assert.equal(button(box,"Usuń próbę").disabled,true);
+  await act(async()=>button(box,"Usuń próbę").click());assert.equal(deleted.length,1);
+  await act(async()=>finish?.(response(null,204)));await flush();
+  assert.equal(button(box,"Usuń próbę"),undefined);
+  assert.equal(box.querySelector(".coop-history-select")!.querySelectorAll("option").length,1);
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });

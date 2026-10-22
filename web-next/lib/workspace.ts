@@ -30,7 +30,6 @@ export const workspaceStyles = `
 .coop-workspace .coop-history { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px; }
 .coop-workspace .coop-history-picker { display:flex; min-width:0; align-items:center; gap:8px; font-size:12px; }
 .coop-workspace .coop-history-select { max-width:18rem; width:auto; }
-.coop-workspace .coop-confirmation { display:flex; flex-wrap:wrap; gap:8px; }
 .coop-workspace .coop-main { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; min-height:16rem; }
 .coop-workspace .coop-column { display:flex; flex-direction:column; gap:12px; min-width:0; }
 .coop-workspace .coop-participants { min-width:0; margin:0; padding:0; border:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }

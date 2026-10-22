@@ -38,7 +38,6 @@ export default function CooperationLabPage() {
   }
   const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage } = form;
   const [engineFilter, setEngineFilter] = useState<{runId:string|null; engine:string}|null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const models = lab.capabilities?.models ?? [];
   const fallback = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
   const stored = lab.run?.config.model;
@@ -72,7 +71,7 @@ export default function CooperationLabPage() {
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
-    setConfirmDelete(null); setSettings(false); void lab.start(input);
+     setSettings(false); void lab.start(input);
   };
   return <section aria-labelledby="cooperation-lab-title" className="coop-workspace" data-operator={operatorChat} ref={viewport}>
     <style>{workspaceStyles}</style>
@@ -87,7 +86,7 @@ export default function CooperationLabPage() {
       {!lab.active && lab.run && <button type="button" className={button} onClick={() => {
         const next=models.find(m=>modelId(m)===chosen&&(m.can_run??m.qualified))??models.find(m=>m.can_run??m.qualified);
         setForm({...form,model:next?modelId(next):chosen,runId:null});
-        setEngineFilter(null);setSettings(true);setConfirmDelete(null);lab.select(null);
+        setEngineFilter(null);setSettings(true);lab.select(null);
       }}>{t.newRun}</button>}
       <div className="coop-run-state" aria-live="polite">
         <span>{t.runStatus}: <strong>{computation}</strong></span>
@@ -149,14 +148,13 @@ export default function CooperationLabPage() {
       </fieldset>}
       <div className="coop-history">
         <label className="coop-history-picker">{t.history}
-          <select className={field + " coop-history-select"} disabled={lab.active || lab.starting || lab.pending} value={lab.run?.id ?? ""} onChange={(event) => { const found = lab.runs.find((r) => r.id === event.target.value); if (found) { setConfirmDelete(null); lab.select(found); } }}>
+          <select className={field + " coop-history-select"} disabled={lab.active || lab.starting || lab.pending} value={lab.run?.id ?? ""} onChange={(event) => { const found = lab.runs.find((r) => r.id === event.target.value); if (found) { lab.select(found); } }}>
             <option value="">{t.select}</option>
             {lab.runs.map((r) => <option key={r.id} value={r.id}>{new Date(r.created * 1000).toLocaleString(language)} · {statusLabel(t, r.id === lab.run?.id ? lab.run.status : r.status)}</option>)}
           </select>
         </label>
         {lab.run && <><button type="button" className={button} disabled={lab.pending} onClick={() => { void lab.exportRun(); }}>{t.export}</button>
-          <button type="button" className={button} disabled={lab.active || lab.pending} onClick={() => setConfirmDelete((v) => v === lab.run?.id ? null : lab.run?.id ?? null)}>{t.remove}</button></>}
-        {confirmDelete === lab.run?.id && lab.run && <span className="coop-confirmation"><button type="button" className={button + " coop-danger"} disabled={lab.active || lab.pending} onClick={() => { setConfirmDelete(null); void lab.remove(); }}>{t.confirmRemove}</button><button type="button" className={button} onClick={() => setConfirmDelete(null)}>{t.cancel}</button></span>}
+          <button type="button" className={button} disabled={lab.active || lab.pending} onClick={() => { void lab.remove(); }}>{t.remove}</button></>}
       </div>
       <div className="coop-main">
         <div className="coop-column">

@@ -145,7 +145,6 @@ const translations = {
   usage: ["Zużycie", "Usage", "Verbrauch"],
   export: ["Eksportuj JSON", "Export JSON", "JSON exportieren"],
   remove: ["Usuń próbę", "Delete run", "Versuch löschen"],
-  confirmRemove: ["Potwierdź usunięcie", "Confirm deletion", "Löschen bestätigen"],
   cancel: ["Anuluj", "Cancel", "Abbrechen"],
   runStatus: ["Stan obliczeń", "Computation", "Berechnung"],
   connection: ["Połączenie", "Connection", "Verbindung"],
