@@ -64,6 +64,11 @@ class EvaluationService:
         runtime = self.runner.admission.snapshot()
         return {
             "cases": list_cases(),
+            "storage": {
+                "series_used": self.store.count(),
+                "max_series": self.runner.store.limits.max_runs,
+                "retention_days": self.runner.store.limits.retention_days,
+            },
             "models": models,
             "games": ["tic_tac_toe", "nim", "memory", "sokoban"],
             "manifest_version": SUITE_VERSION,
@@ -120,7 +125,7 @@ class EvaluationService:
             "model": model,
             "model_identity": {k: model.get(k) for k in MODEL_IDENTITY_FIELDS},
             "snapshot_restore": False,
-            "generation_applied": {
+            "generation_planned": {
                 "temperature": 0.0
                 if request.decoding == "greedy"
                 else request.temperature,
@@ -145,17 +150,30 @@ class EvaluationService:
         }
 
     def snapshot(self, eid: str) -> dict[str, Any]:
-        value = (
-            copy.deepcopy(self.jobs[eid].state)
-            if eid in self.jobs
-            else self.store.get(eid)
-        )
+        stored = self.store.get(eid)
+        value = copy.deepcopy(self.jobs[eid].state) if eid in self.jobs else stored
         value["progress"] = progress(value["episodes"])
         value["summary"] = summarize(value)
+        value["can_resume"] = (
+            not self.closed
+            and value["status"]
+            not in {"queued", "running", "cancelling", "cleanup_pending"}
+            and bool(self._resumable_blocks(value))
+        )
         return value
 
     def list(self) -> list[dict[str, Any]]:
         return [self.snapshot(r["id"]) for r in self.store.list()]
+
+    def _prune_jobs(self) -> None:
+        # SQLite is authoritative; keep at most eight completed live snapshots.
+        done = [
+            key
+            for key, job in self.jobs.items()
+            if job.released and job.task is not None and job.task.done()
+        ]
+        for key in done[:-8]:
+            del self.jobs[key]
 
     def _save(self, job: EvaluationJob) -> None:
         job.state["updated"] = time.time()
@@ -203,9 +221,36 @@ class EvaluationService:
                 lease.release()
                 raise
             job = EvaluationJob(state, lease, time.monotonic() + 1800)
+            self._prune_jobs()
             self.jobs[eid] = job
             job.task = self._own(asyncio.create_task(self._execute(job)))
             return self.snapshot(eid), True
+
+    @staticmethod
+    def _resumable_blocks(state: dict[str, Any]) -> set[str]:
+        retry = {
+            "runtime_error",
+            "environment_error",
+            "cancelled",
+            "interrupted",
+            "pending",
+            "running",
+            "storage_full",
+        }
+        skipped = {
+            "cancelled",
+            "runtime_error",
+            "interrupted",
+            "storage_full",
+            "decision_timeout",
+        }
+        return {
+            row["block_id"]
+            for row in state["episodes"]
+            if row["status"] in retry
+            or (row["status"] == "skipped" and row.get("reason_code") in skipped)
+            or row.get("reflection_error") in {"runtime_error", "storage_full"}
+        }
 
     async def resume(self, eid: str) -> dict[str, Any]:
         async with self.lock:
@@ -232,30 +277,7 @@ class EvaluationService:
                 raise LabError("evaluation_identity_changed", 409)
             state = copy.deepcopy(previous)
             state.pop("ended", None)
-            failed = {
-                "runtime_error",
-                "environment_error",
-                "cancelled",
-                "interrupted",
-                "pending",
-                "running",
-                "storage_full",
-            }
-            groups = {
-                r["block_id"]
-                for r in state["episodes"]
-                if r["status"] in failed
-                or r["status"] == "skipped"
-                and r.get("reason_code")
-                in {
-                    "cancelled",
-                    "runtime_error",
-                    "interrupted",
-                    "storage_full",
-                    "decision_timeout",
-                }
-                or r.get("reflection_error") in {"runtime_error", "storage_full"}
-            }
+            groups = self._resumable_blocks(state)
             if not groups:
                 raise LabError("nothing_to_resume", 409)
             for block in groups:
@@ -287,6 +309,7 @@ class EvaluationService:
                 lease.release()
                 raise
             job = EvaluationJob(state, lease, time.monotonic() + 1800)
+            self._prune_jobs()
             self.jobs[eid] = job
             job.task = self._own(asyncio.create_task(self._execute(job)))
             return self.snapshot(eid)
@@ -300,7 +323,25 @@ class EvaluationService:
             if job.adapter:
                 self._own(asyncio.create_task(asyncio.to_thread(job.adapter.cancel)))
             self._save(job)
+            if job.task is None or job.task.done():
+                self._own(asyncio.create_task(self._late_cleanup(job)))
         return self.snapshot(eid)
+
+    async def delete(self, eid: str) -> None:
+        async with self.lock:
+            state = self.snapshot(eid)
+            if state["status"] in {
+                "queued",
+                "running",
+                "cancelling",
+                "cleanup_pending",
+            }:
+                raise LabError("evaluation_active", 409)
+            job = self.jobs.get(eid)
+            if job is not None and not job.released:
+                raise LabError("evaluation_active", 409)
+            self.store.delete(eid)
+            self.jobs.pop(eid, None)
 
     def _check(self, job: EvaluationJob) -> None:
         if job.cancelled:
@@ -471,6 +512,7 @@ class EvaluationService:
         finally:
             job.target_status = job.state["status"]
             job.target_error = job.state.get("error")
+            job.state["status"] = "cleanup_pending"
             job.state["ended"] = time.time()
             try:
                 if await self._cleanup(job):
@@ -501,7 +543,9 @@ class EvaluationService:
         request: EvaluationRequest,
         purpose: str = "action",
     ) -> tuple[dict[str, Any], Any]:
-        applied = job.state["config"]["generation_applied"]
+        applied = job.state["config"].get(
+            "generation_planned", job.state["config"].get("generation_applied")
+        )
         params = GenerationParameters(
             max_new_tokens=min(64, request.max_new_tokens)
             if purpose == "reflection"
@@ -569,17 +613,44 @@ class EvaluationService:
             payload["previous_episode"] = job.feedback.pop(player)
         started = time.monotonic()
         deadline = min(job.deadline, time.monotonic() + request.decision_timeout_s)
-        result = await self._work(
-            job,
-            lambda: job.session.generate(
-                player, json.dumps(payload, ensure_ascii=False), params, deadline
-            ),
-            deadline,
-        )
-        if not result.quiescent:
-            raise LabError("runtime_quiescence_unconfirmed")
-        if result.stop_reason in {"cancelled", "deadline"}:
-            raise LabError("run_cancelled" if job.cancelled else "generation_timeout")
+        try:
+            result = await self._work(
+                job,
+                lambda: job.session.generate(
+                    player, json.dumps(payload, ensure_ascii=False), params, deadline
+                ),
+                deadline,
+            )
+            if not result.quiescent:
+                raise LabError("runtime_quiescence_unconfirmed")
+            if result.stop_reason in {"cancelled", "deadline"}:
+                raise LabError(
+                    "run_cancelled" if job.cancelled else "generation_timeout"
+                )
+        except Exception as exc:
+            item["decisions"].append(
+                {
+                    "actor": "model",
+                    "player": player,
+                    "purpose": purpose,
+                    "observation": payload,
+                    "response": None,
+                    "raw_response": None,
+                    "action": None,
+                    "valid": False,
+                    "error": self._reason(exc),
+                    "seconds": time.monotonic() - started,
+                    "usage": {
+                        "input_tokens": None,
+                        "output_tokens": None,
+                        "ttft_s": None,
+                        "peak_vram_bytes": None,
+                        "effective_parameters": None,
+                    },
+                    "assessment": {},
+                }
+            )
+            raise
         record = {
             "actor": "model",
             "player": player,
@@ -613,9 +684,11 @@ class EvaluationService:
 
         case = next(c for c in CASES if c["id"] == item["case_id"])
         try:
-            env = make_environment(
-                case["game"], copy.deepcopy(case["config"]), item["seed"]
-            )
+            game_config = copy.deepcopy(case["config"])
+            if request.opponent == "model" and request.swap_sides:
+                game_config["starting_player"] = item["player"]
+            item["game_config"] = game_config
+            env = make_environment(case["game"], game_config, item["seed"])
         except Exception:
             item.update(
                 status="environment_error",

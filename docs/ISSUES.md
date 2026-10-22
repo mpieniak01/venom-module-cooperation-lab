@@ -25,8 +25,10 @@ odebrany; legacy chat śledzi osobny [Venom #554](https://github.com/mpieniak01/
 
 ## Lokalny backlog — L7
 
-**TODO:** [Gry jako ewaluacja strategii, pamięci i planowania](prs/L7-game-evaluation.md).
+**Implementacja lokalna / odbiór:** [Gry jako ewaluacja strategii, pamięci i planowania](prs/L7-game-evaluation.md).
 Jeden planowany PR w tym repo; bez utworzonego issue/PR GitHub i bez nadawania
 mu fikcyjnego numeru. Zakres: TTT, Nim, Memory, Sokoban; wspólne kontrakty,
 prawdziwe tryby pamięci, referencje, metryki jakości i wznowienie. Realizacja G0–G5
 oraz warunki wydania w specyfikacji. Niezależne od ukończonego MVP L1–L5.
+
+Instrukcja: [GAME_EVALUATION](GAME_EVALUATION.md). Dowody: [L7_LOCAL_ACCEPTANCE](L7_LOCAL_ACCEPTANCE.md). Publikacja GH pozostaje osobnym krokiem.

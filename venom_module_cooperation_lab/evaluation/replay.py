@@ -13,7 +13,9 @@ def replay_episode(snapshot: dict[str, Any], item: dict[str, Any]) -> dict[str, 
     case = next((c for c in cases if c["id"] == item["case_id"]), None)
     if case is None:
         raise LabError("replay_case_missing", 422)
-    env = make_environment(case["game"], case["config"], item["seed"])
+    env = make_environment(
+        case["game"], item.get("game_config", case["config"]), item["seed"]
+    )
     count = 0
     for decision in item["decisions"]:
         if decision.get("purpose", "action") != "action" or not decision["valid"]:

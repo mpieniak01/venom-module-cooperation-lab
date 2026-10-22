@@ -26,6 +26,7 @@ export type EvaluationCapabilities = {
   games: string[];
   limits: Record<string, Json>;
   manifest_version: string;
+  storage?: { series_used: number; max_series: number; retention_days: number };
   ready?: boolean;
   reason_code?: string;
 };
@@ -44,6 +45,7 @@ export type EvaluationDecision = {
   response: Json;
   action?: Json;
   valid?: boolean;
+  can_resume?: boolean;
   error?: string | null;
   seconds?: number | null;
   usage?: Record<string, Json>;
@@ -66,6 +68,7 @@ export type EvaluationSnapshot = {
   progress: { planned: number; started: number; terminal: number; success: number; skipped: number };
   episodes: EvaluationEpisode[];
   summary: Record<string, Json>;
+  can_resume?: boolean;
   error?: string | null;
   updated: number | string;
 };

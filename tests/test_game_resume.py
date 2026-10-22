@@ -43,6 +43,7 @@ async def test_fresh_resume_preserves_completed_episode_and_retries_only_failed(
         "game_completed",
         "runtime_error",
     ]
+    assert first["status"] == "completed" and first["can_resume"]
     committed = copy.deepcopy(first["episodes"][0])
     settings["fail_at"] = set()
     resumed = await service.resume(row["id"])
@@ -56,6 +57,7 @@ async def test_fresh_resume_preserves_completed_episode_and_retries_only_failed(
     ]
     assert len(adapters) == 2 and adapters[0].calls == 2 and adapters[1].calls == 1
     assert final["block_restarts"] == 1
+    assert not final["can_resume"]
     assert len(final["attempt_history"]) == 1
     assert final["attempt_history"][0][0]["status"] == "runtime_error"
     assert final["progress"] == {
@@ -95,6 +97,7 @@ async def test_carry_resume_archives_and_restarts_whole_block_including_earlier_
     assert len(final["attempt_history"]) == 1
     assert final["attempt_history"][0] == first["episodes"]
     assert final["block_restarts"] == 1
+    assert not final["can_resume"]
     # A new driver starts new memory, without pretending native state survived.
     assert adapters[1].resets[0] is None
     second_history = adapters[1].recorded[1][1]
@@ -225,6 +228,7 @@ async def test_carry_reflection_runtime_failure_can_restart_block_without_stale_
     )
     first = await finish(service, row)
     assert first["episodes"][0]["reflection_error"] == "runtime_error"
+    assert first["status"] == "completed" and first["can_resume"]
     settings["fail_at"] = set()
     resumed = await service.resume(row["id"])
     final = await finish(service, resumed)

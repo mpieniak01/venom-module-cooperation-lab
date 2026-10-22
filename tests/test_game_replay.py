@@ -78,3 +78,34 @@ def test_offline_replay_validated_actions_only_and_detects_tamper():
         replay_episode(snapshot, bad)
     with pytest.raises(LabError, match="replay_case_missing"):
         replay_episode(snapshot, {**item, "case_id": "absent"})
+
+
+@pytest.mark.parametrize(
+    "cid", ["ttt-win-v1", "nim-last-stone-v1", "memory-seed17-v1", "sokoban-turn-v1"]
+)
+def test_reference_transcripts_replay_each_game_without_a_model(cid):
+    import random
+
+    from venom_module_cooperation_lab.evaluation.games import make_environment
+    from venom_module_cooperation_lab.evaluation.references import reference_action
+
+    case = next(c for c in CASES if c["id"] == cid)
+    env = make_environment(case["game"], case["config"], case["seed"])
+    item = {"case_id": cid, "seed": case["seed"], "player": "A", "decisions": []}
+    for _ in range(128):
+        if env.finished:
+            break
+        player = env.current_player
+        opponent = "remembering" if env.game == "memory" else "optimal"
+        action = reference_action(env, opponent, random.Random(17))
+        env.step(player, action)
+        item["decisions"].append({"player": player, "action": action, "valid": True})
+    assert env.finished
+    result = env.result()
+    if env.game in {"tic_tac_toe", "nim"}:
+        result["success"] = result["winner"] == "A"
+    item["result"] = result
+    snapshot = {"config": {"cases": CASES, "opponent": "optimal"}}
+    replayed = replay_episode(snapshot, item)
+    assert replayed["result"] == result
+    assert replayed["state"] == env.public_state()

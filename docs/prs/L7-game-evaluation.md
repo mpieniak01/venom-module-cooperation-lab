@@ -264,21 +264,21 @@ To plan podziału, nie uruchomienie workerów ani zgoda na równoległą inferen
 
 ## Kryteria odbioru
 
-- [ ] TTT v1/rozmowy/model catalog/export/Delete bez regresu; nowy v2 osobno.
-- [ ] Wszystkie 4 gry mają wspólny kontrakt i pozytywne/negatywne przypadki reguł.
-- [ ] Nim: bot optymalny i interpretacja przegrywającego startu; Memory bez wiedzy ukrytej.
-- [ ] Sokoban: solver potwierdza zestaw i metryki/deadlock bez dopowiadania ruchów modelowi.
-- [ ] Każdy zatwierdzony epizod odtwarza się z manifestu i akcji bez LLM.
-- [ ] Native przetwarza każde event ID raz, A/B odseparowane; brak podwójnego prefill.
-- [ ] Fresh i carry zachowują deklarowany typ pamięci; unsupported blokuje start przed load.
-- [ ] Rzeczywiste parametry generacji i 8/16/32/64 Huginn zapisane, bez cichego fallbacku.
-- [ ] Boty/strony/manifest/seed identyczne; błędy i pominięcia widoczne w mianownikach.
-- [ ] Snapshot carry bez wsparcia nie jest obiecywany; restart bloku jawny i idempotentny.
-- [ ] Metryki strategii/kosztu, JSON/JSONL/CSV i liczniki planned/started/terminal/skipped działają.
-- [ ] Hard limits/retencja/STOP/cleanup i moduł OFF nie blokują hosta.
-- [ ] Testy, skanery, bramki i review wykonane; brak udawanego PASS dla planu/fixture.
+- [x] TTT v1/rozmowy/model catalog/export/Delete bez regresu; nowy v2 osobno.
+- [x] Wszystkie 4 gry mają wspólny kontrakt i pozytywne/negatywne przypadki reguł.
+- [x] Nim: bot optymalny i interpretacja przegrywającego startu; Memory bez wiedzy ukrytej.
+- [x] Sokoban: solver potwierdza zestaw i metryki/deadlock bez dopowiadania ruchów modelowi.
+- [x] Każdy zatwierdzony epizod odtwarza się z manifestu i akcji bez LLM.
+- [x] Native przetwarza każde event ID raz, A/B odseparowane; brak podwójnego prefill.
+- [x] Fresh i carry zachowują deklarowany typ pamięci; unsupported blokuje start przed load.
+- [x] Właściwy forward 8/16/32/64 Huginn sprawdzony CPU; realne iteracje mają osobne wyniki i timeouty, bez cichego fallbacku.
+- [x] Boty/strony/manifest/seed identyczne; błędy i pominięcia widoczne w mianownikach.
+- [x] Snapshot carry bez wsparcia nie jest obiecywany; restart bloku jawny i idempotentny.
+- [x] Metryki strategii/kosztu, JSON/JSONL/CSV i liczniki planned/started/terminal/skipped działają.
+- [x] Hard limits/retencja/STOP/cleanup i moduł OFF nie blokują hosta.
+- [ ] Zdalne bramki PR/CI i Sonar: nieuruchomione w lokalnej fazie. Lokalne testy, Snyk i przegląd opisane w raporcie; brak fikcyjnego PASS.
 
-## Validation Report — plan wykonania
+## Validation Report — plan oraz dowody lokalne
 
 Nowe testy neutralnie nazwane: `test_game_rules.py`, `test_game_visibility.py`,
 `test_game_references.py`, `test_game_sessions.py`, `test_game_resume.py`,
@@ -301,7 +301,7 @@ pytest >=90%, TS/lint/frontend i host contracts), changed-lines coverage z
 faktycznego diff do bazy PR, CI `contracts`, Sonar/Snyk i dostępne required checks.
 Próg changed-lines zgodny z aktualną polityką/quality gate, bez jego obniżania.
 
-**Luka rozpoznana w planie:** moduł nie ma dziś `make pr-fast` ani własnego
+**Historyczna luka rozpoznana w planie (uzupełniona lokalnie):** moduł nie miał `make pr-fast` ani własnego
 rejestru katalogu/grup core. W G0 dodać module-owned wejście `make pr-fast`
 spinające istniejące kontrole z metadanymi i changed-lines coverage. Nowe testy
 zarejestrować w module w `config/testing/test_catalog.json`, synchronizować grupy
@@ -329,8 +329,10 @@ pokrycia. Osobno potwierdzić kompatybilność lokalnego hosta i oficjalnego mir
 
 Opis końcowy PR wg szablonu core: Summary, Scope, Quality Gates, Commands run,
 pass/fail, changed-lines coverage, Risks/Limitations/Skips, Evidence. Odznaczać
-wyłącznie faktycznie zaliczone kontrole. **Teraz: implementacja/testy runtime N/A;
-plan i kontrola odnośników, bez uruchamiania modeli, skanerów i zmian środowiska.**
+wyłącznie faktycznie zaliczone kontrole. **Aktualnie: implementacja lokalna,
+odbiór CPU/UI i krótkie próby GPU; brak publikacji PR na GH.** Raport wykonania,
+ograniczenia modeli i skanerów są w [odbiorze L7](../L7_LOCAL_ACCEPTANCE.md),
+a instrukcja w [ewaluacji gier](../GAME_EVALUATION.md).
 
 ## Poza tym PR
 

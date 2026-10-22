@@ -106,8 +106,9 @@ export function EvaluationWorkspace({language}: {language:string}) {
     <div className="coop-controls" role="group" aria-label={t.title}>
       <button className={button+" coop-start"} disabled={!canStart} onClick={()=>{setSettings(false);void lab.start(input);}}>{t.start}</button>
       <button className={button+" coop-stop"} disabled={!lab.active || lab.pending} onClick={()=>{void lab.mutate("cancel");}}>{t.stop}</button>
-      <button className={button} disabled={lab.pending || !lab.selected || lab.active || !["cancelled","interrupted","failed"].includes(lab.selected.status)} onClick={()=>{void lab.mutate("resume");}} title={t.resumeHelp}>{t.resume}</button>
+      <button className={button} disabled={lab.pending || !lab.selected || lab.active || !(lab.selected.can_resume ?? ["cancelled","interrupted","failed"].includes(lab.selected.status))} onClick={()=>{void lab.mutate("resume");}} title={t.resumeHelp}>{t.resume}</button>
       <button className={button} aria-expanded={settings} onClick={()=>setSettings(value=>!value)}>{t.settings}</button>
+      <button className={button+" coop-danger"} disabled={lab.pending || !lab.selected || lab.active} onClick={()=>{void lab.remove();}}>{t.remove}</button>
       {lab.selected && ["json","jsonl","csv"].map(format=><a className={button} key={format} href={`${API}/evaluations/${encodeURIComponent(lab.selected!.id)}/export?format=${format}`} download>{t.export} {format.toUpperCase()}</a>)}
       <span className="coop-run-state">{t.status}: {lab.selected ? evaluationLabel(t, lab.selected.status) : t.draft}</span>
     </div>
@@ -157,7 +158,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
           <details><summary>{t.actual}</summary><pre>{JSON.stringify(checked.configuration,null,2)}</pre></details>
         </>}
       </div>
-      <div className="coop-history"><Field label={t.history}><select className={field+" evaluation-history"} disabled={lab.pending || lab.active} value={lab.selected?.id ?? ""} onChange={event=>lab.select(event.target.value)}><option value="">{t.draft}</option>{lab.evaluations.map(item=><option key={item.id} value={item.id}>{item.id.slice(0,8)} · {evaluationLabel(t,item.status)}</option>)}</select></Field><span className="coop-message-meta">{t.version}: {lab.capabilities?.manifest_version ?? t.noData}</span></div>
+      <div className="coop-history"><Field label={t.history}><select className={field+" evaluation-history"} disabled={lab.pending || lab.active} value={lab.selected?.id ?? ""} onChange={event=>lab.select(event.target.value)}><option value="">{t.draft}</option>{lab.evaluations.map(item=><option key={item.id} value={item.id}>{item.id.slice(0,8)} · {evaluationLabel(t,item.status)}</option>)}</select></Field><span className="coop-message-meta">{t.version}: {lab.capabilities?.manifest_version ?? t.noData}</span>{lab.capabilities?.storage&&<span className="coop-message-meta">{t.stored}: {lab.capabilities.storage.series_used}/{lab.capabilities.storage.max_series} · {t.retention}: {lab.capabilities.storage.retention_days}</span>}</div>
       <div className="coop-panel evaluation-counts" aria-label={t.plan}>
         {(["planned","started","terminal","success","skipped"] as const).map(key=><span key={key}>{t[key]}: <strong data-counter={key}>{counts[key]}</strong></span>)}
       </div>

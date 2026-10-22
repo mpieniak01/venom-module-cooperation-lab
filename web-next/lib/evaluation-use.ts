@@ -57,7 +57,10 @@ export function useEvaluations() {
     let timeout: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const [body, caps] = await Promise.all([get<{evaluation:unknown}>(`/evaluations/${encodeURIComponent(id)}`), get<unknown>("/evaluations/capabilities")]);
+        const body = await get<{evaluation:unknown}>(`/evaluations/${encodeURIComponent(id)}`);
+        // A terminal snapshot confirms cleanup. Read readiness after it so an
+        // earlier busy response cannot strand START once polling stops.
+        const caps = await get<unknown>("/evaluations/capabilities");
         if (!isEvaluationSnapshot(body?.evaluation) || !isEvaluationCapabilities(caps)) throw invalid();
         if (!disposed && alive.current && selectedId.current === id) {
           update(body.evaluation); setCapabilities(caps); setError("");
@@ -101,10 +104,26 @@ export function useEvaluations() {
     } catch (error) { if (alive.current) setError(code(error)); }
     finally { locked.current = false; if (alive.current) setPending(false); }
   }, [get, update]);
+  const remove = useCallback(async () => {
+    const id = selectedId.current;
+    if (!id || locked.current) return;
+    locked.current = true; setPending(true); setError("");
+    try {
+      const body = await get<{deleted:unknown}>(`/evaluations/${encodeURIComponent(id)}`, {method:"DELETE"});
+      if (body?.deleted !== true) throw invalid();
+      selectedId.current = null; selectionEpoch.current++;
+      if (alive.current) {
+        setSelected(null); setChecked(null);
+        setEvaluations(previous => previous.filter(item=>item.id !== id));
+      }
+      await refresh();
+    } catch (error) { if (alive.current) setError(code(error)); }
+    finally { locked.current = false; if (alive.current) setPending(false); }
+  }, [get, refresh]);
   const select = useCallback((id: string) => {
     const snapshot = evaluations.find(item => item.id === id) ?? null;
     selectedId.current = snapshot?.id ?? null; selectionEpoch.current++;
     setSelected(snapshot); setChecked(null); setError("");
   }, [evaluations]);
-  return { capabilities, evaluations, selected, checked, error, pending, refreshing, active, refresh, check, start, mutate, select };
+  return { capabilities, evaluations, selected, checked, error, pending, refreshing, active, refresh, check, start, mutate, select, remove };
 }

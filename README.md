@@ -8,6 +8,7 @@ Opcjonalne laboratorium współpracy i samoorganizacji sesji modeli AI w Venomie
 - [Zadania GitHub i PR planu](docs/ISSUES.md)
 - [Kontrakty](docs/CONTRACTS.md)
 - [Kwalifikacja modeli](docs/MODEL_QUALIFICATION.md)
+- [Ewaluacja gier L7 — obsługa, pamięć i ograniczenia](docs/GAME_EVALUATION.md)
 - [Serie gier i pamięć poprzednich partii](docs/GAME_SERIES.md)
 - [HRM-Text i Huginn: wdrożenie lokalne, użycie i ograniczenia](docs/HF_RESEARCH_MODELS.md)
 - [Odbiór](docs/ACCEPTANCE.md)

@@ -96,7 +96,7 @@ async def test_game_api_discovery_preflight_and_list_are_observational(
     assert result["supported"] and result["reason_codes"] == []
     assert result["planned_episodes"] == result["planned_blocks"] == 1
     assert result["planned_decisions"] == 1
-    assert result["configuration"]["generation_applied"] == {
+    assert result["configuration"]["generation_planned"] == {
         "temperature": 0.0,
         "top_p": 1.0,
         "num_steps": None,
@@ -343,3 +343,49 @@ async def test_game_api_export_budget_and_unsupported_start_stay_explicit(
     result = await evaluation_client.get(f"{BASE}/{eid}/export")
     assert result.status_code == 413
     assert result.json()["detail"]["code"] == "export_too_large"
+
+
+@pytest.mark.asyncio
+async def test_game_api_delete_active_then_export_remove_and_reuse_capacity(
+    evaluation_client, rig, monkeypatch
+):
+    runner, adapters = rig
+    runner.store.limits = replace(runner.store.limits, max_runs=1)
+    original = runner.adapter_factory
+    block = True
+
+    def factory(model, lease):
+        adapter = original(model, lease)
+        adapter.block = block
+        return adapter
+
+    monkeypatch.setattr(runner, "adapter_factory", factory)
+    created = await evaluation_client.post(
+        BASE, json=payload(), headers={"Idempotency-Key": "delete-api"}
+    )
+    eid = created.json()["evaluation"]["id"]
+    deleted = await evaluation_client.delete(f"{BASE}/{eid}")
+    assert deleted.status_code == 409
+    assert deleted.json()["detail"]["code"] == "evaluation_active"
+    await evaluation_client.post(f"{BASE}/{eid}/cancel")
+    await finish(evaluation_client, eid)
+    exported = await evaluation_client.get(f"{BASE}/{eid}/export")
+    assert exported.status_code == 200 and exported.json()["id"] == eid
+    caps = (await evaluation_client.get(BASE + "/capabilities")).json()
+    assert caps["storage"]["series_used"] == 1
+    removed = await evaluation_client.delete(f"{BASE}/{eid}")
+    assert removed.status_code == 200 and removed.json() == {"deleted": True}
+    assert (await evaluation_client.get(f"{BASE}/{eid}")).status_code == 404
+    assert (await evaluation_client.get(f"{BASE}/{eid}/export")).status_code == 404
+    assert (await evaluation_client.delete(f"{BASE}/{eid}")).status_code == 404
+    caps = (await evaluation_client.get(BASE + "/capabilities")).json()
+    assert caps["storage"]["series_used"] == 0
+    assert exported.json()["id"] == eid
+    block = False
+    again = await evaluation_client.post(
+        BASE, json=payload(), headers={"Idempotency-Key": "delete-api"}
+    )
+    assert again.status_code == 202 and again.json()["created"]
+    new_id = again.json()["evaluation"]["id"]
+    assert new_id != eid
+    assert (await finish(evaluation_client, new_id))["status"] == "completed"

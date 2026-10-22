@@ -63,6 +63,11 @@ def register(router: APIRouter, require_runner: Callable[[Request], Any]) -> Non
     async def resume(request: Request, eid: str) -> dict[str, Any]:
         return {"evaluation": await (await refreshed(request)).resume(eid)}
 
+    @router.delete("/evaluations/{eid}")
+    async def deleted(request: Request, eid: str) -> dict[str, bool]:
+        await service(request).delete(eid)
+        return {"deleted": True}
+
     @router.get("/evaluations/{eid}/export")
     async def exported(
         request: Request,

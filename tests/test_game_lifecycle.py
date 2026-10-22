@@ -80,7 +80,10 @@ async def owned(tmp_path):
     service = EvaluationService(SimpleNamespace(store=None, admission=admission))
     service.saved = []
     service._save = lambda job: service.saved.append(dict(job.state))
-    service.store = SimpleNamespace(terminal=lambda *args: None)
+    service.store = SimpleNamespace(
+        terminal=lambda *args: None,
+        get=lambda eid: dict(service.jobs[eid].state),
+    )
     state = {
         "id": "fixture",
         "status": "running",
@@ -481,3 +484,32 @@ async def test_cancel_during_final_unload_reaches_terminal_instead_of_stuck_canc
     await asyncio.wait_for(asyncio.shield(job.task), 1)
     assert job.released and admission.snapshot()["status"] == "available"
     assert job.state["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_stop_retries_pending_cleanup_after_execute_task_has_finished(owned):
+    service, job, adapter, admission = owned
+    adapter.close_results = [False, True]
+    job.target_status = "completed"
+    assert not await service._cleanup(job)
+    assert adapter.close_calls == 1 and not job.released
+    job.state.update(status="cleanup_pending", error="runtime_quiescence_unconfirmed")
+    job.task = asyncio.create_task(asyncio.sleep(0))
+    await job.task
+    assert job.task.done() and admission.snapshot()["status"] != "available"
+
+    result = await service.cancel("fixture")
+    assert result["status"] == "cancelling"
+    async with asyncio.timeout(1):
+        while (
+            not job.released
+            or not service.saved
+            or service.saved[-1]["status"] != "cancelled"
+        ):
+            await asyncio.sleep(0.005)
+    assert adapter.close_calls == 2
+    assert admission.snapshot()["status"] == "available"
+    assert job.state["status"] == "cancelled"
+    # Repeating STOP on a released job does not run a third close operation.
+    await service.cancel("fixture")
+    assert adapter.close_calls == 2

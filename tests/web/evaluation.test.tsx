@@ -151,3 +151,58 @@ test("active polling updates the selected report and stops after completion with
     await act(async()=>findButton(box,"Odśwież").click());await settle();assert.equal(reads,2);
   }finally{await close();}
 });
+
+test("terminal poll reads readiness afterward so earlier busy state cannot strand START",async()=>{
+  let terminalDelivered=false;
+  const order:string[]=[];
+  const {box,close}=await setup(async(url)=>{
+    const path=String(url);
+    if(path.endsWith("/evaluations/series-1")){order.push("terminal");terminalDelivered=true;return response({evaluation:{...saved("completed"),can_resume:false}});}
+    if(path.endsWith("/capabilities")){order.push("capabilities");return response({...caps,ready:terminalDelivered,reason_code:terminalDelivered?"ready":"runtime_busy"});}
+    return response({evaluations:[saved()]});
+  });
+  try{
+    await choose(box,"Historia serii","series-1");
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,2100));});
+    assert.deepEqual(order.slice(-2),["terminal","capabilities"]);
+    assert.equal(findButton(box,"Zatrzymaj serię").disabled,true);
+    assert.equal(findButton(box,"Wznów serię").disabled,true);
+    assert.doesNotMatch(box.querySelector("output")?.textContent??"",/Zasób modelu jest zajęty/);
+  }finally{await close();}
+});
+
+test("backend can_resume allows a completed partial series and denies unrecoverable failures",async()=>{
+  const rows=[{...saved("completed"),can_resume:true},{...saved("failed"),id:"series-2",can_resume:false}];
+  const {box,close}=await setup(async(url,init)=>{
+    if(String(url).endsWith("/capabilities"))return response(caps);
+    if(init?.method==="POST")return response({evaluation:{...rows[0],status:"running",can_resume:false}});
+    return response({evaluations:rows});
+  });
+  try{
+    await choose(box,"Historia serii","series-1");assert.equal(findButton(box,"Wznów serię").disabled,false);
+    await choose(box,"Historia serii","series-2");assert.equal(findButton(box,"Wznów serię").disabled,true);
+    await choose(box,"Historia serii","series-1");
+    await act(async()=>findButton(box,"Wznów serię").click());await settle();
+    assert.equal(findButton(box,"Zatrzymaj serię").disabled,false);
+  }finally{await close();}
+});
+
+test("terminal series deletes with one click and updates capacity without confirmation",async()=>{
+  const oldConfirm=globalThis.confirm;
+  Object.defineProperty(globalThis,"confirm",{value:()=>{throw Error("confirmation is forbidden");},configurable:true});
+  let removed=false;const deletes:string[]=[];
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(init?.method==="DELETE"){deletes.push(path);removed=true;return response({deleted:true});}
+    if(path.endsWith("/capabilities"))return response({...caps,storage:{series_used:removed?0:1,max_series:100,retention_days:14}});
+    return response({evaluations:removed?[]:[{...saved("completed"),can_resume:false}]});
+  });
+  try{
+    await choose(box,"Historia serii","series-1");assert.match(box.textContent??"",/Zapisane serie: 1\/100/);
+    assert.equal(findButton(box,"Usuń serię").disabled,false);
+    await act(async()=>{findButton(box,"Usuń serię").click();findButton(box,"Usuń serię").click();});await settle();
+    assert.deepEqual(deletes,["/api/v1/cooperation-lab/evaluations/series-1"]);
+    assert.equal(select(box,"Historia serii").value,"");assert.equal(findButton(box,"Usuń serię").disabled,true);
+    assert.match(box.textContent??"",/Zapisane serie: 0\/100/);assert.equal(box.querySelector('[data-counter="planned"]')?.textContent,"0");
+  }finally{await close();Object.defineProperty(globalThis,"confirm",{value:oldConfirm,configurable:true});}
+});

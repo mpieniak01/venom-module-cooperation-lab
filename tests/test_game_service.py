@@ -447,7 +447,11 @@ async def test_backend_receipts_do_not_masquerade_as_completed_actions(
     row, _ = await service.start(request(), "bad-receipt")
     final = await finish(service, row)
     assert final["episodes"][0]["status"] == status
-    assert final["episodes"][0]["decisions"] == []
+    decision = final["episodes"][0]["decisions"][0]
+    assert decision["response"] is None and decision["action"] is None
+    assert decision["seconds"] >= 0 and decision["error"] == status
+    assert decision["observation"]["observation"]["game"] == "nim"
+    assert all(value is None for value in decision["usage"].values())
     assert service.runner.admission.snapshot()["status"] == "available"
 
 
@@ -460,6 +464,10 @@ async def test_deadline_cancels_own_generation_and_releases_after_worker_quiesce
     row, _ = await service.start(request(decision_timeout_s=1), "deadline")
     final = await finish(service, row)
     assert final["status"] == "failed" and final["error"] == "decision_timeout"
+    decision = final["episodes"][0]["decisions"][0]
+    assert decision["error"] == "decision_timeout"
+    assert decision["response"] is None and decision["seconds"] >= 1
+    assert final["summary"]["by_game"][0]["decision_samples"] == 1
     assert adapters[0].cancelled and adapters[0].closed
     assert service.runner.admission.snapshot()["status"] == "available"
 
@@ -580,3 +588,140 @@ async def test_available_vram_is_retained_and_missing_is_not_zero(eval_rig):
     result = await finish(service, row)
     assert result["episodes"][0]["decisions"][0]["usage"]["peak_vram_bytes"] == 12345
     assert result["summary"]["by_game"][0]["peak_vram_bytes"] == 12345
+
+
+@pytest.mark.asyncio
+async def test_completed_snapshot_cache_is_bounded_with_durable_readback(eval_rig):
+    service, _adapters, _settings, _specs = eval_rig
+    ids = []
+    for index in range(12):
+        row, _ = await service.start(request(), f"cache-{index}")
+        ids.append(row["id"])
+        await finish(service, row)
+    assert len(service.jobs) <= 9
+    assert ids[0] not in service.jobs
+    assert service.snapshot(ids[0])["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_completion_is_not_published_before_final_unload(eval_rig):
+    from test_game_service import finish, request
+
+    service, adapters, _settings, _specs = eval_rig
+    original = service._cleanup
+    entered_cleanup = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+
+    async def delayed(job):
+        entered_cleanup.set()
+        await allow_cleanup.wait()
+        return await original(job)
+
+    service._cleanup = delayed
+    row, _ = await service.start(request(), "visible-unload-boundary")
+    await asyncio.wait_for(entered_cleanup.wait(), timeout=2)
+    assert service.snapshot(row["id"])["status"] == "cleanup_pending"
+    assert not service.jobs[row["id"]].released
+    allow_cleanup.set()
+    result = await finish(service, row)
+    assert result["status"] == "completed"
+    assert service.jobs[row["id"]].released and adapters[0].closed
+
+
+@pytest.mark.asyncio
+async def test_model_model_side_swap_changes_actual_starter_and_offline_replay(
+    eval_rig,
+):
+    from venom_module_cooperation_lab.evaluation.replay import replay_episode
+
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(
+        request(case_ids=["ttt-opening-v1"], opponent="model", swap_sides=True),
+        "model-sides",
+    )
+    final = await finish(service, row)
+    assert len(final["episodes"]) == 2
+    for episode, starter in zip(final["episodes"], ["A", "B"], strict=True):
+        assert episode["status"] == "game_completed"
+        assert episode["game_config"]["starting_player"] == starter
+        assert episode["decisions"][0]["player"] == starter
+        assert (
+            episode["decisions"][0]["observation"]["observation"]["your_symbol"] == "X"
+        )
+        replayed = replay_episode(final, episode)
+        assert replayed["result"] == episode["result"]
+        assert replayed["actions"] == len(episode["decisions"])
+    assert adapters[0].closed
+
+
+@pytest.mark.asyncio
+async def test_delete_is_terminal_guarded_frees_capacity_and_preserves_export(eval_rig):
+    from venom_module_cooperation_lab.evaluation.reports import export
+
+    service, adapters, settings, _ = eval_rig
+    service.runner.store.limits = replace(service.runner.store.limits, max_runs=1)
+    settings["block"] = True
+    row, _ = await service.start(request(), "delete-capacity")
+    with pytest.raises(LabError, match="evaluation_active"):
+        await service.delete(row["id"])
+    adapter = await wait_entered(adapters)
+    assert not adapter.closed and not adapter.cancelled
+    job = service.jobs[row["id"]]
+    # A stale terminal status alone must never authorize deleting an owned lease.
+    job.state["status"] = "completed"
+    with pytest.raises(LabError, match="evaluation_active"):
+        await service.delete(row["id"])
+    job.state["status"] = "running"
+    await service.cancel(row["id"])
+    final = await finish(service, row)
+    saved_export, _ = export(final, "json")
+    assert service.capabilities()["storage"]["series_used"] == 1
+    assert service.capabilities()["storage"]["max_series"] == 1
+    await service.delete(row["id"])
+    assert service.capabilities()["storage"]["series_used"] == 0
+    assert service.store.by_key("delete-capacity") is None
+    assert row["id"] not in service.jobs
+    assert json.loads(saved_export)["id"] == row["id"]
+    with pytest.raises(LabError, match="evaluation_not_found"):
+        service.snapshot(row["id"])
+    settings["block"] = False
+    new, created = await service.start(request(), "delete-capacity")
+    assert created and new["id"] != row["id"]
+    assert (await finish(service, new))["episodes"][0]["status"] == "game_completed"
+
+
+@pytest.mark.asyncio
+async def test_delete_obeys_storage_mutation_guard(eval_rig):
+    service, _, _, _ = eval_rig
+    row, _ = await service.start(request(), "delete-guard")
+    await finish(service, row)
+    original = service.runner.store._guard
+
+    def deny(operation):
+        if operation == "evaluations.delete":
+            raise PermissionError("fixture-denied")
+        original(operation)
+
+    service.runner.store._guard = deny
+    with pytest.raises(PermissionError, match="fixture-denied"):
+        await service.delete(row["id"])
+    assert service.snapshot(row["id"])["id"] == row["id"]
+    service.runner.store._guard = original
+
+
+@pytest.mark.asyncio
+async def test_retention_removes_access_even_for_a_cached_snapshot(eval_rig):
+    service, _adapters, _settings, _specs = eval_rig
+    row, _ = await service.start(request(), "expired-evaluation")
+    await finish(service, row)
+    old = service.jobs[row["id"]].state
+    old["created"] = time.time() - 15 * 86400
+    service.store.save(old)
+    with service.runner.store._transaction("fixture.age"):
+        service.runner.store._connection().execute(
+            "UPDATE evaluations SET created=? WHERE id=?", (old["created"], row["id"])
+        )
+    next_row, _ = await service.start(request(), "current-evaluation")
+    await finish(service, next_row)
+    with pytest.raises(LabError, match="evaluation_not_found"):
+        service.snapshot(row["id"])

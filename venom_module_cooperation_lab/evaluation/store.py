@@ -48,16 +48,47 @@ class EvaluationStore:
             )
             return [self._decode(r) for r in rows]
 
+    def count(self) -> int:
+        self.store._access("local_operator", "evaluations.read")
+        with self.store._lock:
+            if not self.exists():
+                return 0
+            return int(
+                self.store._connection()
+                .execute(
+                    "SELECT count(*) FROM evaluations WHERE owner='local_operator'"
+                )
+                .fetchone()[0]
+            )
+
+    def _find(self, field: str, value: str) -> dict[str, Any] | None:
+        _identifier(value)
+        self.store._access("local_operator", "evaluations.read")
+        with self.store._lock:
+            if not self.exists():
+                return None
+            # Both callers below use a literal column; values remain bound.
+            column = "id" if field == "id" else "key"
+            row = (
+                self.store._connection()
+                .execute(
+                    "SELECT * FROM evaluations WHERE owner='local_operator' AND "
+                    + column
+                    + "=?",
+                    (value,),
+                )
+                .fetchone()
+            )
+            return self._decode(row) if row is not None else None
+
     def get(self, eid: str) -> dict[str, Any]:
-        _identifier(eid)
-        for row in self.list():
-            if row["id"] == eid:
-                return row
-        raise LabError("evaluation_not_found", 404)
+        row = self._find("id", eid)
+        if row is None:
+            raise LabError("evaluation_not_found", 404)
+        return row
 
     def by_key(self, key: str) -> dict[str, Any] | None:
-        _identifier(key)
-        return next((r for r in self.list() if r.get("key") == key), None)
+        return self._find("key", key)
 
     @staticmethod
     def _decode(row: Any) -> dict[str, Any]:
@@ -118,6 +149,16 @@ class EvaluationStore:
                 "UPDATE evaluations SET status=?,error=? "
                 "WHERE id=? AND owner='local_operator'",
                 (status, error, eid),
+            )
+
+    def delete(self, eid: str) -> None:
+        _identifier(eid)
+        with (
+            self.store._lock,
+            self.store._transaction("evaluations.delete", reclaim=True),
+        ):
+            self.store._connection().execute(
+                "DELETE FROM evaluations WHERE id=? AND owner='local_operator'", (eid,)
             )
 
     def recover(self) -> None:
