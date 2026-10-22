@@ -101,12 +101,13 @@ def test_game_budget_is_nine_moves_and_legacy_limits_are_unchanged():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["dialog", "game_competitive"])
 @pytest.mark.parametrize("language", ["pl", "en"])
 @pytest.mark.parametrize(
     "moves,winner", [(["A1", "B1", "A2", "B2", "A3"], "A"), (DRAW, None)]
 )
 async def test_game_runner_uses_authoritative_board_and_stops_on_actual_result(
-    rig, language, moves, winner
+    rig, language, moves, winner, mode
 ):
     runner, adapters = rig
     factory = runner.adapter_factory
@@ -126,7 +127,9 @@ async def test_game_runner_uses_authoritative_board_and_stops_on_actual_result(
         return adapter
 
     runner.adapter_factory = configured
-    row, _ = await runner.start(request(communication_language=language), "game")
+    row, _ = await runner.start(
+        request(communication_language=language, mode=mode), "game"
+    )
     await asyncio.wait_for(runner.jobs[row["id"]].task, timeout=5)
     assert runner.snapshot(row["id"])["run"]["status"] == "completed"
     assert len(adapters[0].recorded) == len(moves)
@@ -151,7 +154,7 @@ async def test_game_runner_uses_authoritative_board_and_stops_on_actual_result(
 
     config = row["config"]
     assert config["scheduler"] == "board-state-v2"
-    assert config["scenario_version"].endswith("-board-context-2")
+    assert config["scenario_version"].endswith("-board-context-3")
     for index, (participant, history, parameters) in enumerate(adapters[0].recorded):
         assert len(history) <= 3
         assert (
@@ -224,3 +227,32 @@ def test_competitive_variant_has_explicit_goal_without_changing_alternating(
         RunRequest(
             model_id=SPEC.model_id, scenario_id="split_facts", mode="game_competitive"
         )
+
+
+@pytest.mark.parametrize("language", ["pl", "en"])
+def test_explicit_square_lists_reproduce_observed_illegal_fourth_move(language):
+    game = TicTacToe()
+    for participant, move in [("A", "A2"), ("B", "A1"), ("A", "A3")]:
+        game.play(participant, move)
+    prompt = game.prompt("B", language)
+    assert "X: A2, A3." in prompt
+    assert "O: A1." in prompt
+    assert "B1, B2, B3, C1, C2, C3." in prompt
+    assert (
+        "także własnego znaku" if language == "pl" else "including your own mark"
+    ) in prompt
+    before = game.public()
+    for move in ("A1", "A2"):
+        with pytest.raises(LabError, match="occupied_game_square"):
+            game.play("B", move)
+        assert game.public() == before
+    game.play("B", "B1")
+    assert "O: A1, B1." in game.prompt("A", language)
+
+
+def test_empty_and_full_board_lists_have_explicit_empty_marker():
+    assert "Pola zajęte przez X: brak." in TicTacToe().prompt("A", "pl")
+    game = TicTacToe()
+    for i, move in enumerate(DRAW):
+        game.play("A" if i % 2 == 0 else "B", move)
+    assert "Allowed empty squares: none." in game.prompt("A", "en")

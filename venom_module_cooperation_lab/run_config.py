@@ -251,7 +251,7 @@ class RunConfig:
             model_json=json.dumps(model, sort_keys=True, ensure_ascii=False),
             scenario_id=scenario.scenario_id,
             scenario_version=(
-                scenario.version + "-board-context-2"
+                scenario.version + "-board-context-3"
                 if request.scenario_id == "tic_tac_toe"
                 else scenario.version
             ),

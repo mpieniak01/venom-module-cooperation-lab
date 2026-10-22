@@ -72,6 +72,15 @@ class TicTacToe:
             for name, start in (("A", 0), ("B", 3), ("C", 6))
         ]
         symbol = "X" if participant == "A" else "O"
+        fields = {
+            mark: ", ".join(
+                "ABC"[i // 3] + str(i % 3 + 1)
+                for i, value in enumerate(self.board)
+                if value == mark
+            )
+            for mark in ("X", "O", "")
+        }
+        empty = "brak" if language == "pl" else "none"
         if language == "pl":
             instructions = (
                 f"Aktualna plansza. Twoja tura, grasz {symbol}. "
@@ -84,4 +93,20 @@ class TicTacToe:
                 "A dot means an empty square. Choose one empty square. "
                 "Return only its coordinate, e.g. B2, without commentary."
             )
-        return instructions + "\n" + "\n".join(rows)
+        if language == "pl":
+            constraints = (
+                f"Pola zajęte przez X: {fields['X'] or empty}.\n"
+                f"Pola zajęte przez O: {fields['O'] or empty}.\n"
+                f"Dozwolone wolne pola: {fields[''] or empty}.\n"
+                "Wybierz wyłącznie pole z listy dozwolonych. Nie wolno "
+                "nadpisywać żadnego zajętego pola, także własnego znaku."
+            )
+        else:
+            constraints = (
+                f"Squares occupied by X: {fields['X'] or empty}.\n"
+                f"Squares occupied by O: {fields['O'] or empty}.\n"
+                f"Allowed empty squares: {fields[''] or empty}.\n"
+                "Choose only from the allowed squares. Never overwrite any "
+                "occupied square, including your own mark."
+            )
+        return instructions + "\n" + "\n".join(rows) + "\n" + constraints

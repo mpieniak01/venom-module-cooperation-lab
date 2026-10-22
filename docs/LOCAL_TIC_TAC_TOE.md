@@ -45,3 +45,13 @@ parametry generacji. Host nie podpowiada ruchów ani nie zastępuje decyzji mode
 Cel zostaje zapisany w niezmiennej konfiguracji próby; stare partie pozostają
 wariantem naprzemiennym. Instrukcje nowego wariantu obsługują PL/EN, etykiety UI
 PL/EN/DE. Zmiana lokalna, bez publikacji na GitHub.
+
+
+### Jawny stan pól — board-context-3
+
+Każda tura obu wariantów otrzymuje planszę oraz listy pól zajętych przez X,
+zajętych przez O i dozwolonych wolnych pól. Instrukcja zabrania nadpisywania także
+własnego znaku. Listy powstają z tego samego stanu sędziego, bez rankingu ruchów,
+automatycznej zamiany odpowiedzi lub ukrytych powtórek. Historyczne próby zachowują
+swój numer wersji. Powodem zmiany są cztery próby Gemma4 zakończone błędem zajętego
+pola w czwartej turze; sama nowa instrukcja nie dowodzi poprawy jakości modelu.
