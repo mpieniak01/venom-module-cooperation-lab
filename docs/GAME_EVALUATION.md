@@ -134,3 +134,20 @@ Nowa gra wymaga implementacji Environment w `evaluation/games.py`, referencji,
 wersjonowanego przypadku w `manifest.py`, testów legalności/widoczności/replay
 oraz tłumaczeń panelu. Metadane testów aktualizujemy celami `test-catalog-sync`
 i `test-groups-sync`; pełna bramka to `make pr-fast HOST=/home/ubuntu/venom`.
+
+## Wybór gry w panelu
+
+Otwórz /cooperation-lab → Gry — Nim, Memory, Sokoban → Ustawienia serii.
+Pole „Wybierz grę” udostępnia Kółko i krzyżyk, Nim, Memory i Sokoban
+z aktualnego manifestu API. Wybór zaznacza wszystkie przypadki tej gry;
+można odznaczyć poszczególne przypadki. „Wiele gier / wybór przypadków”
+zaznacza cały dostępny zestaw do dalszej ręcznej selekcji.
+Wybranie gry zachowuje model i jego budżety, unieważnia wcześniejszy preflight
+i niczego automatycznie nie uruchamia. Następnie wybierz model, sprawdź
+konfigurację i naciśnij „Rozpocznij serię”.
+
+Odbiór lokalny 2026-10-22: make pr-fast HOST=/home/ubuntu/venom PASS
+(663 Python, 46 frontend, coverage 96,93%, zmienione linie 96,11%).
+Playwright: rzeczywisty wybór Nim/Memory/Sokoban zaznacza wyłącznie ich
+przypadki; 0 błędów konsoli, pozostają ostrzeżenia powłoki hosta.
+Oficjalny mirror zsynchronizowany, bez restartu API i bez generacji modeli.

@@ -89,9 +89,12 @@ export function EvaluationWorkspace({language}: {language:string}) {
   const [settings, setSettings] = useState(true);
   const models = lab.capabilities?.models ?? [];
   const cases = lab.capabilities?.cases ?? [];
+  const games = [...new Set(cases.map(item=>item.game))];
   const selectedModelId=draft.model_id ?? modelId(models.find(item=>item.can_run ?? item.qualified) ?? models[0] ?? {});
   const model=models.find(item=>modelId(item)===selectedModelId);
   const input: EvaluationRequest = { ...evaluationDefaults(), ...modelBudgets(model), ...draft, model_id:selectedModelId, case_ids:draft.case_ids ?? cases.slice(0,1).map(item=>item.id) };
+  const selectedGames = [...new Set(cases.filter(item=>input.case_ids.includes(item.id)).map(item=>item.game))];
+  const selectedGame = selectedGames.length===1 ? selectedGames[0] : "";
   const checked = lab.checked?.key === JSON.stringify(input) ? lab.checked.value : null;
   const editable = !lab.active && !lab.pending;
   const valid = validEvaluationRequest(input);
@@ -133,6 +136,10 @@ export function EvaluationWorkspace({language}: {language:string}) {
           <p className="coop-message-meta">{t.computeHelp}</p>
         </div>
         <div className="coop-settings-group">
+          <Field label={t.gameSelection}><select className={field} value={selectedGame} onChange={event=>patch({case_ids:cases.filter(item=>!event.target.value || item.game===event.target.value).map(item=>item.id)})}>
+            <option value="">{t.multipleGames}</option>
+            {games.map(game=><option key={game} value={game}>{gameLabel(t,game)}</option>)}
+          </select></Field>
           <span className="coop-setting">{t.cases}</span>
           <div className="evaluation-case-list" role="group" aria-label={t.cases}>{cases.map(item=><label key={item.id}>
             <input type="checkbox" checked={input.case_ids.includes(item.id)} onChange={event=>patch({case_ids:event.target.checked?[...input.case_ids,item.id]:input.case_ids.filter(id=>id!==item.id)})}/>

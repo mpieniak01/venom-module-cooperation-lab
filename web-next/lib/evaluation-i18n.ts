@@ -14,7 +14,9 @@ const labels = {
   mappingHelp:["Mapuje jednoznaczny ruch; nie wybiera go za model. Oryginalna odpowiedź pozostaje w raporcie.", "Maps an explicit move without choosing for the model. Original answers remain in the report.", "Ordnet einen eindeutigen Zug zu, ohne ihn zu wählen. Originalantworten bleiben im Bericht."],
 
   conversationTab:["Rozmowa i serie", "Conversation and series", "Gespräch und Serien"],
-  evaluationTab:["Ewaluacja gier", "Game evaluation", "Spielauswertung"],
+  evaluationTab:["Gry — Nim, Memory, Sokoban", "Games — Nim, Memory, Sokoban", "Spiele — Nim, Memory, Sokoban"],
+  gameSelection:["Wybierz grę", "Choose game", "Spiel auswählen"],
+  multipleGames:["Wiele gier / wybór przypadków", "Multiple games / case selection", "Mehrere Spiele / Fallauswahl"],
   ticTacToe:["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],
   title:["Ewaluacja gier", "Game evaluation", "Spielauswertung"],
   subtitle:["Strategia, pamięć i planowanie. Wagi pozostają zamrożone.", "Strategy, memory and planning. Model weights remain frozen.", "Strategie, Gedächtnis und Planung. Modellgewichte bleiben unverändert."],

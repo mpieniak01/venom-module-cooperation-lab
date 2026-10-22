@@ -286,3 +286,26 @@ test("model budgets persist through server save, model switching and form remoun
     assert.equal(puts.length,1);
   } finally {await mounted.close();}
 });
+
+
+test("game selector exposes all environments and replaces the plan without resetting model budgets",async()=>{
+  const cases=[{id:"ttt",game:"tic_tac_toe",max_actions:9},{id:"nim-a",game:"nim",max_actions:30},{id:"nim-b",game:"nim",max_actions:30},{id:"memory",game:"memory",max_actions:64},{id:"sokoban",game:"sokoban",max_actions:32}];
+  const requests:Record<string,unknown>[]=[];
+  const {box,close}=await setup(async(url,init)=>{
+    if(String(url).endsWith("/capabilities"))return response({...caps,cases});
+    if(String(url).endsWith("/preflight")){requests.push(JSON.parse(String(init?.body)));return response(preflight);}
+    return response({evaluations:[]});
+  });
+  try {
+    assert.deepEqual([...select(box,"Wybierz grę").options].map(item=>item.textContent),["Wiele gier / wybór przypadków","Kółko i krzyżyk","Nim","Memory","Sokoban"]);
+    await number(box,"Tokenów na decyzję","512");
+    for(const [game,ids] of [["nim",["nim-a","nim-b"]],["memory",["memory"]],["sokoban",["sokoban"]],["tic_tac_toe",["ttt"]],["",cases.map(item=>item.id)]] as const){
+      await choose(box,"Wybierz grę",game);
+      assert.equal(findButton(box,"Rozpocznij serię").disabled,true);
+      await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
+      assert.deepEqual(requests.at(-1)?.case_ids,ids);
+      assert.equal(requests.at(-1)?.max_new_tokens,512);
+    }
+    assert.equal(requests.length,5);
+  }finally{await close();}
+});
