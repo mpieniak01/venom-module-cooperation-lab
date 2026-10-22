@@ -270,7 +270,8 @@ class MemoryEnvironment:
         if type(config.get("size", 4)) is not int or config.get("size", 4) != 4:
             raise LabError("invalid_game_config", 422)
         self._cards = [chr(65 + i) for i in range(8)] * 2
-        random.Random(seed).shuffle(self._cards)  # NOSONAR: seeded public fixture.
+        # Seeded public fixture shuffle; never used for security-sensitive randomness.
+        random.Random(seed).shuffle(self._cards)  # NOSONAR
         self.matched: set[int] = set()
         self.revealed_knowledge: dict[int, str] = {}
         self.last_reveal: list[dict[str, Any]] = []
