@@ -308,6 +308,19 @@
       ],
       "domain": "cooperation_lab",
       "intent": "regression",
+      "path": "tests/test_history_rotation.py",
+      "primary_lane": "new-code",
+      "rationale": "Module CPU regression and changed-code coverage.",
+      "test_type": "unit"
+    },
+    {
+      "allowed_lanes": [
+        "new-code",
+        "ci-lite",
+        "release"
+      ],
+      "domain": "cooperation_lab",
+      "intent": "regression",
       "path": "tests/test_host_contract.py",
       "primary_lane": "new-code",
       "rationale": "Module CPU regression and changed-code coverage.",

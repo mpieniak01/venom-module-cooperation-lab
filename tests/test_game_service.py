@@ -322,14 +322,16 @@ async def test_cancel_live_generation_keeps_owned_thread_and_lease_until_quiesce
 
 
 @pytest.mark.asyncio
-async def test_quota_or_guard_failure_releases_acquired_lease_without_loading(eval_rig):
+async def test_full_history_rotates_and_invalid_requests_keep_admission_available(
+    eval_rig,
+):
     service, adapters, _, _ = eval_rig
     row, _ = await service.start(request(), "one")
     await finish(service, row)
     service.runner.store.limits = replace(service.runner.store.limits, max_runs=1)
-    with pytest.raises(LabError, match="run_limit_reached"):
-        await service.start(request(), "two")
-    assert len(adapters) == 1
+    second, _ = await service.start(request(), "two")
+    await finish(service, second)
+    assert len(adapters) == 2
     assert service.runner.admission.snapshot()["status"] == "available"
     assert len(service.store.list()) == 1
     with pytest.raises(LabError, match="invalid_id"):

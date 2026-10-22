@@ -7,7 +7,7 @@ const labels = {
   start:["Rozpocznij serię", "Start series", "Serie starten"],
   stop:["Zatrzymaj serię", "Stop series", "Serie stoppen"],
   remove:["Usuń serię", "Delete series", "Serie löschen"],
-  stored:["Zapisane serie", "Saved series", "Gespeicherte Serien"],
+  stored:["Zapisane próby i serie", "Saved trials and series", "Gespeicherte Versuche und Serien"],
   retention:["Retencja (dni)", "Retention (days)", "Aufbewahrung (Tage)"],
   resume:["Wznów serię", "Resume series", "Serie fortsetzen"],
   check:["Sprawdź konfigurację", "Check configuration", "Konfiguration prüfen"],

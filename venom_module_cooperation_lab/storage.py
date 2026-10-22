@@ -245,11 +245,9 @@ class LabStore:
                     raise LabError("idempotency_conflict")
                 return self._run(previous)
             self.cleanup(now=now)
-            count = db.execute("SELECT count(*) FROM runs").fetchone()[0]
-            if count >= self.limits.max_runs:
-                raise LabError("run_limit_reached")
             try:
                 with self._transaction("runs.create", size + 16384):
+                    self._rotate_completed(owner=owner)
                     db.execute(
                         "INSERT INTO runs(id,owner,idempotency_key,created,"
                         "status,config,bytes) VALUES (?,?,?,?,'created',?,?)",
@@ -265,6 +263,59 @@ class LabStore:
             except sqlite3.IntegrityError as exc:
                 raise LabError("runtime_busy") from exc
             return self.get_run(run_id, owner=owner)
+
+    def _history_tables(self) -> tuple[str, ...]:
+        db = self._connection()
+        return tuple(
+            name
+            for name in ("runs", "evaluations")
+            if db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+            ).fetchone()
+            is not None
+        )
+
+    def history_count(self) -> int:
+        with self._lock:
+            return sum(
+                self._connection()
+                .execute("SELECT count(*) FROM " + table)
+                .fetchone()[0]
+                for table in self._history_tables()
+            )
+
+    def _rotate_completed(self, *, owner: str) -> int:
+        """Reserve one slot atomically with insertion; caller owns the transaction.
+
+        Whitelisted tables and terminal states only. A failed insertion rolls back
+        pruning, active records and other owners are never candidates.
+        """
+        self._access(owner, "retention.rotate")
+        tables = self._history_tables()
+        excess = self.history_count() + 1 - self.limits.max_runs
+        if excess <= 0:
+            return 0
+        candidates: list[tuple[float, str, str]] = []
+        for table in tables:
+            rows = (
+                self._connection()
+                .execute(
+                    "SELECT id,created FROM " + table + " WHERE owner=? AND status IN "
+                    "('completed','failed','cancelled','interrupted') "
+                    "ORDER BY created,id",
+                    (owner,),
+                )
+                .fetchall()
+            )
+            candidates.extend((row["created"], row["id"], table) for row in rows)
+        candidates.sort()
+        if len(candidates) < excess:
+            raise LabError("run_limit_reached", 409)
+        for _created, identifier, table in candidates[:excess]:
+            self._connection().execute(
+                "DELETE FROM " + table + " WHERE id=?", (identifier,)
+            )
+        return excess
 
     def find_run_by_key(self, key: str, *, owner: str) -> dict[str, Any] | None:
         with self._lock:

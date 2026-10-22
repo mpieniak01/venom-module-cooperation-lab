@@ -198,12 +198,12 @@ test("terminal series deletes with one click and updates capacity without confir
     return response({evaluations:removed?[]:[{...saved("completed"),can_resume:false}]});
   });
   try{
-    await choose(box,"Historia serii","series-1");assert.match(box.textContent??"",/Zapisane serie: 1\/100/);
+    await choose(box,"Historia serii","series-1");assert.match(box.textContent??"",/Zapisane próby i serie: 1\/100/);
     assert.equal(findButton(box,"Usuń serię").disabled,false);
     await act(async()=>{findButton(box,"Usuń serię").click();findButton(box,"Usuń serię").click();});await settle();
     assert.deepEqual(deletes,["/api/v1/cooperation-lab/evaluations/series-1"]);
     assert.equal(select(box,"Historia serii").value,"");assert.equal(findButton(box,"Usuń serię").disabled,true);
-    assert.match(box.textContent??"",/Zapisane serie: 0\/100/);assert.equal(box.querySelector('[data-counter="planned"]')?.textContent,"0");
+    assert.match(box.textContent??"",/Zapisane próby i serie: 0\/100/);assert.equal(box.querySelector('[data-counter="planned"]')?.textContent,"0");
   }finally{await close();Object.defineProperty(globalThis,"confirm",{value:oldConfirm,configurable:true});}
 });
 

@@ -22,6 +22,7 @@ tests/test_game_service.py
 tests/test_game_sessions.py
 tests/test_game_visibility.py
 tests/test_hf_adapters.py
+tests/test_history_rotation.py
 tests/test_host_contract.py
 tests/test_lifecycle_api.py
 tests/test_lifecycle_namespace.py

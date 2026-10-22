@@ -82,7 +82,11 @@ liczbę próbek i jawne `metric_aggregation` w eksporcie.
 ## Zapis, odtworzenie i granice
 
 Ten sam kontrolowany namespace/SQLite hosta; bez plików modeli lub logów w Git.
-Limity: 100 serii, retencja 14 dni, 2 MiB na snapshot i wspólne 512 MiB storage.
+Limity: wspólne 100 zapisów prób/serii, retencja 14 dni, 2 MiB na snapshot
+i wspólne 512 MiB storage. Przy nowym START najstarsze zakończone zapisy są
+rotowane automatycznie, razem z ich zdarzeniami. Aktywne próby i cleanup_pending
+pozostają chronione; jeśli nie ma rekordu do zwolnienia, START zostaje odrzucony.
+Rotacja i nowy zapis są jedną transakcją — nieudany zapis nie usuwa starej próby.
 Plan: do 128 epizodów / 384 akcji / 1800 s; frontend pokazuje plan i zajętość.
 Osiem zakończonych snapshotów może zostać w cache, ale usunięcie/retencja SQLite
 nadal blokuje ich odczyt. API odczytu nie tworzy tabel ani nie ładuje modelu.

@@ -152,8 +152,8 @@ def test_retention_never_removes_active_runs(store):
     store.limits = replace(store.limits, max_runs=1)
     create(store, now=2000000)
     store.set_run_status("r1", "completed", owner="operator")
-    with pytest.raises(LabError, match="run_limit_reached"):
-        create(store, "r2", now=2000000)
+    create(store, "r2", now=2000000)
+    assert [r["id"] for r in store.list_runs(owner="operator")] == ["r2"]
 
 
 def test_all_access_and_mutations_are_guarded(store):

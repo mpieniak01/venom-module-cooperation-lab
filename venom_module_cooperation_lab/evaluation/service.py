@@ -65,7 +65,9 @@ class EvaluationService:
         return {
             "cases": list_cases(),
             "storage": {
-                "series_used": self.store.count(),
+                "series_used": self.runner.store.history_count(),
+                "evaluation_series": self.store.count(),
+                "rotation": "oldest_terminal_first",
                 "max_series": self.runner.store.limits.max_runs,
                 "retention_days": self.runner.store.limits.retention_days,
             },

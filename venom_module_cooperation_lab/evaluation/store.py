@@ -109,11 +109,7 @@ class EvaluationStore:
                 "('queued','running','cancelling','cleanup_pending')",
                 (time.time() - self.store.limits.retention_days * 86400,),
             )
-            if (
-                db.execute("SELECT count(*) FROM evaluations").fetchone()[0]
-                >= self.store.limits.max_runs
-            ):
-                raise LabError("run_limit_reached", 409)
+            self.store._rotate_completed(owner="local_operator")
             db.execute(
                 "INSERT INTO evaluations VALUES(?,?,?,?,?,?,?,?)",
                 (
