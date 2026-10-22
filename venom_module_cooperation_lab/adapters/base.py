@@ -69,7 +69,11 @@ class GenerationParameters:
         for name, lower, upper in (
             ("max_new_tokens", 1, 256),
             ("seed", 0, 2**31 - 1),
-            ("max_context_tokens", 1, 2048),
+            (
+                "max_context_tokens",
+                1,
+                8192 if self.session_protocol == "game-eval-v2" else 2048,
+            ),
         ):
             value = getattr(self, name)
             if type(value) is not int or not lower <= value <= upper:

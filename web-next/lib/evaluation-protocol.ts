@@ -18,9 +18,10 @@ export type EvaluationRequest = {
   swap_sides: boolean;
   max_new_tokens: number;
   decision_timeout_s: number;
+  max_context_tokens: number;
 };
 export type EvaluationCase = { id: string; game: string; max_actions: number; config?: Record<string, Json>; seed?: number };
-export type EvaluationModel = Model & { observation_modes?: string[]; episode_memories?: string[]; compute_steps?: number[]; num_steps?: number[]; capabilities?: Record<string, Json> };
+export type EvaluationModel = Model & { observation_modes?: string[]; episode_memories?: string[]; compute_steps?: number[]; num_steps?: number[]; max_context_tokens?: number; capabilities?: Record<string, Json> };
 export type EvaluationCapabilities = {
   cases: EvaluationCase[];
   models: EvaluationModel[];
@@ -92,7 +93,7 @@ export function isEvaluationSnapshot(value: unknown): value is EvaluationSnapsho
     Array.isArray(value.episodes) && value.episodes.every(episode => object(episode) && typeof episode.case_id === "string" && typeof episode.status === "string" && Array.isArray(episode.decisions)) && object(value.summary);
 }
 export function evaluationDefaults(): EvaluationRequest {
-  return { model_id:"", case_ids:[], repetitions:1, observation_mode:"history_replay", episode_memory:"fresh", reflection:"off", decoding:"greedy", response_mode:"mapped", temperature:0.8, top_p:0.9, seed:17, num_steps:8, legal_moves:"listed", opponent:"optimal", swap_sides:true, max_new_tokens:64, decision_timeout_s:30 };
+  return { model_id:"", case_ids:[], repetitions:1, observation_mode:"history_replay", episode_memory:"fresh", reflection:"off", decoding:"greedy", response_mode:"mapped", temperature:0.8, top_p:0.9, seed:17, num_steps:8, legal_moves:"listed", opponent:"optimal", swap_sides:true, max_new_tokens:64, decision_timeout_s:30, max_context_tokens:2048 };
 }
 export function validEvaluationRequest(input: EvaluationRequest): boolean {
   return typeof input.model_id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(input.model_id) &&
@@ -100,7 +101,7 @@ export function validEvaluationRequest(input: EvaluationRequest): boolean {
     ["history_replay", "native_incremental"].includes(input.observation_mode) && ["fresh", "carry"].includes(input.episode_memory) && ["off", "episode_note"].includes(input.reflection) &&
     ["strict_json", "mapped"].includes(input.response_mode) && ["greedy", "sampled"].includes(input.decoding) && [8,16,32,64].includes(input.num_steps) && ["hidden", "listed"].includes(input.legal_moves) &&
     ["optimal", "random", "remembering", "model"].includes(input.opponent) && typeof input.swap_sides === "boolean" && Number.isInteger(input.repetitions) && input.repetitions >= 1 && input.repetitions <= 10 &&
-    Number.isInteger(input.seed) && input.seed >= 0 && input.seed <= 2147483647 && Number.isInteger(input.max_new_tokens) && input.max_new_tokens >= 8 && input.max_new_tokens <= 256 &&
+    Number.isInteger(input.max_context_tokens) && input.max_context_tokens >= 128 && input.max_context_tokens <= 8192 && Number.isInteger(input.seed) && input.seed >= 0 && input.seed <= 2147483647 && Number.isInteger(input.max_new_tokens) && input.max_new_tokens >= 8 && input.max_new_tokens <= 256 &&
     Number.isInteger(input.decision_timeout_s) && input.decision_timeout_s >= 1 && input.decision_timeout_s <= 90 && Number.isFinite(input.temperature) && input.temperature >= 0 && input.temperature <= 2 && (input.decoding !== "sampled" || input.temperature > 0) &&
     Number.isFinite(input.top_p) && input.top_p > 0 && input.top_p <= 1;
 }

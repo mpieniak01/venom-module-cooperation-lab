@@ -1,4 +1,5 @@
 const labels = {
+  contextTokens:["Budżet kontekstu", "Context budget", "Kontextbudget"],
   responseMode:["Format odpowiedzi", "Response format", "Antwortformat"],
   strict_json:["Ścisły JSON", "Strict JSON", "Striktes JSON"],
   mapped:["Mapowanie odpowiedzi", "Response mapping", "Antwortzuordnung"],

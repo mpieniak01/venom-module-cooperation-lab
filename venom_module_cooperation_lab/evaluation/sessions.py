@@ -41,7 +41,9 @@ def capabilities_for(model_spec: dict[str, Any]) -> dict[str, Any]:
         "episode_memories": ["fresh", "carry"] if supported else [],
         "compute_steps": [8, 16, 32, 64] if architecture == "huginn_raven" else [],
         "snapshot_restore": False,
-        "max_context_tokens": 2048,
+        "max_context_tokens": 8192
+        if ollama_replay and architecture == "gemma4"
+        else 2048,
         "max_history_bytes": 16384,
         "max_history_messages": 512,
         "native_reason": None if native else "native_state_not_implemented",
@@ -75,7 +77,10 @@ class SessionDriver:
             or episode_memory not in self.capabilities["episode_memories"]
         ):
             raise LabError("unsupported_session_configuration", 422)
-        if type(max_context_tokens) is not int or not 1 <= max_context_tokens <= 2048:
+        if (
+            type(max_context_tokens) is not int
+            or not 1 <= max_context_tokens <= self.capabilities["max_context_tokens"]
+        ):
             raise LabError("invalid_parameters", 422)
         self._histories: dict[str, list[ChatMessage]] = {"A": [], "B": []}
         self._cursors = {"A": 0, "B": 0}

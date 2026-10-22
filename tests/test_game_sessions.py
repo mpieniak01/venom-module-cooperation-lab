@@ -450,3 +450,13 @@ def test_ollama_replay_capabilities_require_provider_and_runtime():
             capabilities_for({**spec, **changes})["reason"]
             == "unsupported_model_adapter"
         )
+
+
+def test_context_capability_is_specific_to_verified_ollama_gemma():
+    spec = {"provider": "ollama", "runtime": "ollama==0.40.6", "architecture": "gemma4"}
+    assert capabilities_for(spec)["max_context_tokens"] == 8192
+    assert (
+        capabilities_for({**spec, "architecture": "other"})["max_context_tokens"]
+        == 2048
+    )
+    assert capabilities_for({**spec, "provider": "other"})["max_context_tokens"] == 2048

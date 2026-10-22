@@ -466,3 +466,22 @@ def test_ollama_game_replay_preserves_isolation_and_legacy_message_limit():
     )
     assert adapter.state()["history_messages"] == {"A": 26, "B": 2}
     assert adapter.close()
+
+
+def test_larger_ollama_context_is_explicit_and_v2_only():
+    adapter, _, _ = configured_ollama()
+    adapter.load(time.monotonic() + 3)
+    messages = [ChatMessage("user", "x" * 2200)]
+    with pytest.raises(LabError, match="invalid_parameters"):
+        GenerationParameters(max_context_tokens=8192)
+    with pytest.raises(LabError, match="context_budget_exceeded"):
+        adapter.generate("A", messages, GenerationParameters(), time.monotonic() + 3)
+    stream(adapter, [{"message": {"content": '{"cards":[0,1]}'}}, {"done": True}])
+    result = adapter.generate(
+        "A",
+        messages,
+        GenerationParameters(session_protocol="game-eval-v2", max_context_tokens=8192),
+        time.monotonic() + 3,
+    )
+    assert result.effective_parameters["max_context_tokens"] == 8192
+    assert adapter.close()

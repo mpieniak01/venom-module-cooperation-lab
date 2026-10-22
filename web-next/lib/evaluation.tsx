@@ -99,7 +99,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
   const counts = counters(lab.selected);
   const steps = model?.compute_steps ?? model?.num_steps ?? [];
   const patch = (value: Partial<EvaluationRequest>) => setDraft({...input,...value});
-  const number = (key: "repetitions"|"temperature"|"top_p"|"seed"|"max_new_tokens"|"decision_timeout_s", title:string, min:number, max:number, step=1, disabled=false) => <Field label={title}><input className={field} type="number" min={min} max={max} step={step} value={input[key]} disabled={disabled} onInput={event=>patch({[key]:Number(event.currentTarget.value)})}/></Field>;
+  const number = (key: "repetitions"|"temperature"|"top_p"|"seed"|"max_new_tokens"|"decision_timeout_s"|"max_context_tokens", title:string, min:number, max:number, step=1, disabled=false) => <Field label={title}><input className={field} type="number" min={min} max={max} step={step} value={input[key]} disabled={disabled} onInput={event=>patch({[key]:Number(event.currentTarget.value)})}/></Field>;
   const notice = lab.error ? reasonText(t, language, lab.error) : !valid ? t.invalid : !ready ? reasonText(t,language,lab.capabilities?.reason_code ?? "runtime_busy") : checked ? checked.supported ? t.checked : t.unsupported : t.needsCheck;
   return <section ref={viewport} className="coop-workspace coop-evaluation" aria-label={t.title}>
     <style>{workspaceStyles+styles}</style>
@@ -117,7 +117,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
     <div className="coop-body">
       {settings && <fieldset className="coop-settings" disabled={!editable}><legend>{t.settings}</legend>
         <div className="coop-settings-group">
-          <Field label={t.model}><select className={field} value={input.model_id} onChange={event=>patch({model_id:event.target.value,num_steps:8})}>
+          <Field label={t.model}><select className={field} value={input.model_id} onChange={event=>patch({model_id:event.target.value,num_steps:8,max_context_tokens:models.find(item=>modelId(item)===event.target.value)?.max_context_tokens ?? 2048})}>
             {!models.length&&!input.model_id&&<option value="">{t.unavailable}</option>}
             {input.model_id&&!model&&<option value={input.model_id}>{input.model_id} — {t.unavailable}</option>}
             {models.map(item=><option key={modelId(item)} value={modelId(item)}>{item.display_name ?? modelId(item)}{(item.can_run ?? item.qualified) ? "" : ` — ${t.unavailable}`}</option>)}
@@ -151,6 +151,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
           {number("top_p",t.topP,0.01,1,0.01,input.decoding==="greedy")}
           {number("seed",t.seed,0,2147483647)}
           {number("max_new_tokens",t.tokens,8,256)}
+          {number("max_context_tokens",t.contextTokens,128,model?.max_context_tokens ?? 2048)}
           {number("decision_timeout_s",t.timeout,1,90)}
           <p className="coop-message-meta">{t.decoderHelp}</p>
         </div>

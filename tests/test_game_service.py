@@ -754,3 +754,41 @@ async def test_mapped_response_is_auditable_without_retry_and_strict_stays_stric
     strict = await finish(service, row)
     assert strict["episodes"][0]["status"] == "illegal_action"
     assert adapters[-1].calls == 1
+
+
+@pytest.mark.asyncio
+async def test_compact_nim_contract_keeps_observation_and_does_not_guess_move(eval_rig):
+    service, adapters, settings, _ = eval_rig
+    settings["response"] = "heap=0 take=1"
+    row, _ = await service.start(request(response_mode="mapped"), "compact-nim")
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "game_completed"
+    decision = final["episodes"][0]["decisions"][0]
+    wire = json.loads(adapters[-1].recorded[0][1][-1].content)
+    assert "heap=H take=N" in wire["instruction"]
+    assert wire["observation"] == decision["observation"]["observation"]
+    assert "event_id" not in wire and "event_id" in decision["observation"]
+    assert final["config"]["response_mapper"] == "action-map-v2"
+    assert service.preflight(request(max_context_tokens=8192))["reason_codes"] == [
+        "unsupported_context_budget"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_memory_prompt_requires_indices_not_generic_match(eval_rig):
+    service, adapters, settings, _ = eval_rig
+    settings["response"] = "match"
+    row, _ = await service.start(
+        request(case_ids=["memory-seed17-v1"], response_mode="mapped"), "compact-memory"
+    )
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    assert episode["status"] == "invalid_format"
+    wire = json.loads(adapters[-1].recorded[0][1][-1].content)
+    assert (
+        "cards=I,J" in wire["instruction"] and "not just 'match'" in wire["instruction"]
+    )
+    assert "legal_actions" not in wire["observation"]
+    assert wire["observation"]["last_reveal"] == []
+    assert all(value is None for value in wire["observation"]["board"])
+    assert adapters[-1].calls == 1

@@ -33,7 +33,7 @@ class EvaluationRequest(BaseModel):
     swap_sides: bool = True
     max_new_tokens: int = Field(default=128, ge=8, le=256)
     decision_timeout_s: int = Field(default=30, ge=1, le=90)
-    max_context_tokens: int = Field(default=2048, ge=128, le=2048)
+    max_context_tokens: int = Field(default=2048, ge=128, le=8192)
 
     @model_validator(mode="after")
     def valid(self) -> EvaluationRequest:

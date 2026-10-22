@@ -8,7 +8,7 @@ from typing import Any
 
 from ..errors import LabError
 
-VERSION = "action-map-v1"
+VERSION = "action-map-v2"
 
 
 def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -53,6 +53,25 @@ def _object(game: str, action: dict[str, Any]) -> tuple[dict[str, Any], str]:
             and action["action"] == "move"
         ):
             return {"move": action.get("move", action.get("value"))}, "move_envelope"
+    if game == "nim":
+        if keys == {"heap", "count"}:
+            return {"heap": action["heap"], "take": action["count"]}, "nim_count"
+        if keys in ({"action", "heap", "take"}, {"action", "heap", "count"}) and action[
+            "action"
+        ] in {"take", "remove"}:
+            return {
+                "heap": action["heap"],
+                "take": action.get("take", action.get("count")),
+            }, "nim_envelope"
+    if game == "memory":
+        if keys == {"card1", "card2"}:
+            return {"cards": [action["card1"], action["card2"]]}, "memory_pair"
+        if keys == {"action", "cards"} and action["action"] in {
+            "reveal",
+            "match",
+            "flip",
+        }:
+            return {"cards": action["cards"]}, "memory_envelope"
     return action, "json"
 
 
@@ -62,6 +81,9 @@ def _plain(game: str, text: str) -> dict[str, Any]:
         if match:
             return {"move": match[1].lower()}
     elif game == "nim":
+        compact = re.fullmatch(r"heap\s*=\s*(\d+)\s+take\s*=\s*(\d+)[.!]?", text, re.I)
+        if compact:
+            return {"heap": int(compact[1]), "take": int(compact[2])}
         match = re.fullmatch(
             r"take\s+(\d+)\s+stones?\s+from\s+heap\s+(\d+)[.!]?", text, re.I
         )
@@ -69,7 +91,9 @@ def _plain(game: str, text: str) -> dict[str, Any]:
             return {"heap": int(match[2]), "take": int(match[1])}
     elif game == "memory":
         match = re.fullmatch(
-            r"(?:cards?|reveal)\s*:?\s*(\d+)\s*(?:,|and)\s*(\d+)[.!]?", text, re.I
+            r"(?:cards?|reveal|flip|match)\s*[:=]?\s*(\d+)\s*(?:,|and)\s*(\d+)[.!]?",
+            text,
+            re.I,
         )
         if match:
             return {"cards": [int(match[1]), int(match[2])]}

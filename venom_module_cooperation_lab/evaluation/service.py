@@ -13,6 +13,7 @@ from uuid import uuid4
 from ..adapters.base import GenerationParameters
 from ..errors import LabError
 from ..runner import MODEL_IDENTITY_FIELDS
+from .actions import VERSION as MAPPER_VERSION
 from .config import EvaluationRequest, plan, seeded
 from .reports import progress, summarize
 from .store import EvaluationStore
@@ -83,7 +84,7 @@ class EvaluationService:
                 "episodes": 128,
                 "decisions": 384,
                 "snapshot_bytes": self.runner.store.limits.run_bytes,
-                "context_tokens": 2048,
+                "context_tokens": 8192,
                 "wall_seconds": 1800,
                 "snapshot_restore": False,
             },
@@ -103,6 +104,8 @@ class EvaluationService:
         caps = capabilities_for(model)
         if request.observation_mode not in caps["observation_modes"]:
             reasons.append("unsupported_observation_mode")
+        if request.max_context_tokens > caps["max_context_tokens"]:
+            reasons.append("unsupported_context_budget")
         if request.action_constraint != "none":
             reasons.append("unsupported_action_constraint")
         if request.num_steps != 8 and model.get("architecture") != "huginn_raven":
@@ -120,6 +123,12 @@ class EvaluationService:
         configuration = {
             **request.model_dump(),
             "schema_version": 2,
+            "response_encoding": "compact-game-actions-v1"
+            if request.response_mode == "mapped"
+            else "json-events-v2",
+            "response_mapper": MAPPER_VERSION
+            if request.response_mode == "mapped"
+            else "strict-json-v2",
             "protocol": "game-eval-v2",
             "manifest_version": SUITE_VERSION,
             "manifest_hash": manifest_hash(),
@@ -275,6 +284,13 @@ class EvaluationService:
                 != check["configuration"]["model_identity"]
                 or previous["config"]["manifest_hash"]
                 != check["configuration"]["manifest_hash"]
+                or previous["config"].get(
+                    "response_mapper",
+                    "action-map-v1"
+                    if request.response_mode == "mapped"
+                    else "strict-json-v2",
+                )
+                != check["configuration"]["response_mapper"]
             ):
                 raise LabError("evaluation_identity_changed", 409)
             state = copy.deepcopy(previous)
@@ -581,6 +597,19 @@ class EvaluationService:
             "Return exactly one JSON object describing your chosen action. "
             "No markdown or additional text."
         )
+        if request.response_mode == "mapped" and purpose == "action":
+            if observation.get("game") == "nim":
+                action_instruction = (
+                    "Reply only: heap=H take=N. H is the zero-based heap index; "
+                    "N is the positive number of stones to remove. "
+                    "Use actual numbers. No explanation or reasoning."
+                )
+            elif observation.get("game") == "memory":
+                action_instruction = (
+                    "Reply only: cards=I,J. I and J must be different unmatched "
+                    "indices 0-15, zero-based row-major. Give both actual indices, "
+                    "not just 'match'. No explanation or reasoning."
+                )
         reflection_instruction = (
             "Write a short private improvement note based only on your observed game. "
             "Do not give a step-by-step reasoning transcript."
@@ -613,14 +642,37 @@ class EvaluationService:
         }
         if purpose == "action" and player in job.feedback:
             payload["previous_episode"] = job.feedback.pop(player)
+        wire_payload = payload
+        if (
+            request.response_mode == "mapped"
+            and purpose == "action"
+            and observation.get("game") in {"nim", "memory"}
+        ):
+            # Identifiers stay in the journal; all game evidence stays on the wire.
+            wire_payload = {
+                key: value
+                for key, value in payload.items()
+                if key not in {"event_id", "episode_id"}
+            }
+            if job.session.has_history(player):
+                wire_payload["instruction"] = (
+                    "Reply only: heap=H take=N."
+                    if observation["game"] == "nim"
+                    else "Reply only: cards=I,J."
+                )
+        encoded = json.dumps(
+            wire_payload,
+            ensure_ascii=False,
+            separators=(",", ":")
+            if request.response_mode == "mapped"
+            else (", ", ": "),
+        )
         started = time.monotonic()
         deadline = min(job.deadline, time.monotonic() + request.decision_timeout_s)
         try:
             result = await self._work(
                 job,
-                lambda: job.session.generate(
-                    player, json.dumps(payload, ensure_ascii=False), params, deadline
-                ),
+                lambda: job.session.generate(player, encoded, params, deadline),
                 deadline,
             )
             if not result.quiescent:

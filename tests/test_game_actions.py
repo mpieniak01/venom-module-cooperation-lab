@@ -28,7 +28,7 @@ from venom_module_cooperation_lab.evaluation.games import make_environment
 def test_explicit_answer_maps_without_changing_selected_move(game, text, action):
     actual, receipt = parse_action(text, game, "mapped")
     assert actual == action
-    assert receipt["version"] == "action-map-v1" and receipt["mapped"]
+    assert receipt["version"] == "action-map-v2" and receipt["mapped"]
     if text.startswith("{"):
         # Strict JSON deliberately leaves envelopes unmodified.
         original, strict = parse_action(text, game, "strict_json")
@@ -72,3 +72,44 @@ def test_canonical_json_is_unchanged_and_illegal_moves_are_not_repaired():
         action, _ = parse_action(text, "sokoban", "mapped")
         with pytest.raises(LabError, match="illegal_action"):
             env.step("A", action)
+
+
+@pytest.mark.parametrize(
+    "game,text,expected",
+    [
+        ("nim", "heap=0 take=2", {"heap": 0, "take": 2}),
+        ("nim", '{"action":"take","heap":2,"count":3}', {"heap": 2, "take": 3}),
+        ("nim", '{"heap":0,"count":1}', {"heap": 0, "take": 1}),
+        ("memory", "cards=1,2", {"cards": [1, 2]}),
+        ("memory", "match 0 and 15", {"cards": [0, 15]}),
+        ("memory", '{"card1":2,"card2":7}', {"cards": [2, 7]}),
+        ("memory", '{"action":"flip","cards":[3,8]}', {"cards": [3, 8]}),
+    ],
+)
+def test_compact_game_answers_preserve_exact_numbers(game, text, expected):
+    action, receipt = parse_action(text, game, "mapped")
+    assert action == expected and receipt["mapped"]
+
+
+@pytest.mark.parametrize(
+    "game,text",
+    [
+        ("nim", "heap=0 take=1 or heap=2 take=3"),
+        ("nim", '{"action":"take","heap":1,"count":2,"take":3}'),
+        ("memory", "match"),
+        ("memory", "cards=1,2,3"),
+        ("memory", '{"card1":1,"card2":2,"cards":[3,4]}'),
+    ],
+)
+def test_uncertain_or_contradictory_formats_do_not_become_valid_actions(game, text):
+    try:
+        action, _ = parse_action(text, game, "mapped")
+    except LabError as exc:
+        assert exc.code == "invalid_format"
+        return
+    from venom_module_cooperation_lab.evaluation.games import make_environment
+
+    config = {"heaps": [3, 4, 5]} if game == "nim" else {}
+    env = make_environment(game, config, 17)
+    with pytest.raises(LabError, match="illegal_action"):
+        env.step("A", action)
