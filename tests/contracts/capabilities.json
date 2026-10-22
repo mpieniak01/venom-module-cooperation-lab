@@ -89,7 +89,8 @@
     "dialog_encouraged",
     "operator_chat",
     "operator_relay",
-    "operator_review"
+    "operator_review",
+    "game_competitive"
   ],
   "preset": {
     "max_turns": 8,

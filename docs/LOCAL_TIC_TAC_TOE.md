@@ -32,3 +32,16 @@ Kółko i krzyżyk / Gra naprzemienna / 9 tur / Polski, dziewięć pól planszy,
 „Następny ruch: A (X)”, 0 pageerror. Nie klikano START — testy gry używały
 jawnych adapterów CPU fixture, nie dowodzą poprawnych ruchów rzeczywistego modelu.
 Wdrożono lokalny moduł i kopię UI; odświeżono tylko API przy pustym runtime.
+
+
+## Warianty celu gry
+
+- Gra naprzemienna (`dialog`): dotychczasowe instrukcje, wybór legalnego pola.
+- Gra, aby wygrać (`game_competitive`): jawny cel zwycięstwa, sprawdzanie własnej
+  wygranej i blokowania przeciwnika oraz dążenie do remisu, gdy nie można wygrać.
+
+Oba warianty dostają tę samą aktualną planszę i mają identyczne limity oraz
+parametry generacji. Host nie podpowiada ruchów ani nie zastępuje decyzji modelu.
+Cel zostaje zapisany w niezmiennej konfiguracji próby; stare partie pozostają
+wariantem naprzemiennym. Instrukcje nowego wariantu obsługują PL/EN, etykiety UI
+PL/EN/DE. Zmiana lokalna, bez publikacji na GitHub.

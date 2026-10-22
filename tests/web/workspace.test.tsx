@@ -257,12 +257,15 @@ test("tic-tac-toe selects dialog and nine moves and live game events update the 
   assert.equal(variants.value,"dialog_encouraged");
   await act(async()=>{selector.value="tic_tac_toe";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
   const mode=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Wariant"))!;
-  assert.equal(mode.value,"dialog");assert.equal(mode.options.length,1);assert.equal(mode.options[0].textContent,"Gra naprzemienna");
+  assert.equal(mode.value,"dialog");assert.equal(mode.options.length,2);assert.equal(mode.options[0].textContent,"Gra naprzemienna");
+  assert.equal(mode.options[1].textContent,"Gra, aby wygrać");
+  await act(async()=>{mode.value="game_competitive";mode.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
   const turns=box.querySelector<HTMLInputElement>('input[type="number"]')!;
   assert.equal(turns.value,"9");assert.equal(turns.max,"9");assert.equal(posted,null);
   assert.equal(box.querySelectorAll(".coop-game-board tbody td").length,9);
   await act(async()=>findButton(box,"Rozpocznij eksperyment").click());await settle();
   assert.equal((posted as unknown as Record<string,unknown>).scenario_id,"tic_tac_toe");
+  assert.equal((posted as unknown as Record<string,unknown>).mode,"game_competitive");
   assert.equal((posted as unknown as Record<string,unknown>).max_turns,9);
   assert.ok(Stream.instances[0].listeners.has("game"));
   await act(async()=>Stream.instances[0].emit({run_id:"r1",seq:1,kind:"game",timestamp:1,payload:{board:["X","X","X","O","O","","","",""],winner:"A",finished:true,draw:false,next_player:null}}));

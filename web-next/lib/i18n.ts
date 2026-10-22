@@ -94,6 +94,7 @@ const translations = {
   polish: ["Polski", "Polish", "Polnisch"],
   english: ["Angielski", "English", "Englisch"],
   scenarioTicTacToe: ["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],
+  gameCompetitive: ["Gra, aby wygrać", "Play to win", "Spielen, um zu gewinnen"],
   gameAlternating: ["Gra naprzemienna", "Alternating play", "Abwechselndes Spiel"],
   gameBoard: ["Plansza", "Board", "Spielfeld"],
   gameNext: ["Następny ruch", "Next move", "Nächster Zug"],

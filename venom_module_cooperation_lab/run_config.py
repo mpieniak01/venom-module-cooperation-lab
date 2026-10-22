@@ -20,6 +20,7 @@ Mode = Literal[
     "operator_chat",
     "operator_relay",
     "operator_review",
+    "game_competitive",
 ]
 MODES = (
     "single",
@@ -30,6 +31,7 @@ MODES = (
     "operator_chat",
     "operator_relay",
     "operator_review",
+    "game_competitive",
 )
 
 
@@ -59,8 +61,10 @@ class RunRequest(BaseModel):
                 self.mode = "dialog"
             if "max_turns" not in self.model_fields_set:
                 self.max_turns = 9
-            if self.mode != "dialog":
+            if self.mode not in {"dialog", "game_competitive"}:
                 raise ValueError("tic_tac_toe_requires_dialog")
+        elif self.mode == "game_competitive":
+            raise ValueError("competitive_mode_requires_game")
         elif self.max_turns > 8:
             raise ValueError("scenario_turn_limit_exceeded")
         if self.mode == "operator_review":
@@ -193,6 +197,21 @@ class RunConfig:
                     "Use the current host board. Choose an empty square. "
                     "Reply only with its coordinate, e.g. B2, no JSON or commentary."
                 )
+                if request.mode == "game_competitive":
+                    prompts[-1] += (
+                        " Twoim celem jest wygrać z przeciwnikiem. Sprawdzaj własne "
+                        "możliwości natychmiastowej wygranej i zagrożenia przeciwnika. "
+                        "Jeśli nie możesz wygrać od razu, blokuj jego wygraną. "
+                        "Planuj kolejne ruchy; gdy wygrana jest niemożliwa, "
+                        "dąż do remisu."
+                        if language == "pl"
+                        else " Your goal is to beat your opponent. Check your "
+                        "immediate "
+                        "winning opportunities and the opponent's threats. "
+                        "If you cannot "
+                        "win immediately, block their win. Plan ahead; when a win is "
+                        "impossible, aim for a draw."
+                    )
                 continue
             if request.mode in {"single", "self_correction"}:
                 private = scenario.private_a + " " + scenario.private_b

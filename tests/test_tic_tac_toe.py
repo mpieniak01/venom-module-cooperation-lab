@@ -200,3 +200,27 @@ async def test_invalid_model_move_is_visible_not_delivered_and_releases_runtime(
     assert message["delivered_to"] == []
     assert events[-1]["payload"]["reason_code"] == "invalid_game_move"
     assert runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.parametrize(
+    "language,phrase",
+    [("pl", "Twoim celem jest wygrać"), ("en", "Your goal is to beat")],
+)
+def test_competitive_variant_has_explicit_goal_without_changing_alternating(
+    language, phrase
+):
+    competitive = RunConfig.build(
+        request(mode="game_competitive", communication_language=language), {}
+    )
+    alternating = RunConfig.build(
+        request(mode="dialog", communication_language=language), {}
+    )
+    assert competitive.mode == "game_competitive"
+    assert competitive.budgets == alternating.budgets
+    assert all(phrase in prompt for prompt in competitive.prompts)
+    assert all(phrase not in prompt for prompt in alternating.prompts)
+    assert competitive.public()["config_hash"] != alternating.public()["config_hash"]
+    with pytest.raises(ValidationError):
+        RunRequest(
+            model_id=SPEC.model_id, scenario_id="split_facts", mode="game_competitive"
+        )
