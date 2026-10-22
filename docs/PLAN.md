@@ -88,3 +88,16 @@ bez zmian. Legacy adapter śledzi osobny [Venom #554](https://github.com/mpienia
 nie jest to CHAT PASS ani blocker zakwalifikowanych modeli laboratorium.
 Pierwsze utracone body nie jest retrospektywnie diagnozowane.
 Crash/retencja/quotas/OOM pozostają dowodami fixture.
+
+
+## Następny zakres L7 — plan, 2026-10-22
+
+[Specyfikacja jednego PR: ewaluacja gier, strategii i pamięci](prs/L7-game-evaluation.md).
+Repo: cooperation-lab; TTT/Nim/Memory/Sokoban, referencje, replay/native,
+fresh/carry, jawne dekodowanie i compute budget, raport i bezpieczne wznowienie.
+Stan **wdrożone lokalnie / odbiór techniczny zakończony**, bez numeru PR GitHub.
+[Wyniki L7 i jawne ograniczenia modeli](L7_LOCAL_ACCEPTANCE.md). Plan
+uwzględnia powtarzalne błędy z prób operatora; nie zmienia historycznych wyników.
+Cały zaległy kod jest już na `codex/rwkv7-g1k-2.9b` (9 commitów ponad zdalnym
+main po fetch); na tej gałęzi kontynuujemy. [Decyzja reuse](prs/L7-reuse-decision.md):
+lokalny TTT + adaptacja wybranych fragmentów TextArena, bez całej biblioteki.

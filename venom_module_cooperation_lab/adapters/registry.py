@@ -9,6 +9,7 @@ from pathlib import Path
 from ..errors import LabError
 from .base import Lease, ModelAdapter, ModelSpec
 from .component import OVERLAY_RUNTIME
+from .hf import pinned_specs
 from .rwkv_process import MODEL_FILENAME, MODEL_REVISION, MODEL_SHA256, TOKENIZER_SHA256
 
 RWKV_TEMPLATE = "System: {system}\n\nUser: {user}\n\nAssistant:"
@@ -21,9 +22,25 @@ RWKV_SPEC = ModelSpec(
     digest=MODEL_SHA256,
     tokenizer_hash=TOKENIZER_SHA256,
     template_hash=hashlib.sha256(RWKV_TEMPLATE.encode()).hexdigest(),
-    runtime=f"rwkv==0.8.32;torch==2.13.0;cuda13.0;{OVERLAY_RUNTIME}",
+    runtime=f"rwkv==0.8.32;torch==2.13.0;cuda13.0;{OVERLAY_RUNTIME};rwkv-chat-v2",
     quantization="float16",
 )
+RWKV_29_SPEC = ModelSpec(
+    model_id="rwkv7-g1k-2.9b",
+    architecture="rwkv7",
+    provider="local_component",
+    artifact="rwkv7-g1k-2.9b-20260930-ctx25600.pth",
+    revision=MODEL_REVISION,
+    digest="d8f8ecd4af8d706f867ac8a74284f35c0e3b9f863e7b09bb4d4031480c8b28b2",
+    tokenizer_hash=TOKENIZER_SHA256,
+    template_hash=hashlib.sha256(RWKV_TEMPLATE.encode()).hexdigest(),
+    runtime=RWKV_SPEC.runtime,
+    quantization="float16",
+)
+RWKV_SPECS = (RWKV_SPEC, RWKV_29_SPEC)
+HF_SPECS = pinned_specs()
+LOCAL_SPECS = (*RWKV_SPECS, *HF_SPECS)
+
 OLLAMA_SPEC = ModelSpec(
     model_id="qwen3-4b-control",
     architecture="qwen3",
@@ -39,7 +56,7 @@ OLLAMA_SPEC = ModelSpec(
 
 
 def model_specs() -> tuple[ModelSpec, ...]:
-    return (RWKV_SPEC, OLLAMA_SPEC)
+    return (*LOCAL_SPECS, OLLAMA_SPEC)
 
 
 def list_model_specs() -> list[ModelSpec]:
@@ -56,7 +73,8 @@ def get_model_spec(model_id: str) -> ModelSpec:
 def create_adapter(model_id: str, lease: Lease) -> ModelAdapter:
     if lease is None or not callable(getattr(lease, "operation", None)):
         raise LabError("runtime_lease_required")
-    if model_id == RWKV_SPEC.model_id:
+    if model_id in {s.model_id for s in RWKV_SPECS}:
+        spec = get_model_spec(model_id)
         from .rwkv import RecurrentAdapter
 
         root = Path(
@@ -74,8 +92,12 @@ def create_adapter(model_id: str, lease: Lease) -> ModelAdapter:
         if not root.is_absolute() or not runtime.is_absolute():
             raise LabError("invalid_model_configuration")
         return RecurrentAdapter(
-            RWKV_SPEC, lease, root / MODEL_REVISION / MODEL_FILENAME, runtime
+            spec, lease, root / spec.revision / spec.artifact, runtime
         )
+    if model_id in {s.model_id for s in HF_SPECS}:
+        from .hf import HfAdapter
+
+        return HfAdapter(get_model_spec(model_id), lease)
     if model_id == OLLAMA_SPEC.model_id:
         from .ollama import OllamaAdapter
 

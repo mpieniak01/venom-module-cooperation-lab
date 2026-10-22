@@ -12,7 +12,7 @@ export function mergeEvents(previous: LabEvent[], incoming: LabEvent[], runId: s
     if (event.run_id !== runId || !Number.isSafeInteger(event.seq) || event.seq < 1) continue;
     indexed.set(event.seq, event);
   }
-  return [...indexed.values()].sort((a, b) => a.seq - b.seq).slice(-256);
+  return [...indexed.values()].sort((a, b) => a.seq - b.seq).slice(-512);
 }
 export function isLabEvent(value: unknown): value is LabEvent {
   if (!value || typeof value !== "object") return false;

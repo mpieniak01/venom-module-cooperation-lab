@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from conftest import FakeAdapter
+from test_adapters import Lease
 
 from venom_module_cooperation_lab.adapters.registry import OLLAMA_SPEC
 from venom_module_cooperation_lab.catalog import (
@@ -116,7 +117,7 @@ def test_filter_non_chat_empty_template_and_pinned_baseline():
         },
     ]
     c._apply(runtimes, metadata)
-    assert len(c.specs()) == 3
+    assert len(c.specs()) == 6
     c._ollama([], {"version": "0.40.6", "models": []}, False)
     from venom_module_cooperation_lab import catalog as module
 
@@ -316,3 +317,15 @@ async def test_start_retry_survives_unavailable_or_changed_model(rig, qualificat
             await runner.start(
                 request.model_copy(update={"max_new_tokens": 32}), "durable-start"
             )
+
+
+def test_second_rwkv_survives_catalog_refresh_and_can_qualify():
+    from venom_module_cooperation_lab.adapters.registry import RWKV_29_SPEC
+
+    c = ModelCatalog()
+    c._apply([], {"models": [], "version": ""})
+    assert c.candidate(RWKV_29_SPEC.model_id) == RWKV_29_SPEC
+    rows = c.public_models([asdict(RWKV_29_SPEC)])
+    assert rows[0]["can_qualify"]
+    assert not rows[0]["can_run"]
+    assert c.adapter(RWKV_29_SPEC.model_id, Lease()).spec == RWKV_29_SPEC

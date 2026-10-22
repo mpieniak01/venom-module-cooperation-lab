@@ -121,7 +121,9 @@ class OllamaAdapter(ModelAdapter):
         parameters: GenerationParameters,
         deadline_s: float,
     ) -> GenerationResult:
-        validate_messages(participant_id, messages)
+        validate_messages(
+            participant_id, messages, protocol=parameters.session_protocol
+        )
         if self._cancel.is_set() or self._state != "ready":
             raise LabError("invalid_state")
         # UTF-8 bytes are a conservative upper bound, rather than claiming an
@@ -180,6 +182,9 @@ class OllamaAdapter(ModelAdapter):
                     else str(terminal.get("done_reason", "stop")),
                     effective_parameters={
                         **asdict(parameters),
+                        "num_steps_requested": parameters.num_steps,
+                        "num_steps_applied": None,
+                        "num_steps": None,
                         "think": False,
                         "keep_alive": 0,
                         "input_bound_method": "utf8_bytes_plus_role_overhead",

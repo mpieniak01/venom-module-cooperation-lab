@@ -33,6 +33,7 @@ export function Conversation({ events, language }: { events:LabEvent[]; language
         <div className="coop-message-header">
           <strong className="coop-message-route">{sender === "operator" ? t.operator : sender || "?"} → {recipient === "all" ? t.everyone : recipient === "operator" ? t.operator : recipient || "?"}</strong>
           {phaseLabel(t,text(event,"phase"))&&<strong>{phaseLabel(t,text(event,"phase"))}</strong>}
+          {typeof event.payload.game_number==="number"&&<span>{t.gameRound} {event.payload.game_number}</span>}
           <span>#{event.seq} · {messageKindLabel(t, kind)}</span>
           {time ? <time dateTime={time.iso} title={t.recordedAt + ": " + time.iso}>{time.display}</time> : <span>{t.unknownTime}</span>}
         </div>

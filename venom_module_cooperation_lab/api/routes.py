@@ -14,6 +14,7 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..errors import LabError
+from ..evaluation.api import register as register_evaluations
 from ..lifecycle import LabLifecycle, admission_enabled, enabled, lifespan
 from ..limits import Limits
 from ..run_config import MODES, Budgets, RunRequest
@@ -311,3 +312,6 @@ async def delete(request: Request, run_id: str) -> Response:
     _identifier(run_id)
     require_runner(request).store.delete_run(run_id, owner=OWNER)
     return Response(status_code=204)
+
+
+register_evaluations(router, require_runner)

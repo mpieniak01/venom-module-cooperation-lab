@@ -27,8 +27,11 @@ class RecurrentAdapter(ModelAdapter):
         self, spec: ModelSpec, lease: Lease, model_path: Path, runtime_root: Path
     ) -> None:
         self.spec, self._lease = spec, lease
-        self._process = RwkvAdapter(RwkvConfig(model_path, runtime_root))
+        self._process = RwkvAdapter(
+            RwkvConfig(model_path, runtime_root, model_sha256=spec.digest)
+        )
         self._histories: dict[str, list[ChatMessage]] = {"A": [], "B": []}
+        self._round_ended = {"A": False, "B": False}
 
     def load(self, deadline_s: float) -> dict[str, Any]:
         with self._lease.operation(kind="generation"):
@@ -44,7 +47,11 @@ class RecurrentAdapter(ModelAdapter):
         parameters: GenerationParameters,
         deadline_s: float,
     ) -> GenerationResult:
-        validate_messages(participant_id, messages)
+        validate_messages(
+            participant_id, messages, protocol=parameters.session_protocol
+        )
+        if parameters.num_steps != 8:
+            raise LabError("unsupported_compute_steps", 422)
         with self._lease.operation(kind="generation"):
             previous = self._histories[participant_id]
             appending = (
@@ -62,7 +69,7 @@ class RecurrentAdapter(ModelAdapter):
                 )
                 + "\n\nAssistant:"
             )
-            if appending:
+            if appending and not self._round_ended[participant_id]:
                 prompt = "\n\n" + prompt
             try:
                 response = self._process.generate(
@@ -74,12 +81,16 @@ class RecurrentAdapter(ModelAdapter):
             except RwkvError as exc:
                 raise LabError(str(exc)) from exc
             if response["stop_reason"] not in {"cancelled", "deadline"}:
+                self._round_ended[participant_id] = (
+                    response["stop_reason"] == "stop_sequence"
+                )
                 self._histories[participant_id] = [
                     *messages,
                     ChatMessage("assistant", response["text"]),
                 ]
             return GenerationResult(
                 text=response["text"],
+                raw_text=response.get("raw_text", response["text"]),
                 input_tokens=response["input_tokens"],
                 output_tokens=response["output_tokens"],
                 ttft_s=response.get("ttft_s"),
@@ -89,6 +100,7 @@ class RecurrentAdapter(ModelAdapter):
                     **response.get("effective_parameters", {}),
                     "context_mode": "append" if appending else "replay",
                 },
+                peak_vram_bytes=response.get("peak_vram_bytes"),
                 quiescent=response.get("quiescent", False),
             )
 
@@ -103,6 +115,7 @@ class RecurrentAdapter(ModelAdapter):
             result = self._process.reset(participant_id)
             for participant in (participant_id,) if participant_id else ("A", "B"):
                 self._histories[participant] = []
+                self._round_ended[participant] = False
             return result
 
     def state(self) -> dict[str, Any]:
@@ -122,6 +135,7 @@ class RecurrentAdapter(ModelAdapter):
         with self._lease.cleanup(confirm_quiescent=self.is_quiescent):
             result = self._process.close()
             self._histories = {"A": [], "B": []}
+            self._round_ended = {"A": False, "B": False}
             return result
 
     def is_quiescent(self) -> bool:

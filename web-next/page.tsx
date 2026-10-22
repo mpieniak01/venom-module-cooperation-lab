@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { EvaluationWorkspace } from "./lib/evaluation";
+import { evaluationTexts } from "./lib/evaluation-i18n";
 import { useLanguage } from "@/lib/i18n";
 import { messageKindLabel, modeLabel, scenarioLabel, statusLabel, texts } from "./lib/i18n";
 import { modelId, terminal, type Json, type LabEvent } from "./lib/protocol";
@@ -21,12 +23,26 @@ function value(event: LabEvent, key: string) {
 }
 export default function CooperationLabPage() {
   const { language } = useLanguage();
+  const t = evaluationTexts(language);
+  const [tab, setTab] = useState<"conversation" | "evaluation">("conversation");
+  const [opened, setOpened] = useState(false);
+  return <div>
+    <nav aria-label={texts(language).title} style={{display:"flex",gap:8,padding:"4px 12px",flexWrap:"wrap"}}>
+      <button type="button" aria-pressed={tab==="conversation"} onClick={()=>setTab("conversation")} style={{padding:"6px 10px",border:"1px solid #64748b",borderRadius:8,background:tab==="conversation"?"#065f46":"#0f172a",color:"#e2e8f0"}}>{t.conversationTab}</button>
+      <button type="button" aria-pressed={tab==="evaluation"} onClick={()=>{setOpened(true);setTab("evaluation");}} style={{padding:"6px 10px",border:"1px solid #64748b",borderRadius:8,background:tab==="evaluation"?"#065f46":"#0f172a",color:"#e2e8f0"}}>{t.evaluationTab}</button>
+    </nav>
+    <div hidden={tab!=="conversation"}><ConversationWorkspace/></div>
+    {opened&&<div hidden={tab!=="evaluation"}><EvaluationWorkspace language={language}/></div>}
+  </div>;
+}
+function ConversationWorkspace() {
+  const { language } = useLanguage();
   const t = texts(language);
   const lab = useLab();
   const viewport = useWorkspaceViewport();
   const [settings, setSettings] = useState(true);
   const [form, setForm] = useState<SavedSettings & { runId: string | null }>({
-    model:"", scenario:"split_facts", mode:"dialog_encouraged", turns:8, tokens:128, seed:0, communicationLanguage:language === "pl" ? "pl" : "en", runId:null,
+    model:"", scenario:"split_facts", mode:"dialog_encouraged", turns:8, tokens:128, seed:0, gameCount:1, rememberGames:true, communicationLanguage:language === "pl" ? "pl" : "en", runId:null,
   });
   const runId = lab.run?.id ?? null;
   // Adjust the draft when selection changes, before committing a render. An
@@ -36,9 +52,8 @@ export default function CooperationLabPage() {
     const qualification = lab.run?.config.scenario_id==="model_qualification";
     setForm({ ...form, ...(qualification ? {model:restored.model??form.model} : lab.run ? { communicationLanguage:"en" as const, ...restored } : {}), runId });
   }
-  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage } = form;
+  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage, gameCount=1, rememberGames=true } = form;
   const [engineFilter, setEngineFilter] = useState<{runId:string|null; engine:string}|null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const models = lab.capabilities?.models ?? [];
   const fallback = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
   const stored = lab.run?.config.model;
@@ -52,7 +67,7 @@ export default function CooperationLabPage() {
   const qualifying = lab.run?.config.scenario_id==="model_qualification";
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
-  const validSettings = !!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const validSettings = (scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const lastFailure = lab.events.findLast(event=>event.kind==="error");
@@ -72,7 +87,8 @@ export default function CooperationLabPage() {
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
-    setConfirmDelete(null); setSettings(false); void lab.start(input);
+    if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;}
+     setSettings(false); void lab.start(input);
   };
   return <section aria-labelledby="cooperation-lab-title" className="coop-workspace" data-operator={operatorChat} ref={viewport}>
     <style>{workspaceStyles}</style>
@@ -87,7 +103,7 @@ export default function CooperationLabPage() {
       {!lab.active && lab.run && <button type="button" className={button} onClick={() => {
         const next=models.find(m=>modelId(m)===chosen&&(m.can_run??m.qualified))??models.find(m=>m.can_run??m.qualified);
         setForm({...form,model:next?modelId(next):chosen,runId:null});
-        setEngineFilter(null);setSettings(true);setConfirmDelete(null);lab.select(null);
+        setEngineFilter(null);setSettings(true);lab.select(null);
       }}>{t.newRun}</button>}
       <div className="coop-run-state" aria-live="polite">
         <span>{t.runStatus}: <strong>{computation}</strong></span>
@@ -141,22 +157,26 @@ export default function CooperationLabPage() {
         </div>
         <div className="coop-settings-group">
           <h3>{t.setupLimits}</h3>
-          <label className="coop-setting">{t.turns}<input className={field} type="number" min={policy?.min??1} step={policy?.step??1} max={policy?.max??8} value={turns} onChange={event=>setForm({...form,turns:Number(event.target.value)})}/></label>
+          <label className="coop-setting">{t.turns}<input className={field} type="number" disabled={scenario==="tic_tac_toe"&&gameCount>1} min={policy?.min??1} step={policy?.step??1} max={policy?.max??8} value={turns} onChange={event=>setForm({...form,turns:Number(event.target.value)})}/></label>
           {policy&&<p className="coop-message-meta">{operatorChat?t.roundsCount+": "+Math.floor(turns/policy.step):isGame?t.gameMoves+": "+turns:""}</p>}
+          {scenario==="tic_tac_toe"&&<>
+            <label className="coop-setting">{t.gameCount}<input className={field} type="number" min={1} max={10} value={gameCount} onInput={event=>setForm({...form,gameCount:Number(event.currentTarget.value),turns:9})}/></label>
+            <label><input type="checkbox" checked={rememberGames} disabled={gameCount===1} onChange={event=>setForm({...form,rememberGames:event.target.checked})}/> {t.gameMemory}</label>
+            <p className="coop-message-meta">{t.gameMemoryHint}</p>
+          </>}
           <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={256} value={tokens} onChange={event=>setForm({...form,tokens:Number(event.target.value)})}/></label>
           <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
         </div>
       </fieldset>}
       <div className="coop-history">
         <label className="coop-history-picker">{t.history}
-          <select className={field + " coop-history-select"} disabled={lab.active || lab.starting || lab.pending} value={lab.run?.id ?? ""} onChange={(event) => { const found = lab.runs.find((r) => r.id === event.target.value); if (found) { setConfirmDelete(null); lab.select(found); } }}>
+          <select className={field + " coop-history-select"} disabled={lab.active || lab.starting || lab.pending} value={lab.run?.id ?? ""} onChange={(event) => { const found = lab.runs.find((r) => r.id === event.target.value); if (found) { lab.select(found); } }}>
             <option value="">{t.select}</option>
             {lab.runs.map((r) => <option key={r.id} value={r.id}>{new Date(r.created * 1000).toLocaleString(language)} · {statusLabel(t, r.id === lab.run?.id ? lab.run.status : r.status)}</option>)}
           </select>
         </label>
         {lab.run && <><button type="button" className={button} disabled={lab.pending} onClick={() => { void lab.exportRun(); }}>{t.export}</button>
-          <button type="button" className={button} disabled={lab.active || lab.pending} onClick={() => setConfirmDelete((v) => v === lab.run?.id ? null : lab.run?.id ?? null)}>{t.remove}</button></>}
-        {confirmDelete === lab.run?.id && lab.run && <span className="coop-confirmation"><button type="button" className={button + " coop-danger"} disabled={lab.active || lab.pending} onClick={() => { setConfirmDelete(null); void lab.remove(); }}>{t.confirmRemove}</button><button type="button" className={button} onClick={() => setConfirmDelete(null)}>{t.cancel}</button></span>}
+          <button type="button" className={button} disabled={lab.active || lab.pending} onClick={() => { void lab.remove(); }}>{t.remove}</button></>}
       </div>
       <div className="coop-main">
         <div className="coop-column">

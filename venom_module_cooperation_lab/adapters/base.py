@@ -32,12 +32,52 @@ class GenerationParameters:
     temperature: float = 0.8
     top_p: float = 0.5
     seed: int = 0
+    profile: str = "chat"
+    allowed_outputs: tuple[str, ...] = ()
+    num_steps: int = 8
+    session_protocol: str = "v1"
 
     def __post_init__(self) -> None:
+        if (
+            self.profile not in {"chat", "structured"}
+            or self.session_protocol not in {"v1", "game-eval-v2"}
+            or type(self.num_steps) is not int
+            or self.num_steps not in {8, 16, 32, 64}
+        ):
+            raise LabError("invalid_parameters", 422)
+        if (
+            not isinstance(self.allowed_outputs, tuple)
+            or len(self.allowed_outputs) > 9
+            or any(
+                not isinstance(v, str)
+                or len(v) != 2
+                or v[0] not in "ABC"
+                or v[1] not in "123"
+                for v in self.allowed_outputs
+            )
+            or len(set(self.allowed_outputs)) != len(self.allowed_outputs)
+            or (
+                self.allowed_outputs
+                and (
+                    self.profile != "structured"
+                    or self.temperature != 0
+                    or self.top_p != 0
+                )
+            )
+        ):
+            raise LabError("invalid_parameters", 422)
         for name, lower, upper in (
-            ("max_new_tokens", 1, 256),
+            (
+                "max_new_tokens",
+                1,
+                1024 if self.session_protocol == "game-eval-v2" else 256,
+            ),
             ("seed", 0, 2**31 - 1),
-            ("max_context_tokens", 1, 2048),
+            (
+                "max_context_tokens",
+                1,
+                16384 if self.session_protocol == "game-eval-v2" else 2048,
+            ),
         ):
             value = getattr(self, name)
             if type(value) is not int or not lower <= value <= upper:
@@ -80,6 +120,8 @@ class GenerationResult:
     stop_reason: str
     effective_parameters: Mapping[str, Any]
     quiescent: bool
+    raw_text: str | None = None
+    peak_vram_bytes: int | None = None
 
 
 class Lease(Protocol):
@@ -110,8 +152,15 @@ class ModelAdapter(Protocol):
     def is_quiescent(self) -> bool: ...
 
 
-def validate_messages(participant_id: str, messages: Sequence[ChatMessage]) -> None:
-    if participant_id not in {"A", "B"} or not messages or len(messages) > 24:
+def validate_messages(
+    participant_id: str,
+    messages: Sequence[ChatMessage],
+    *,
+    protocol: str = "v1",
+) -> None:
+    # V2 preserves exact event history; the backend still enforces real tokens.
+    limit = 512 if protocol == "game-eval-v2" else 24
+    if participant_id not in {"A", "B"} or not messages or len(messages) > limit:
         raise LabError("invalid_messages", 422)
     if (
         messages[-1].role != "user"

@@ -30,7 +30,6 @@ export const workspaceStyles = `
 .coop-workspace .coop-history { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px; }
 .coop-workspace .coop-history-picker { display:flex; min-width:0; align-items:center; gap:8px; font-size:12px; }
 .coop-workspace .coop-history-select { max-width:18rem; width:auto; }
-.coop-workspace .coop-confirmation { display:flex; flex-wrap:wrap; gap:8px; }
 .coop-workspace .coop-main { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; min-height:16rem; }
 .coop-workspace .coop-column { display:flex; flex-direction:column; gap:12px; min-width:0; }
 .coop-workspace .coop-participants { min-width:0; margin:0; padding:0; border:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
@@ -108,7 +107,7 @@ export function useWorkspaceViewport() {
   return ref;
 }
 
-export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en" };
+export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean };
 function record(value: Json | undefined): Record<string, Json> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -120,6 +119,10 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged", "operator_chat", "operator_relay", "operator_review", "game_competitive"].includes(config.mode)) result.mode = config.mode;
   if (config.communication_language === "pl" || config.communication_language === "en") result.communicationLanguage = config.communication_language;
   else if (config.schema_version === 1 || Array.isArray(config.prompts)) result.communicationLanguage = "en";
+  if(config.scenario_id==="tic_tac_toe") {
+  result.gameCount = typeof config.game_count === "number" && Number.isInteger(config.game_count) && config.game_count >= 1 && config.game_count <= 10 ? config.game_count : 1;
+  result.rememberGames = config.remember_games !== false;
+  }
   const budgets = record(config.budgets);
   const pairs = [["turns", budgets.max_turns, config.mode === "operator_review" ? 3 : 1, config.mode === "operator_review" ? 6 : config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 256], ["seed", config.seed, 0, 2147483647]] as const;
   for (const [name, value, minimum, maximum] of pairs) {

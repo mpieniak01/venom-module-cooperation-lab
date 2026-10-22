@@ -20,6 +20,26 @@ _LINES = (
 )
 
 
+def parse_move(content: str) -> tuple[str, str]:
+    """Accept explicit single-move formats, never search arbitrary prose/boards."""
+    text = content.strip()
+    patterns = (
+        ("coordinate", r"([ABC][123])"),
+        ("inline_code", r"`([ABC][123])`"),
+        ("code_block", r"```(?:text)?\s*([ABC][123])\s*```"),
+        ("label", r"(?:move|ruch):\s*([ABC][123])[.]?"),
+        (
+            "message_echo",
+            r"(?:Message|Wiadomość) [a-f0-9]{32} (?:from|od) [AB]:\s*([ABC][123])",
+        ),
+    )
+    for name, pattern in patterns:
+        match = re.fullmatch(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match[1].upper(), name
+    raise LabError("invalid_game_move", 422)
+
+
 @dataclass
 class TicTacToe:
     board: list[str] = field(default_factory=lambda: [""] * 9)
@@ -45,7 +65,7 @@ class TicTacToe:
         }
 
     def play(self, participant: str, content: str) -> dict[str, Any]:
-        square = content.strip().upper()
+        square, _format = parse_move(content)
         expected = "A" if self.moves % 2 == 0 else "B"
         if (
             self.finished
@@ -63,6 +83,30 @@ class TicTacToe:
         if any(all(self.board[i] == symbol for i in line) for line in _LINES):
             self.winner = participant
         return self.public()
+
+    def recurrent_prompt(self, participant: str, language: str | None) -> str:
+        """Append a small authoritative observation; retain private RNN memory."""
+        board = "\n".join(
+            row + " " + " ".join(self.board[i] or "." for i in range(start, start + 3))
+            for row, start in (("A", 0), ("B", 3), ("C", 6))
+        )
+        allowed = ", ".join(
+            "ABC"[i // 3] + str(i % 3 + 1)
+            for i, value in enumerate(self.board)
+            if not value
+        )
+        symbol = "X" if participant == "A" else "O"
+        instruction = (
+            f"Grasz {symbol}. Aktualna plansza (kolumny 1 2 3):"
+            if language == "pl"
+            else f"You play {symbol}. Current board (columns 1 2 3):"
+        )
+        choice = (
+            f"Wolne pola: {allowed}. Zwróć tylko jedną współrzędną."
+            if language == "pl"
+            else f"Empty squares: {allowed}. Return one coordinate only."
+        )
+        return instruction + "\n" + board + "\n" + choice
 
     def prompt(self, participant: str, language: str | None) -> str:
         rows = ["  1 2 3"] + [

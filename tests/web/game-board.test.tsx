@@ -17,3 +17,12 @@ test("game board shows nine labelled squares and only referee-confirmed outcomes
  const unknown=render({...event,payload:{board:["X"],winner:"A",finished:true}});
  assert.match(unknown.body.textContent??"",/Stan planszy nieznany/);assert.equal(unknown.querySelector("table"),null);
 });
+
+
+test("series board shows actual progress and per-game results",()=>{
+ const doc=render({...event,payload:{...event.payload,series:{number:2,total:3,remember_games:true,results:[{number:1,winner:null,draw:true,moves:["A:A1"]},{number:2,winner:"A",draw:false,moves:["A:B2"]}]}}});
+ assert.match(doc.body.textContent??"",/Partia 2 \/ 3/);
+ const results=doc.querySelector('[aria-label="Wyniki serii"]')!;
+ assert.match(results.textContent??"",/A: 1 · B: 0 · Remis: 1/);
+ assert.equal(results.querySelectorAll("li").length,2);
+});

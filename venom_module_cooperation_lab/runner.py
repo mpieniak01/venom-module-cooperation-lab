@@ -7,16 +7,17 @@ import hashlib
 import json
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from functools import partial
 from typing import Any
 from uuid import uuid4
 
 from .errors import LabError
+from .game_series import GameSeries
 from .peer_review import review_step
 from .run_config import OPERATOR_MODES, Budgets, RunConfig, RunRequest
 from .storage import TERMINAL, LabStore, _identifier
-from .tic_tac_toe import TicTacToe
+from .tic_tac_toe import TicTacToe, parse_move
 
 OWNER = "local_operator"
 _ALLOWED_KINDS = {"message", "proposal", "accept", "ask", "evidence", "complete"}
@@ -46,6 +47,7 @@ class _Job:
     closing: asyncio.Task[bool] | None = None
     watched_work: asyncio.Task[Any] | None = None
     game: TicTacToe | None = None
+    series: GameSeries | None = None
     qualifying: bool = False
     cleanup_pending: bool = False
     late_cleanup_recorded: bool = False
@@ -206,6 +208,8 @@ class LabRunner:
             job.qualifying = qualification
             if config.scenario_id == "tic_tac_toe":
                 job.game = TicTacToe()
+                if config.game_count > 1:
+                    job.series = GameSeries(config.game_count, config.remember_games)
             self.jobs[run_id] = job
             try:
                 self.store.set_run_status(run_id, "queued", owner=OWNER)
@@ -256,6 +260,8 @@ class LabRunner:
         }
         stored.update(
             model_id=model_id,
+            game_count=config.get("game_count", 1),
+            remember_games=config.get("remember_games", True),
             max_turns=config["budgets"]["max_turns"],
             max_new_tokens=config["budgets"]["max_new_tokens"],
         )
@@ -428,7 +434,7 @@ class LabRunner:
             self.store.set_run_status(job.run_id, "running", owner=OWNER)
             self._emit(job, "run", {"status": "running"})
             if job.game is not None:
-                self._emit(job, "game", job.game.public())
+                self._emit(job, "game", self._game_state(job, job.game.public()))
             if job.config.mode in OPERATOR_MODES:
                 await self._operator_turns(job)
             else:
@@ -467,7 +473,14 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         for participant, prompt in zip(("A", "B"), job.config.prompts, strict=True):
-            job.histories[participant] = [ChatMessage("system", prompt)]
+            memory = (
+                job.series.memory(participant, job.config.communication_language)
+                if job.series
+                else ""
+            )
+            job.histories[participant] = [
+                ChatMessage("system", prompt + ("\n" + memory if memory else ""))
+            ]
             if job.config.mode != "operator_review" and job.game is None:
                 job.histories[participant].append(
                     ChatMessage("user", job.config.scenario_goal)
@@ -546,6 +559,7 @@ class LabRunner:
             "model_digest",
             "quantization",
             "weights_loaded",
+            "peak_vram_bytes",
             "metadata_verified",
             "think",
         }
@@ -568,6 +582,20 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         history = job.histories[participant]
+        if (
+            job.game is not None
+            and job.config.public()["model"]["architecture"] == "rwkv7"
+        ):
+            observation = job.game.recurrent_prompt(
+                participant, job.config.communication_language
+            )
+            if history[-1].role == "user":
+                history[-1] = ChatMessage(
+                    "user", history[-1].content + "\n" + observation
+                )
+            else:
+                history.append(ChatMessage("user", observation))
+            return history
         if job.game is not None:
             # The authoritative board already contains every accepted move.
             # Keep the last actual peer message for causal delivery/reply tracing,
@@ -621,21 +649,56 @@ class LabRunner:
             top_p=config.top_p,
             seed=config.seed,
         )
+        if job.game is not None and config.public()["model"]["architecture"] in {
+            "rwkv7",
+            "hrm_text",
+            "huginn_raven",
+        }:
+            parameters = GenerationParameters(
+                max_new_tokens=config.budgets.max_new_tokens,
+                max_context_tokens=config.budgets.max_context_tokens,
+                temperature=0.0,
+                top_p=0.0,
+                seed=config.seed,
+                profile="structured",
+            )
+        if job.qualifying and config.public()["model"]["architecture"] == "hrm_text":
+            parameters = replace(
+                parameters, profile="structured", temperature=0.0, top_p=0.0
+            )
         completed: set[str] = set()
         turns = 1 if config.mode == "single" else config.budgets.max_turns
-        for index in range(turns):
-            message = await self._generate_turn(job, parameters, index)
-            if job.game is not None:
-                if job.game.finished:
-                    break
-                continue
-            if message["kind"] == "complete":
-                completed.add(message["sender"])
-                if config.mode in {"single", "self_correction"} or completed == {
-                    "A",
-                    "B",
-                }:
-                    break
+        for game_index in range(config.game_count):
+            if game_index:
+                # Keep loaded weights, reset private runtime state and replay only
+                # bounded public experience. Identical memory policy for all engines.
+                self._check(job)
+                await self._work(job, lambda: job.adapter.reset())
+                job.game = TicTacToe()
+                if job.series:
+                    job.series.begin(game_index + 1)
+                self._prepare_histories(job)
+                job.last_delivered = {"A": None, "B": None}
+                self._emit(job, "game", self._game_state(job, job.game.public()))
+            for index in range(turns):
+                message = await self._generate_turn(
+                    job, parameters, game_index * turns + index
+                )
+                if job.game is not None:
+                    if job.game.finished:
+                        break
+                    continue
+                if message["kind"] == "complete":
+                    completed.add(message["sender"])
+                    if config.mode in {"single", "self_correction"} or completed == {
+                        "A",
+                        "B",
+                    }:
+                        break
+
+    @staticmethod
+    def _game_state(job: _Job, board: dict[str, Any]) -> dict[str, Any]:
+        return {**board, **({"series": job.series.public()} if job.series else {})}
 
     async def _operator_turns(self, job: _Job) -> None:
         from .adapters.base import GenerationParameters
@@ -681,7 +744,11 @@ class LabRunner:
     ) -> dict[str, Any]:
         self._check(job)
         self._reserve_turn(job)
-        participant = self._participant(job.config.mode, index)
+        participant = (
+            ("A" if job.game.moves % 2 == 0 else "B")
+            if job.game
+            else self._participant(job.config.mode, index)
+        )
         history = self._turn_context(job, participant)
         turn_id = f"turn-{index + 1:04d}"
         phase = None
@@ -701,6 +768,19 @@ class LabRunner:
                 **({"phase": phase} if phase else {}),
             },
         )
+        if job.game is not None and job.config.public()["model"]["architecture"] in {
+            "rwkv7",
+            "hrm_text",
+            "huginn_raven",
+        }:
+            parameters = replace(
+                parameters,
+                allowed_outputs=tuple(
+                    "ABC"[i // 3] + str(i % 3 + 1)
+                    for i, value in enumerate(job.game.board)
+                    if not value
+                ),
+            )
         result = await self._work(
             job,
             partial(
@@ -724,17 +804,26 @@ class LabRunner:
         usage = self._charge(job, result)
         self._emit(job, "usage", {"turn_id": turn_id, **usage})
         message = self._message(job, participant, turn_id, result.text)
+        if getattr(result, "raw_text", None) is not None:
+            message["raw_content"] = result.raw_text
         board = None
         if job.game is not None:
+            message["raw_content"] = getattr(result, "raw_text", None) or result.text
             try:
-                board = job.game.play(participant, message["content"])
+                move, move_format = parse_move(message["content"])
+                message["game_move"] = move
+                message["move_format"] = move_format
+                board = job.game.play(participant, move)
+                if job.series:
+                    message["game_number"] = job.series.number
+                    job.series.record(participant, move, board)
             except LabError:
                 message["delivered_to"] = []
                 self._emit(job, "message", message)
                 raise
         self._emit(job, "message", message)
         if board is not None:
-            self._emit(job, "game", board)
+            self._emit(job, "game", self._game_state(job, board))
         job.histories[participant].append(ChatMessage("assistant", message["content"]))
         for recipient in message["delivered_to"]:
             if recipient == "operator":
@@ -743,11 +832,20 @@ class LabRunner:
                 ChatMessage(
                     "user",
                     (
-                        f"Wiadomość {message['message_id']} od {participant}: "
-                        if job.config.communication_language == "pl"
-                        else f"Message {message['message_id']} from {participant}: "
-                    )
-                    + message["content"],
+                        (
+                            f"Przeciwnik zagrał {board['last_move']}."
+                            if job.config.communication_language == "pl"
+                            else f"Opponent played {board['last_move']}."
+                        )
+                        if board is not None
+                        and job.config.public()["model"]["architecture"] == "rwkv7"
+                        else (
+                            f"Wiadomość {message['message_id']} od {participant}: "
+                            if job.config.communication_language == "pl"
+                            else f"Message {message['message_id']} from {participant}: "
+                        )
+                        + message["content"]
+                    ),
                 )
             )
             job.last_delivered[recipient] = message["message_id"]

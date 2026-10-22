@@ -212,21 +212,36 @@ def _prefill(
 
 
 def _sample_token(
-    logits: Any, occurrence: dict[int, float], params: dict[str, Any], torch: Any
+    logits: Any,
+    occurrence: dict[int, float],
+    params: dict[str, Any],
+    torch: Any,
+    allowed_tokens: list[int] | None = None,
 ) -> int | None:
     logits = logits.float()
     if not bool(torch.isfinite(logits).all()):
         return None
-    for token, frequency in occurrence.items():
-        logits[token] -= 2.0 + frequency * 0.1
-    if params["temperature"] == 0 or params["top_p"] == 0:
+    if params.get("profile", "chat") != "structured":
+        for token, frequency in occurrence.items():
+            logits[token] -= 2.0 + frequency * 0.1
+    if allowed_tokens is not None:
+        return max(sorted(allowed_tokens), key=lambda t: float(logits[t].item()))
+    v2 = params.get("session_protocol") == "game-eval-v2"
+    if params["temperature"] == 0 or (params["top_p"] == 0 and not v2):
         return int(torch.argmax(logits).item())
-    probabilities = torch.softmax(logits, dim=-1)
+    # Keep v1's qualified sampler intact; v2 applies temperature before nucleus
+    # selection, matching the HF evaluation worker. top_p=0 disables nucleus.
+    scores = logits / params["temperature"] if v2 else logits
+    probabilities = torch.softmax(scores, dim=-1)
     sorted_probabilities, indices = torch.sort(probabilities, descending=True)
-    cumulative = torch.cumsum(sorted_probabilities, dim=-1)
-    keep = cumulative - sorted_probabilities < params["top_p"]
-    selected = torch.where(keep, sorted_probabilities, 0.0)
-    selected = selected ** (1.0 / params["temperature"])
+    if v2 and not 0 < params["top_p"] < 1:
+        selected = sorted_probabilities
+    else:
+        cumulative = torch.cumsum(sorted_probabilities, dim=-1)
+        keep = cumulative - sorted_probabilities < params["top_p"]
+        selected = torch.where(keep, sorted_probabilities, 0.0)
+    if not v2:
+        selected = selected ** (1.0 / params["temperature"])
     return int(indices[torch.multinomial(selected, 1)].item())
 
 
@@ -246,13 +261,27 @@ def _decode_steps(
     use_cuda: bool,
 ) -> bool:
     occurrence: dict[int, float] = {}
+    choices = [tokenizer.encode(value) for value in params.get("allowed_outputs", ())]
     for _ in range(params["max_new_tokens"]):
         stopped = _stop_reason(cancel, generation.deadline)
         if stopped:
             generation.reason = stopped
             break
         assert generation.logits is not None
-        token = _sample_token(generation.logits, occurrence, params, torch)
+        allowed = None
+        if choices:
+            prefix = generation.output
+            allowed = sorted(
+                {
+                    candidate[len(prefix)]
+                    for candidate in choices
+                    if candidate[: len(prefix)] == prefix
+                    and len(candidate) > len(prefix)
+                }
+            )
+            if not allowed:
+                return False
+        token = _sample_token(generation.logits, occurrence, params, torch, allowed)
         if token is None:
             return False
         if token == 0:
@@ -267,6 +296,9 @@ def _decode_steps(
             torch.cuda.synchronize()
         if generation.ttft is None:
             generation.ttft = time.monotonic() - generation.started
+        if choices and generation.output in choices:
+            generation.reason = "allowed_output"
+            break
         if "\n\n" in tokenizer.decode(generation.output):
             generation.reason = "stop_sequence"
             break
@@ -282,6 +314,7 @@ def _generation_receipt(
 ) -> dict[str, Any]:
     return {
         "text": tokenizer.decode(generation.output).split("\n\n", 1)[0].strip(),
+        "raw_text": tokenizer.decode(generation.output),
         "stop_reason": generation.reason,
         "input_tokens": generation.consumed,
         "output_tokens": len(generation.output),
@@ -290,10 +323,19 @@ def _generation_receipt(
         "quiescent": True,
         "effective_parameters": {
             **params,
-            "alpha_presence": 2.0,
-            "alpha_frequency": 0.1,
+            "num_steps": None,
+            "num_steps_requested": params.get("num_steps", 8),
+            "num_steps_applied": None,
+            "sampling_profile": "temperature_then_nucleus_v2"
+            if params.get("session_protocol") == "game-eval-v2"
+            else "rwkv_chat_v1",
+            "alpha_presence": 0.0 if params.get("profile") == "structured" else 2.0,
+            "alpha_frequency": 0.0 if params.get("profile") == "structured" else 0.1,
             "alpha_decay": 0.99,
             "prefill_chunk_tokens": 16,
+            "decoding_constraint": "allowed_outputs"
+            if params.get("allowed_outputs")
+            else "none",
         },
         "peak_vram_bytes": torch.cuda.max_memory_allocated() if use_cuda else 0,
         "peak_ram_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
@@ -312,6 +354,8 @@ def _generate(
     participant = command["participant"]
     previous = states[participant]
     params = command["parameters"]
+    if params.get("num_steps", 8) != 8:
+        return {"error": "unsupported_compute_steps"}
     prompt_tokens = tokenizer.encode(command["prompt"])
     if (
         previous["tokens"] + len(prompt_tokens) + params["max_new_tokens"]

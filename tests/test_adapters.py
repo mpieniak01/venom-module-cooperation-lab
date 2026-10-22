@@ -19,6 +19,7 @@ from venom_module_cooperation_lab.adapters.base import (
 )
 from venom_module_cooperation_lab.adapters.ollama import NoRedirect, OllamaAdapter
 from venom_module_cooperation_lab.adapters.rwkv import RecurrentAdapter
+from venom_module_cooperation_lab.adapters.rwkv_process import RwkvError, RwkvParameters
 from venom_module_cooperation_lab.errors import LabError
 
 
@@ -49,7 +50,7 @@ class Lease:
 
 def test_registry_is_pure_and_fixed(monkeypatch):
     models = registry.list_model_specs()
-    assert len(models) == 2
+    assert len(models) == 5
     assert all(not spec.qualified for spec in models)
     assert "http" not in json.dumps([asdict(model) for model in models])
     assert registry.get_model_spec("rwkv7-g1d-0.4b").digest
@@ -165,7 +166,7 @@ def test_recurrent_contexts_append_replay_and_cleanup():
         ).effective_parameters["context_mode"]
         == "append"
     )
-    assert process.calls[-1][1].startswith("\n\nUser: continue")
+    assert process.calls[-1][1].startswith("User: continue")
     adapter.generate("B", first, GenerationParameters(), time.monotonic() + 2)
     assert adapter.state()["history_messages"] == {"A": 4, "B": 2}
     adapter.generate("A", first, GenerationParameters(), time.monotonic() + 2)
@@ -382,3 +383,105 @@ def test_ollama_close_refuses_unconfirmed_model_unload(monkeypatch):
     with pytest.raises(LabError, match="runtime_not_quiescent"):
         adapter.close()
     assert not adapter.is_quiescent()
+
+
+def test_rwkv_29_identity_and_factory():
+    spec = registry.get_model_spec("rwkv7-g1k-2.9b")
+    adapter = registry.create_adapter(spec.model_id, Lease())
+    assert isinstance(adapter, RecurrentAdapter)
+    assert adapter._process.config.model_sha256 == spec.digest
+    assert adapter._process.config.model_path.name == spec.artifact
+    assert spec.digest != registry.RWKV_SPEC.digest
+    assert spec.tokenizer_hash == registry.RWKV_SPEC.tokenizer_hash
+
+
+@pytest.mark.parametrize(
+    "reason,prefix", [("eos", "\n\n"), ("stop_sequence", ""), ("length", "\n\n")]
+)
+def test_recurrent_append_preserves_exact_round_boundary(reason, prefix):
+    adapter = RecurrentAdapter(
+        registry.RWKV_SPEC, Lease(), Path("/unused"), Path("/unused")
+    )
+    process = adapter._process = Process()
+    process.reason = reason
+    first = [ChatMessage("user", "start")]
+    adapter.generate("A", first, GenerationParameters(), time.monotonic() + 5)
+    adapter.generate(
+        "A",
+        [*first, ChatMessage("assistant", "answer"), ChatMessage("user", "next")],
+        GenerationParameters(),
+        time.monotonic() + 5,
+    )
+    assert process.calls[-1][1] == prefix + "User: next\n\nAssistant:"
+    adapter.reset("A")
+    assert adapter._round_ended["A"] is False
+
+
+@pytest.mark.parametrize("parameters", [GenerationParameters, RwkvParameters])
+def test_unknown_generation_profile_is_rejected(parameters):
+    with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
+        parameters(profile="unknown")
+
+
+@pytest.mark.parametrize("outputs", [("A1", "A1"), ("A4",), ("A1 or C3",), ["A1"]])
+@pytest.mark.parametrize("parameters", [GenerationParameters, RwkvParameters])
+def test_allowed_outputs_contract_is_bounded(parameters, outputs):
+    with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
+        parameters(
+            profile="structured", temperature=0, top_p=0, allowed_outputs=outputs
+        )
+
+
+@pytest.mark.parametrize("parameters", [GenerationParameters, RwkvParameters])
+def test_allowed_outputs_requires_structured_greedy_profile(parameters):
+    with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
+        parameters(allowed_outputs=("A1",))
+
+
+def test_ollama_game_replay_preserves_isolation_and_legacy_message_limit():
+    adapter, _, _ = configured_ollama()
+    adapter.load(time.monotonic() + 3)
+    messages = [ChatMessage("user", "x")] * 25
+    with pytest.raises(LabError, match="invalid_messages"):
+        adapter.generate("A", messages, GenerationParameters(), time.monotonic() + 3)
+    from venom_module_cooperation_lab.evaluation.sessions import SessionDriver
+
+    driver = SessionDriver(adapter, "history_replay", "carry")
+    driver.begin_episode()
+    for actor in ("A", "B"):
+        stream(adapter, [{"message": {"content": "{}"}}, {"done": True}])
+        result = driver.generate(
+            actor, "public observation", GenerationParameters(), time.monotonic() + 3
+        )
+        assert result.effective_parameters["num_steps_applied"] is None
+        assert result.effective_parameters["memory_kind"] == "text_history"
+    assert adapter.state()["history_messages"] == {"A": 2, "B": 2}
+    adapter.reset("A")
+    stream(adapter, [{"done": True}])
+    adapter.generate(
+        "A",
+        messages,
+        GenerationParameters(session_protocol="game-eval-v2"),
+        time.monotonic() + 3,
+    )
+    assert adapter.state()["history_messages"] == {"A": 26, "B": 2}
+    assert adapter.close()
+
+
+def test_larger_ollama_context_is_explicit_and_v2_only():
+    adapter, _, _ = configured_ollama()
+    adapter.load(time.monotonic() + 3)
+    messages = [ChatMessage("user", "x" * 2200)]
+    with pytest.raises(LabError, match="invalid_parameters"):
+        GenerationParameters(max_context_tokens=8192)
+    with pytest.raises(LabError, match="context_budget_exceeded"):
+        adapter.generate("A", messages, GenerationParameters(), time.monotonic() + 3)
+    stream(adapter, [{"message": {"content": '{"cards":[0,1]}'}}, {"done": True}])
+    result = adapter.generate(
+        "A",
+        messages,
+        GenerationParameters(session_protocol="game-eval-v2", max_context_tokens=8192),
+        time.monotonic() + 3,
+    )
+    assert result.effective_parameters["max_context_tokens"] == 8192
+    assert adapter.close()

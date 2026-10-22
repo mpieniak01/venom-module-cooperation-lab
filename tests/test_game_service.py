@@ -1,0 +1,883 @@
+"""CPU-only evaluation orchestration, private observations and lease ownership."""
+
+from __future__ import annotations
+
+import asyncio
+import copy
+import json
+import time
+from dataclasses import asdict, replace
+
+import pytest
+from conftest import SPEC, FakeAdapter
+from venom_core.services.runtime_admission import RuntimeAdmission
+
+from venom_module_cooperation_lab.adapters.base import GenerationResult
+from venom_module_cooperation_lab.errors import LabError
+from venom_module_cooperation_lab.evaluation.config import EvaluationRequest
+from venom_module_cooperation_lab.evaluation.service import EvaluationService
+from venom_module_cooperation_lab.runner import OWNER, LabRunner
+from venom_module_cooperation_lab.storage import LabStore
+
+EVAL_SPEC = replace(SPEC, architecture="hrm_text", runtime="cpu-fixture-hf-v1")
+
+
+class GameAdapter(FakeAdapter):
+    """Action fixture consumes only observations; never receives oracle objects."""
+
+    def __init__(self, lease, spec, settings):
+        super().__init__(lease)
+        self.spec = spec
+        self.settings = settings
+        self.resets = []
+        self.calls = 0
+        self.loads = 0
+        self.cursors = {"A": 0, "B": 0}
+
+    def load(self, deadline):
+        self.loads += 1
+        return super().load(deadline)
+
+    def reset(self, participant=None):
+        self.resets.append(participant)
+        if participant is None:
+            self.cursors = {"A": 0, "B": 0}
+        else:
+            self.cursors[participant] = 0
+        return {"state": "reset"}
+
+    def generate(self, participant, messages, parameters, deadline):
+        with self.lease.operation(kind="generation"):
+            self.calls += 1
+            self.recorded.append((participant, copy.deepcopy(messages), parameters))
+            if self.settings.get("block"):
+                self._pause()
+            if self.calls in self.settings.get("fail_at", set()):
+                raise self.settings.get("failure", LabError("fixture_runtime_error"))
+            event = json.loads(messages[-1].content)
+            if event["purpose"] == "reflection":
+                text = "I will compare my next move with the observed outcome."
+            else:
+                observation = event["observation"]
+                legal = observation.get("legal_actions", [])
+                if self.settings.get("response") is not None:
+                    text = self.settings["response"]
+                elif legal:
+                    text = json.dumps(legal[0])
+                elif observation["game"] == "memory":
+                    # A hidden-legal fixture still follows the publicly stated rules.
+                    remaining = [
+                        i for i in range(16) if i not in observation["matched"]
+                    ]
+                    text = json.dumps({"cards": remaining[:2]})
+                else:
+                    raise AssertionError("fixture_requires_visible_actions")
+            mode = "append" if self.cursors[participant] else "prefill"
+            self.cursors[participant] += 1
+            return GenerationResult(
+                text=text,
+                raw_text=text,
+                input_tokens=20,
+                output_tokens=8,
+                ttft_s=0.001,
+                peak_vram_bytes=self.settings.get("peak_vram_bytes"),
+                generation_s=0.002,
+                stop_reason=self.settings.get("stop_reason", "length"),
+                effective_parameters={
+                    "context_mode": mode,
+                    "temperature": parameters.temperature,
+                    "top_p": parameters.top_p,
+                    "num_steps": parameters.num_steps,
+                },
+                quiescent=self.settings.get("quiescent", True),
+            )
+
+
+@pytest.fixture
+async def eval_rig(tmp_path):
+    settings = {}
+    specs = [EVAL_SPEC]
+    adapters = []
+
+    def access(owner, _operation):
+        if owner != OWNER:
+            raise PermissionError("untrusted_owner")
+
+    store = LabStore(tmp_path / "module", lambda _operation: None, access)
+    store.open()
+    store.put_document(
+        "qualifications",
+        EVAL_SPEC.model_id,
+        {
+            **asdict(EVAL_SPEC),
+            "qualified": True,
+            "receipt_id": "cpu-fixture-not-model-qualification",
+        },
+        owner=OWNER,
+    )
+    admission = RuntimeAdmission(tmp_path / "admission.sqlite3", enabled=True)
+
+    def factory(model, lease):
+        assert model == specs[0].model_id
+        adapter = GameAdapter(lease, specs[0], settings)
+        adapters.append(adapter)
+        return adapter
+
+    runner = LabRunner(store, admission, lambda: specs, factory, cleanup_seconds=0.3)
+    service = EvaluationService(runner)
+    yield service, adapters, settings, specs
+    for adapter in adapters:
+        adapter.released.set()
+    await service.close()
+    if service.tasks:
+        await asyncio.wait(service.tasks, timeout=2)
+    await runner.close()
+    store.close()
+
+
+def request(**overrides):
+    return EvaluationRequest(
+        **{
+            "model_id": EVAL_SPEC.model_id,
+            "case_ids": ["nim-last-stone-v1"],
+            "swap_sides": False,
+            **overrides,
+        }
+    )
+
+
+async def finish(service, row):
+    await asyncio.wait_for(asyncio.shield(service.jobs[row["id"]].task), timeout=4)
+    return service.snapshot(row["id"])
+
+
+async def wait_entered(adapters):
+    async with asyncio.timeout(1):
+        while not adapters or not adapters[-1].entered.is_set():
+            await asyncio.sleep(0.001)
+    return adapters[-1]
+
+
+@pytest.mark.asyncio
+async def test_evaluation_completed_roundtrip_idempotency_and_no_hidden_retries(
+    eval_rig,
+):
+    service, adapters, _, _ = eval_rig
+    first, second = await asyncio.gather(
+        service.start(request(), "same"), service.start(request(), "same")
+    )
+    assert first[0]["id"] == second[0]["id"]
+    assert [first[1], second[1]] == [True, False]
+    final = await finish(service, first[0])
+    assert final["status"] == "completed"
+    assert final["episodes"][0]["status"] == "game_completed"
+    assert final["episodes"][0]["result"]["winner"] == "A"
+    assert final["episodes"][0]["result"]["success"]
+    assert len(adapters) == 1 and adapters[0].calls == 1 and adapters[0].closed
+    retry, created = await service.start(request(), "same")
+    assert not created and retry["id"] == final["id"]
+    with pytest.raises(LabError, match="idempotency_conflict"):
+        await service.start(request(seed=3), "same")
+    assert service.store.get(final["id"])["episodes"] == final["episodes"]
+    final["episodes"].clear()
+    assert len(service.snapshot(first[0]["id"])["episodes"]) == 1
+    assert service.runner.admission.snapshot()["status"] == "available"
+    assert service.list()[0]["id"] == first[0]["id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "text,status",
+    [
+        ("not JSON", "invalid_format"),
+        ("[]", "invalid_format"),
+        ('{"heap":NaN,"take":1}', "invalid_format"),
+        ('{"heap":0,"take":2}', "illegal_action"),
+        ('{"heap":0,"take":1,"extra":2}', "illegal_action"),
+    ],
+)
+async def test_model_errors_end_episode_once_and_remain_in_report(
+    eval_rig, text, status
+):
+    service, adapters, settings, _ = eval_rig
+    settings["response"] = text
+    row, _ = await service.start(request(), "bad")
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    assert episode["status"] == status
+    assert len(episode["decisions"]) == 1 and adapters[0].calls == 1
+    assert episode["decisions"][0]["response"] == text
+    assert episode["decisions"][0]["error"] == status
+    assert final["summary"]["by_game"][0]["model_errors"] == 1
+    assert final["summary"]["by_game"][0]["infrastructure_errors"] == 0
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_side_swap_bots_and_private_model_observations(eval_rig):
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(request(swap_sides=True), "sides")
+    final = await finish(service, row)
+    assert len(final["episodes"]) == 2
+    one, two = final["episodes"]
+    assert one["result"]["success"] and not two["result"]["success"]
+    assert one["player"] == "A" and two["player"] == "B"
+    assert two["decisions"][0]["actor"] == "reference"
+    assert adapters[0].calls == 1
+    record = one["decisions"][0]
+    prompt = record["observation"]
+    assert "assessment" not in prompt and "reference_version" not in prompt
+    assert "optimal" not in json.dumps(prompt)
+    assert record["assessment"]["winning_position_before"]
+
+
+@pytest.mark.asyncio
+async def test_memory_observations_exclude_deck_oracle_and_history_can_end_honestly(
+    eval_rig,
+):
+    service, adapters, settings, _ = eval_rig
+    settings["fail_at"] = {2}
+    row, _ = await service.start(request(case_ids=["memory-seed17-v1"]), "memory")
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "runtime_error"
+    first = json.loads(adapters[0].recorded[0][1][-1].content)["observation"]
+    second = json.loads(adapters[0].recorded[1][1][-1].content)["observation"]
+    assert first["board"] == [None] * 16
+    assert first["last_reveal"] == []
+    assert len(second["last_reveal"]) == 2
+    assert "_cards" not in first and "revealed_knowledge" not in first
+    assert "known_pairs_missed" not in first["result"]
+    assert "reference_version" not in json.dumps(first)
+
+
+@pytest.mark.asyncio
+async def test_preflight_rejects_unsupported_before_loading_and_reports_capabilities(
+    eval_rig,
+):
+    service, adapters, _, _ = eval_rig
+    assert service.capabilities()["ready"]
+    assert set(service.capabilities()["games"]) == {
+        "tic_tac_toe",
+        "nim",
+        "memory",
+        "sokoban",
+    }
+    cases = [
+        (
+            request(observation_mode="native_incremental"),
+            "unsupported_observation_mode",
+        ),
+        (request(action_constraint="masked"), "unsupported_action_constraint"),
+        (request(num_steps=16), "unsupported_compute_steps"),
+        (request(reflection="episode_note"), "reflection_requires_carry"),
+        (request(opponent="remembering"), "unsupported_reference"),
+        (
+            request(case_ids=["memory-seed17-v1"], opponent="model"),
+            "solo_game_has_no_opponent",
+        ),
+    ]
+    for index, (config, code) in enumerate(cases):
+        checked = service.preflight(config)
+        assert not checked["supported"] and code in checked["reason_codes"]
+        with pytest.raises(LabError, match=code):
+            await service.start(config, "unsupported" + str(index))
+    assert adapters == [] and service.store.list() == []
+    service.closed = True
+    assert not service.capabilities()["ready"]
+    with pytest.raises(LabError, match="module_stopping"):
+        await service.start(request(), "closed")
+
+
+@pytest.mark.asyncio
+async def test_cancel_queued_never_loads_and_is_idempotent(eval_rig):
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(request(), "cancel-queued")
+    assert (await service.cancel(row["id"]))["status"] == "cancelling"
+    final = await finish(service, row)
+    assert final["status"] == "cancelled"
+    assert all(adapter.loads == 0 for adapter in adapters)
+    assert (await service.cancel(row["id"]))["status"] == "cancelled"
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_task_cancellation_propagates_after_cleanup_and_persists_interruption(
+    eval_rig,
+):
+    service, adapters, settings, _ = eval_rig
+    settings["block"] = True
+    row, _ = await service.start(request(), "task-cancel-cleanup")
+    adapter = await wait_entered(adapters)
+    job = service.jobs[row["id"]]
+
+    job.task.cancel()
+    adapter.released.set()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(asyncio.shield(job.task), timeout=3)
+
+    assert job.task.cancelled()
+    assert job.released and adapter.closed
+    assert service.snapshot(row["id"])["status"] == "cancelled"
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_cancel_live_generation_keeps_owned_thread_and_lease_until_quiescent(
+    eval_rig,
+):
+    service, adapters, settings, _ = eval_rig
+    settings["block"] = True
+    row, _ = await service.start(request(repetitions=2), "cancel-live")
+    adapter = await wait_entered(adapters)
+    adapter.ignore_cancel = True
+    job = service.jobs[row["id"]]
+    await service.cancel(row["id"])
+    assert service.runner.admission.snapshot()["status"] != "available"
+    assert job.work is not None and not job.work.cancelled()
+    adapter.released.set()
+    final = await finish(service, row)
+    assert final["status"] == "cancelled" and adapter.closed and adapter.cancelled
+    assert final["episodes"][1]["status"] == "skipped"
+    assert adapter.calls == 1
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_full_history_rotates_and_invalid_requests_keep_admission_available(
+    eval_rig,
+):
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(request(), "one")
+    await finish(service, row)
+    service.runner.store.limits = replace(service.runner.store.limits, max_runs=1)
+    second, _ = await service.start(request(), "two")
+    await finish(service, second)
+    assert len(adapters) == 2
+    assert service.runner.admission.snapshot()["status"] == "available"
+    assert len(service.store.list()) == 1
+    with pytest.raises(LabError, match="invalid_id"):
+        await service.start(request(), "../bad")
+
+
+@pytest.mark.asyncio
+async def test_store_validation_recovery_retention_and_mutation_guards(eval_rig):
+    service, _, _, _ = eval_rig
+    assert not service.store.exists() and service.store.list() == []
+    service.store.recover()
+    with pytest.raises(LabError, match="evaluation_not_found"):
+        service.store.get("absent")
+    row, _ = await service.start(request(), "stored")
+    final = await finish(service, row)
+    service.jobs.clear()
+    state = service.store.get(row["id"])
+    state.update(status="running")
+    service.store.save(state)
+    service.store.recover()
+    recovered = service.store.get(row["id"])
+    assert (
+        recovered["status"] == "interrupted"
+        and recovered["error"] == "process_restarted"
+    )
+    # Quota validation must happen without changing a previously durable result.
+    huge = copy.deepcopy(final)
+    huge["padding"] = "x" * service.runner.store.limits.run_bytes
+    with pytest.raises(LabError, match="payload_too_large"):
+        service.store.save(huge)
+    assert service.store.get(row["id"])["episodes"] == final["episodes"]
+    original = service.runner.store._access
+    service.runner.store._access = lambda *_: (_ for _ in ()).throw(
+        PermissionError("denied")
+    )
+    with pytest.raises(PermissionError, match="denied"):
+        service.store.get(row["id"])
+    service.runner.store._access = original
+    old = copy.deepcopy(state)
+    old.update(
+        id="old-eval",
+        key="old-key",
+        status="completed",
+        created=time.time() - 30 * 86400,
+    )
+    service.store.create(old)
+    # Retention deletes old terminal rows only on the next mutation.
+    new = copy.deepcopy(state)
+    new.update(id="new-eval", key="new-key", status="running")
+    service.store.create(new)
+    assert {r["id"] for r in service.store.list()} == {row["id"], "new-eval"}
+    service.store.terminal("new-eval", "failed", "fixture")
+    assert service.store.get("new-eval")["error"] == "fixture"
+
+
+@pytest.mark.asyncio
+async def test_reflection_is_private_explicit_costed_and_greedy_is_not_sampled(
+    eval_rig,
+):
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(
+        request(repetitions=2, episode_memory="carry", reflection="episode_note"),
+        "reflect",
+    )
+    final = await finish(service, row)
+    assert all(r["status"] == "game_completed" for r in final["episodes"])
+    assert adapters[0].calls == 4
+    purposes = [d["purpose"] for r in final["episodes"] for d in r["decisions"]]
+    assert purposes == ["action", "reflection", "action", "reflection"]
+    assert all(p.temperature == 0 and p.top_p == 1 for _, _, p in adapters[0].recorded)
+    feedback = final["episodes"][0]["decisions"][1]["observation"]["observation"]
+    assert feedback["result"]["winner"] == "A"
+    assert feedback["final_state"]["heaps"] == [0]
+    assert all(
+        "assessment" not in d["observation"]["observation"]
+        for r in final["episodes"]
+        for d in r["decisions"]
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure,status",
+    [
+        (LabError("context_budget_exceeded"), "context_limit"),
+        (LabError("storage_full", 507), "storage_full"),
+        (LabError("generation_deadline_exceeded", 408), "decision_timeout"),
+    ],
+)
+async def test_runtime_failures_are_separate_from_model_actions(
+    eval_rig, failure, status
+):
+    service, adapters, settings, _ = eval_rig
+    settings.update(fail_at={1}, failure=failure)
+    row, _ = await service.start(request(), "runtime-failure")
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == status
+    assert adapters[0].calls == 1 and adapters[0].closed
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "setting,value,status",
+    [
+        ("quiescent", False, "runtime_error"),
+        ("stop_reason", "deadline", "decision_timeout"),
+    ],
+)
+async def test_backend_receipts_do_not_masquerade_as_completed_actions(
+    eval_rig, setting, value, status
+):
+    service, _, settings, _ = eval_rig
+    settings[setting] = value
+    row, _ = await service.start(request(), "bad-receipt")
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == status
+    decision = final["episodes"][0]["decisions"][0]
+    assert decision["response"] is None and decision["action"] is None
+    assert decision["seconds"] >= 0 and decision["error"] == status
+    assert decision["observation"]["observation"]["game"] == "nim"
+    assert all(value is None for value in decision["usage"].values())
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_deadline_cancels_own_generation_and_releases_after_worker_quiescence(
+    eval_rig,
+):
+    service, adapters, settings, _ = eval_rig
+    settings["block"] = True
+    row, _ = await service.start(request(decision_timeout_s=1), "deadline")
+    final = await finish(service, row)
+    assert final["status"] == "failed" and final["error"] == "decision_timeout"
+    decision = final["episodes"][0]["decisions"][0]
+    assert decision["error"] == "decision_timeout"
+    assert decision["response"] is None and decision["seconds"] >= 1
+    assert final["summary"]["by_game"][0]["decision_samples"] == 1
+    assert adapters[0].cancelled and adapters[0].closed
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_wall_deadline_before_load_is_honest_and_preflight_unknown_model(
+    eval_rig,
+):
+    service, adapters, _, _ = eval_rig
+    invalid = request(model_id="missing-model")
+    assert "model_not_allowed" in service.preflight(invalid)["reason_codes"]
+    row, _ = await service.start(request(), "expired")
+    service.jobs[row["id"]].deadline = time.monotonic() - 1
+    final = await finish(service, row)
+    assert final["status"] == "failed" and final["error"] == "decision_timeout"
+    assert not adapters
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure", [LabError("environment_solver_limit", 422), ValueError("fixture")]
+)
+async def test_oracle_failure_is_environment_error_and_never_model_illegal(
+    eval_rig, monkeypatch, failure
+):
+    from venom_module_cooperation_lab.evaluation import references
+
+    service, _, _, _ = eval_rig
+
+    def fail(*_args):
+        raise failure
+
+    monkeypatch.setattr(references, "assess", fail)
+    row, _ = await service.start(request(), "oracle-failure")
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    assert episode["status"] == "environment_error"
+    assert episode["decisions"][0]["error"] == "environment_error"
+    assert final["summary"]["by_game"][0]["infrastructure_errors"] == 1
+    assert final["summary"]["by_game"][0]["model_errors"] == 0
+
+
+@pytest.mark.asyncio
+async def test_environment_setup_failure_is_reported_without_generation(
+    eval_rig, monkeypatch
+):
+    from venom_module_cooperation_lab.evaluation import games
+
+    service, adapters, _, _ = eval_rig
+
+    def fail(*_args):
+        raise ValueError("broken fixture")
+
+    monkeypatch.setattr(games, "make_environment", fail)
+    row, _ = await service.start(request(), "environment")
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "environment_error"
+    assert adapters[0].calls == 0
+
+
+@pytest.mark.asyncio
+async def test_action_limit_and_model_model_rounds_remain_explicit(
+    eval_rig, monkeypatch
+):
+    from venom_module_cooperation_lab.evaluation import manifest
+
+    service, adapters, _, _ = eval_rig
+    cases = copy.deepcopy(manifest.CASES)
+    next(c for c in cases if c["id"] == "memory-seed17-v1")["max_actions"] = 2
+    monkeypatch.setattr(manifest, "CASES", cases)
+    row, _ = await service.start(request(case_ids=["memory-seed17-v1"]), "limit")
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "action_limit"
+    assert adapters[0].calls == 2
+    ttt, _ = await service.start(
+        request(case_ids=["ttt-opening-v1"], opponent="model"), "two-models"
+    )
+    game = await finish(service, ttt)
+    assert game["episodes"][0]["status"] == "game_completed"
+    assert {p for p, _, _ in adapters[1].recorded} == {"A", "B"}
+    assert all(d["actor"] == "model" for d in game["episodes"][0]["decisions"])
+
+
+@pytest.mark.asyncio
+async def test_close_stops_active_owned_jobs_and_duplicate_cleanup_is_idempotent(
+    eval_rig,
+):
+    service, adapters, settings, _ = eval_rig
+    settings["block"] = True
+    row, _ = await service.start(request(), "shutdown")
+    await wait_entered(adapters)
+    await service.close()
+    final = await finish(service, row)
+    assert final["status"] == "cancelled" and service.closed
+    assert await service._cleanup(service.jobs[row["id"]])
+    assert service.runner.admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_reflection_failure_is_visible_and_stops_carry_block(eval_rig):
+    service, _, settings, _ = eval_rig
+    settings["fail_at"] = {2}
+    row, _ = await service.start(
+        request(repetitions=2, episode_memory="carry", reflection="episode_note"),
+        "reflect-error",
+    )
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "game_completed"
+    assert final["episodes"][0]["reflection_error"] == "runtime_error"
+    assert final["episodes"][1]["status"] == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_available_vram_is_retained_and_missing_is_not_zero(eval_rig):
+    service, _adapters, settings, _specs = eval_rig
+    settings["peak_vram_bytes"] = 12345
+    row, _ = await service.start(request(), "vram-receipt")
+    result = await finish(service, row)
+    assert result["episodes"][0]["decisions"][0]["usage"]["peak_vram_bytes"] == 12345
+    assert result["summary"]["by_game"][0]["peak_vram_bytes"] == 12345
+
+
+@pytest.mark.asyncio
+async def test_completed_snapshot_cache_is_bounded_with_durable_readback(eval_rig):
+    service, _adapters, _settings, _specs = eval_rig
+    ids = []
+    for index in range(12):
+        row, _ = await service.start(request(), f"cache-{index}")
+        ids.append(row["id"])
+        await finish(service, row)
+    assert len(service.jobs) <= 9
+    assert ids[0] not in service.jobs
+    assert service.snapshot(ids[0])["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_completion_is_not_published_before_final_unload(eval_rig):
+    from test_game_service import finish, request
+
+    service, adapters, _settings, _specs = eval_rig
+    original = service._cleanup
+    entered_cleanup = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+
+    async def delayed(job):
+        entered_cleanup.set()
+        await allow_cleanup.wait()
+        return await original(job)
+
+    service._cleanup = delayed
+    row, _ = await service.start(request(), "visible-unload-boundary")
+    await asyncio.wait_for(entered_cleanup.wait(), timeout=2)
+    assert service.snapshot(row["id"])["status"] == "cleanup_pending"
+    assert not service.jobs[row["id"]].released
+    allow_cleanup.set()
+    result = await finish(service, row)
+    assert result["status"] == "completed"
+    assert service.jobs[row["id"]].released and adapters[0].closed
+
+
+@pytest.mark.asyncio
+async def test_model_model_side_swap_changes_actual_starter_and_offline_replay(
+    eval_rig,
+):
+    from venom_module_cooperation_lab.evaluation.replay import replay_episode
+
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(
+        request(case_ids=["ttt-opening-v1"], opponent="model", swap_sides=True),
+        "model-sides",
+    )
+    final = await finish(service, row)
+    assert len(final["episodes"]) == 2
+    for episode, starter in zip(final["episodes"], ["A", "B"], strict=True):
+        assert episode["status"] == "game_completed"
+        assert episode["game_config"]["starting_player"] == starter
+        assert episode["decisions"][0]["player"] == starter
+        assert (
+            episode["decisions"][0]["observation"]["observation"]["your_symbol"] == "X"
+        )
+        replayed = replay_episode(final, episode)
+        assert replayed["result"] == episode["result"]
+        assert replayed["actions"] == len(episode["decisions"])
+    assert adapters[0].closed
+
+
+@pytest.mark.asyncio
+async def test_delete_is_terminal_guarded_frees_capacity_and_preserves_export(eval_rig):
+    from venom_module_cooperation_lab.evaluation.reports import export
+
+    service, adapters, settings, _ = eval_rig
+    service.runner.store.limits = replace(service.runner.store.limits, max_runs=1)
+    settings["block"] = True
+    row, _ = await service.start(request(), "delete-capacity")
+    with pytest.raises(LabError, match="evaluation_active"):
+        await service.delete(row["id"])
+    adapter = await wait_entered(adapters)
+    assert not adapter.closed and not adapter.cancelled
+    job = service.jobs[row["id"]]
+    # A stale terminal status alone must never authorize deleting an owned lease.
+    job.state["status"] = "completed"
+    with pytest.raises(LabError, match="evaluation_active"):
+        await service.delete(row["id"])
+    job.state["status"] = "running"
+    await service.cancel(row["id"])
+    final = await finish(service, row)
+    saved_export, _ = export(final, "json")
+    assert service.capabilities()["storage"]["series_used"] == 1
+    assert service.capabilities()["storage"]["max_series"] == 1
+    await service.delete(row["id"])
+    assert service.capabilities()["storage"]["series_used"] == 0
+    assert service.store.by_key("delete-capacity") is None
+    assert row["id"] not in service.jobs
+    assert json.loads(saved_export)["id"] == row["id"]
+    with pytest.raises(LabError, match="evaluation_not_found"):
+        service.snapshot(row["id"])
+    settings["block"] = False
+    new, created = await service.start(request(), "delete-capacity")
+    assert created and new["id"] != row["id"]
+    assert (await finish(service, new))["episodes"][0]["status"] == "game_completed"
+
+
+@pytest.mark.asyncio
+async def test_delete_obeys_storage_mutation_guard(eval_rig):
+    service, _, _, _ = eval_rig
+    row, _ = await service.start(request(), "delete-guard")
+    await finish(service, row)
+    original = service.runner.store._guard
+
+    def deny(operation):
+        if operation == "evaluations.delete":
+            raise PermissionError("fixture-denied")
+        original(operation)
+
+    service.runner.store._guard = deny
+    with pytest.raises(PermissionError, match="fixture-denied"):
+        await service.delete(row["id"])
+    assert service.snapshot(row["id"])["id"] == row["id"]
+    service.runner.store._guard = original
+
+
+@pytest.mark.asyncio
+async def test_retention_removes_access_even_for_a_cached_snapshot(eval_rig):
+    service, _adapters, _settings, _specs = eval_rig
+    row, _ = await service.start(request(), "expired-evaluation")
+    await finish(service, row)
+    old = service.jobs[row["id"]].state
+    old["created"] = time.time() - 15 * 86400
+    service.store.save(old)
+    with service.runner.store._transaction("fixture.age"):
+        service.runner.store._connection().execute(
+            "UPDATE evaluations SET created=? WHERE id=?", (old["created"], row["id"])
+        )
+    next_row, _ = await service.start(request(), "current-evaluation")
+    await finish(service, next_row)
+    with pytest.raises(LabError, match="evaluation_not_found"):
+        service.snapshot(row["id"])
+
+
+@pytest.mark.asyncio
+async def test_mapped_response_is_auditable_without_retry_and_strict_stays_strict(
+    eval_rig,
+):
+    service, adapters, settings, _ = eval_rig
+    settings["response"] = '{"action":"move","value":"right"}'
+    req = request(case_ids=["sokoban-push-v1"], response_mode="mapped")
+    row, _ = await service.start(req, "mapped-game")
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    assert episode["status"] == "game_completed" and episode["result"]["success"]
+    decision = episode["decisions"][0]
+    assert decision["response"] == settings["response"]
+    assert decision["raw_response"] == settings["response"]
+    assert decision["action"] == {"move": "right"}
+    assert decision["response_mapping"]["mapped"]
+    assert final["summary"]["by_game"][0]["mapped_responses"] == 1
+    assert adapters[-1].calls == 1
+    row, _ = await service.start(
+        request(case_ids=["sokoban-push-v1"], response_mode="strict_json"),
+        "strict-game",
+    )
+    strict = await finish(service, row)
+    assert strict["episodes"][0]["status"] == "illegal_action"
+    assert adapters[-1].calls == 1
+
+
+@pytest.mark.asyncio
+async def test_compact_nim_contract_keeps_observation_and_does_not_guess_move(eval_rig):
+    service, adapters, settings, _ = eval_rig
+    settings["response"] = "heap=0 take=1"
+    row, _ = await service.start(request(response_mode="mapped"), "compact-nim")
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "game_completed"
+    decision = final["episodes"][0]["decisions"][0]
+    wire = json.loads(adapters[-1].recorded[0][1][-1].content)
+    assert "heap=H take=N" in wire["instruction"]
+    assert wire["observation"] == decision["observation"]["observation"]
+    assert "event_id" not in wire and "event_id" in decision["observation"]
+    assert final["config"]["response_mapper"] == "action-map-v2"
+    assert service.preflight(request(max_context_tokens=8192))["reason_codes"] == [
+        "unsupported_context_budget"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_memory_prompt_requires_indices_not_generic_match(eval_rig):
+    service, adapters, settings, _ = eval_rig
+    settings["response"] = "match"
+    row, _ = await service.start(
+        request(case_ids=["memory-seed17-v1"], response_mode="mapped"), "compact-memory"
+    )
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    assert episode["status"] == "invalid_format"
+    wire = json.loads(adapters[-1].recorded[0][1][-1].content)
+    assert (
+        "cards=I,J" in wire["instruction"] and "not just 'match'" in wire["instruction"]
+    )
+    assert "legal_actions" not in wire["observation"]
+    assert wire["observation"]["last_reveal"] == []
+    assert all(value is None for value in wire["observation"]["board"])
+    assert adapters[-1].calls == 1
+
+
+@pytest.mark.asyncio
+async def test_gemma_large_budget_reaches_generation_not_legacy_parameter_validation(
+    eval_rig,
+):
+    service, adapters, _, specs = eval_rig
+    specs[0] = replace(
+        specs[0], architecture="gemma4", provider="ollama", runtime="ollama==0.40.6"
+    )
+    service.runner.store.put_document(
+        "qualifications",
+        specs[0].model_id,
+        {
+            **asdict(specs[0]),
+            "qualified": True,
+            "receipt_id": "cpu-fixture-not-model-qualification",
+        },
+        owner=OWNER,
+    )
+    row, _ = await service.start(
+        request(response_mode="mapped", max_context_tokens=8192), "gemma-context"
+    )
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "game_completed"
+    actual = adapters[-1].recorded[0][2]
+    assert (
+        actual.max_context_tokens == 8192 and actual.session_protocol == "game-eval-v2"
+    )
+
+
+@pytest.mark.asyncio
+async def test_budgets_persist_per_identity_and_never_start_a_model(eval_rig):
+    from venom_module_cooperation_lab.evaluation.model_settings import (
+        ModelBudgets,
+        read_budgets,
+        save_budgets,
+    )
+
+    service, adapters, _, _ = eval_rig
+    model = asdict(EVAL_SPEC)
+    first = read_budgets(service.runner.store, model)
+    assert not first["saved"] and not first["stale"]
+    budgets = ModelBudgets(
+        max_context_tokens=4096, max_new_tokens=512, decision_timeout_s=180
+    )
+    assert save_budgets(service.runner.store, model, budgets)["saved"]
+    # A different model has independent defaults.
+    other = {**model, "model_id": "another-model"}
+    assert not read_budgets(service.runner.store, other)["saved"]
+    assert read_budgets(service.runner.store, model)["budgets"] == budgets.model_dump()
+    changed = {**model, "revision": "new-checkpoint"}
+    result = read_budgets(service.runner.store, changed)
+    assert result["stale"] and not result["saved"]
+    assert result["budgets"]["max_new_tokens"] == 64
+    with pytest.raises(LabError, match="unsupported_context_budget"):
+        save_budgets(
+            service.runner.store,
+            model,
+            ModelBudgets(
+                max_context_tokens=8192, max_new_tokens=512, decision_timeout_s=180
+            ),
+        )
+    with pytest.raises(LabError, match="unsupported_model_adapter"):
+        save_budgets(
+            service.runner.store, {**model, "architecture": "unknown"}, budgets
+        )
+    assert not adapters

@@ -48,6 +48,8 @@ class RunRequest(BaseModel):
     mode: Mode = "dialog_encouraged"
     seed: int = Field(default=0, ge=0, le=2**31 - 1)
     max_turns: int = Field(default=8, ge=1, le=9)
+    game_count: int = Field(default=1, ge=1, le=10)
+    remember_games: bool = True
     max_new_tokens: int = Field(default=128, ge=1, le=256)
     temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
     top_p: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
@@ -81,6 +83,14 @@ class RunRequest(BaseModel):
                 self.max_turns < 2 or self.max_turns % 2
             ):
                 raise ValueError("operator_chat_requires_pairs")
+        if self.scenario_id != "tic_tac_toe" and (
+            self.game_count != 1 or not self.remember_games
+        ):
+            raise ValueError("game_series_requires_game")
+        if self.game_count > 1 and self.max_turns != 9:
+            raise ValueError("game_series_requires_nine_moves")
+        if self.game_count == 1:
+            self.remember_games = True  # No cross-game memory exists for one game.
         return self
 
 
@@ -111,6 +121,8 @@ class RunConfig:
     participant_count: int = 2
     scheduler: str = "alternating-v1"
     communication_language: DialogueLanguage | None = None
+    game_count: int = 1
+    remember_games: bool = True
 
     @classmethod
     def build(cls, request: RunRequest, model: dict[str, Any]) -> RunConfig:
@@ -251,7 +263,7 @@ class RunConfig:
             model_json=json.dumps(model, sort_keys=True, ensure_ascii=False),
             scenario_id=scenario.scenario_id,
             scenario_version=(
-                scenario.version + "-board-context-3"
+                scenario.version + "-board-context-5"
                 if request.scenario_id == "tic_tac_toe"
                 else scenario.version
             ),
@@ -262,9 +274,12 @@ class RunConfig:
                 Budgets(
                     max_turns=request.max_turns,
                     max_new_tokens=request.max_new_tokens,
-                    total_input_tokens=9 * 2048,
-                    total_output_tokens=9 * request.max_new_tokens,
-                    processing_steps=9 * (2048 + request.max_new_tokens),
+                    total_input_tokens=9 * request.game_count * 2048,
+                    total_output_tokens=9 * request.game_count * request.max_new_tokens,
+                    processing_steps=9
+                    * request.game_count
+                    * (2048 + request.max_new_tokens),
+                    wall_seconds=min(1800, 360 * request.game_count),
                 )
                 if request.scenario_id == "tic_tac_toe"
                 else Budgets(
@@ -275,11 +290,13 @@ class RunConfig:
             temperature=request.temperature,
             top_p=request.top_p,
             communication_language=language,
+            game_count=request.game_count,
+            remember_games=request.remember_games,
             schema_version=3
             if request.mode in OPERATOR_MODES or request.scenario_id == "tic_tac_toe"
             else (1 if language is None else 2),
             participant_count=3 if request.mode in OPERATOR_MODES else 2,
-            scheduler="board-state-v2"
+            scheduler="board-state-v4"
             if request.scenario_id == "tic_tac_toe"
             else (
                 "author-review-revise-v1"
@@ -294,6 +311,13 @@ class RunConfig:
 
     def public(self) -> dict[str, Any]:
         result = asdict(self)
+        if self.game_count == 1:
+            result.pop("game_count")
+            result.pop("remember_games")
+        else:
+            result["schema_version"] = 4
+            result["scheduler"] = "board-series-memory-v1"
+            result["scenario_version"] += "-series-1"
         if self.communication_language is None:
             # Preserve exact legacy v1 serialization and hashes.
             result.pop("communication_language")

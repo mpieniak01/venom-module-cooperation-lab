@@ -76,3 +76,11 @@ test("competitive game variant restores with a distinct translated label",()=>{
  assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode:"game_competitive"}).mode,"game_competitive");
  assert.equal(texts("pl").gameCompetitive,"Gra, aby wygrać");
 });
+
+
+test("game series settings restore bounded count and explicit memory policy",()=>{
+ const settings=savedSettings({scenario_id:"tic_tac_toe",game_count:4,remember_games:false});
+ assert.equal(settings.gameCount,4);assert.equal(settings.rememberGames,false);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",game_count:99}).gameCount,1);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe"}).rememberGames,true);
+});

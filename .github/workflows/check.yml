@@ -53,7 +53,7 @@ jobs:
           ln -s ../../web-next/node_modules node_modules
       - name: Run Python, frontend and optional-module contracts
         working-directory: host/modules/venom-module-cooperation-lab
-        run: make check
+        run: make pr-fast
       - name: Upload actual coverage
         if: always()
         uses: actions/upload-artifact@v4

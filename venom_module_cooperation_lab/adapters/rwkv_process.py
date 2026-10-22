@@ -15,9 +15,10 @@ import multiprocessing
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from .component import verify_overlay
 from .rwkv_worker import worker_main
@@ -30,6 +31,11 @@ MODEL_FILENAME = "rwkv7-g1d-0.4b-20260210-ctx8192.pth"
 MAX_WIRE_BYTES = 65536
 
 
+class WorkerConfig(Protocol):
+    def validate(self) -> None: ...
+    def payload(self) -> dict[str, Any]: ...
+
+
 class RwkvError(RuntimeError):
     pass
 
@@ -39,12 +45,16 @@ class RwkvConfig:
     model_path: Path
     runtime_root: Path
     strategy: str = "cuda fp16"
+    model_sha256: str | None = None
+
+    def payload(self) -> dict[str, Any]:
+        return asdict(self)
 
     def validate(self) -> None:
         if self.strategy not in {"cuda fp16", "cpu fp32"}:
             raise RwkvError("unsupported_precision")
         expected = (
-            (self.model_path, MODEL_SHA256),
+            (self.model_path, self.model_sha256 or MODEL_SHA256),
             (self.runtime_root / "rwkv" / "model.py", RUNTIME_SHA256),
             (self.runtime_root / "rwkv" / "rwkv_vocab_v20230424.txt", TOKENIZER_SHA256),
         )
@@ -67,12 +77,52 @@ class RwkvParameters:
     top_p: float = 0.5
     seed: int = 0
     max_context_tokens: int = 2048
+    profile: str = "chat"
+    allowed_outputs: tuple[str, ...] = ()
+    num_steps: int = 8
+    session_protocol: str = "v1"
 
     def __post_init__(self) -> None:
+        if (
+            self.profile not in {"chat", "structured"}
+            or self.session_protocol not in {"v1", "game-eval-v2"}
+            or type(self.num_steps) is not int
+            or self.num_steps not in {8, 16, 32, 64}
+        ):
+            raise RwkvError("invalid_parameters")
+        if (
+            not isinstance(self.allowed_outputs, tuple)
+            or len(self.allowed_outputs) > 9
+            or any(
+                not isinstance(v, str)
+                or len(v) != 2
+                or v[0] not in "ABC"
+                or v[1] not in "123"
+                for v in self.allowed_outputs
+            )
+            or len(set(self.allowed_outputs)) != len(self.allowed_outputs)
+            or (
+                self.allowed_outputs
+                and (
+                    self.profile != "structured"
+                    or self.temperature != 0
+                    or self.top_p != 0
+                )
+            )
+        ):
+            raise RwkvError("invalid_parameters")
         for name, lower, upper in (
-            ("max_new_tokens", 1, 256),
+            (
+                "max_new_tokens",
+                1,
+                1024 if self.session_protocol == "game-eval-v2" else 256,
+            ),
             ("seed", 0, 2**31 - 1),
-            ("max_context_tokens", 1, 2048),
+            (
+                "max_context_tokens",
+                1,
+                8192 if self.session_protocol == "game-eval-v2" else 2048,
+            ),
         ):
             value = getattr(self, name)
             if type(value) is not int or not lower <= value <= upper:
@@ -88,8 +138,11 @@ class RwkvParameters:
 
 
 class RwkvAdapter:
-    def __init__(self, config: RwkvConfig) -> None:
+    def __init__(
+        self, config: WorkerConfig, *, worker_target: Callable[..., None] = worker_main
+    ) -> None:
         self.config = config
+        self._worker_target = worker_target
         self._context = multiprocessing.get_context("spawn")
         self._cancel = self._context.Event()
         self._process: Any = None
@@ -110,8 +163,8 @@ class RwkvAdapter:
             parent, child = self._context.Pipe()
             self._connection = parent
             self._process = self._context.Process(
-                target=worker_main,
-                args=(child, self._cancel, asdict(self.config), os.getpid()),
+                target=self._worker_target,
+                args=(child, self._cancel, self.config.payload(), os.getpid()),
                 daemon=True,
                 name="cooperation-rwkv",
             )
