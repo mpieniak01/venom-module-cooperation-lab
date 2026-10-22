@@ -44,7 +44,7 @@ test("evaluation never auto-starts, requires exact preflight and sends selected 
     await number(box,"Temperatura","0.7");await number(box,"Powtórzenia","2");
     await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
     const checked=JSON.parse(String(calls.find(call=>call.path.endsWith("/preflight"))?.init?.body));
-    assert.equal(checked.observation_mode,"native_incremental");assert.equal(checked.episode_memory,"carry");assert.equal(checked.reflection,"episode_note");
+    assert.equal(checked.response_mode,"mapped");assert.equal(checked.observation_mode,"native_incremental");assert.equal(checked.episode_memory,"carry");assert.equal(checked.reflection,"episode_note");
     assert.equal(checked.num_steps,32);assert.equal(checked.decoding,"sampled");assert.equal(checked.temperature,0.7);assert.equal(checked.repetitions,2);assert.equal(checked.legal_moves,"hidden");assert.equal(checked.opponent,"random");
     assert.match(box.textContent??"",/Zaplanowane: 4/);assert.match(box.textContent??"",/Bloki: 2/);assert.equal(start.disabled,false);
     await number(box,"Seed","18");assert.equal(start.disabled,true,"changing the form invalidates preflight");

@@ -74,7 +74,7 @@ function EvaluationReport({snapshot, language}: {snapshot: EvaluationSnapshot; l
           <strong>{t.observationLabel}</strong><pre>{safeValue(decision.observation, t.noData)}</pre>
           <strong>{t.response}</strong><pre>{safeValue(decision.response, t.noData)}</pre>
           <strong>{t.action}</strong><pre>{safeValue(decision.action, t.noData)}</pre>
-          <strong>{t.assessment}</strong><pre>{JSON.stringify({valid:decision.valid, error:decision.error, usage:decision.usage, assessment:decision.assessment}, null, 2)}</pre>
+          <strong>{t.assessment}</strong><pre>{JSON.stringify({valid:decision.valid, error:decision.error, response_mapping:decision.response_mapping, usage:decision.usage, assessment:decision.assessment}, null, 2)}</pre>
         </details>)}
       </details>)}
     </details>
@@ -144,6 +144,8 @@ export function EvaluationWorkspace({language}: {language:string}) {
           <Field label={t.legal}><select className={field} value={input.legal_moves} onChange={event=>patch({legal_moves:event.target.value as EvaluationRequest["legal_moves"]})}><option value="listed">{t.listed}</option><option value="hidden">{t.hidden}</option></select></Field>
         </div>
         <div className="coop-settings-group">
+          <Field label={t.responseMode}><select className={field} value={input.response_mode} onChange={event=>patch({response_mode:event.target.value as EvaluationRequest["response_mode"]})}><option value="mapped">{t.mapped}</option><option value="strict_json">{t.strict_json}</option></select></Field>
+          <p className="coop-message-meta">{t.mappingHelp}</p>
           <Field label={t.decoding}><select className={field} value={input.decoding} onChange={event=>patch({decoding:event.target.value as EvaluationRequest["decoding"]})}><option value="greedy">{t.greedy}</option><option value="sampled">{t.sampled}</option></select></Field>
           {number("temperature",t.temperature,0,2,0.1,input.decoding==="greedy")}
           {number("top_p",t.topP,0.01,1,0.01,input.decoding==="greedy")}

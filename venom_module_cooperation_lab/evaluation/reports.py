@@ -74,6 +74,12 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
                 "successes": sum(
                     bool((r.get("result") or {}).get("success")) for r in episodes
                 ),
+                "mapped_responses": sum(
+                    bool(d.get("response_mapping", {}).get("mapped")) for d in decisions
+                ),
+                "response_mapper": snapshot.get("config", {})
+                .get("request", {})
+                .get("response_mode", "strict_json"),
                 "model_errors": sum(
                     r["status"]
                     in {

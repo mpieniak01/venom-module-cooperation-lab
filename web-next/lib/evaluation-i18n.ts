@@ -1,4 +1,10 @@
 const labels = {
+  responseMode:["Format odpowiedzi", "Response format", "Antwortformat"],
+  strict_json:["Ścisły JSON", "Strict JSON", "Striktes JSON"],
+  mapped:["Mapowanie odpowiedzi", "Response mapping", "Antwortzuordnung"],
+  mapping:["Mapowanie", "Mapping", "Zuordnung"],
+  mappingHelp:["Mapuje jednoznaczny ruch; nie wybiera go za model. Oryginalna odpowiedź pozostaje w raporcie.", "Maps an explicit move without choosing for the model. Original answers remain in the report.", "Ordnet einen eindeutigen Zug zu, ohne ihn zu wählen. Originalantworten bleiben im Bericht."],
+
   conversationTab:["Rozmowa i serie", "Conversation and series", "Gespräch und Serien"],
   evaluationTab:["Ewaluacja gier", "Game evaluation", "Spielauswertung"],
   ticTacToe:["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],

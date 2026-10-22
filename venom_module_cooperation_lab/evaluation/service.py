@@ -719,18 +719,16 @@ class EvaluationService:
                         job, item, player, observation, request
                     )
                     item["decisions"].append(record)
+                    from .actions import parse_action
+
                     try:
-                        action = json.loads(
-                            result.text,
-                            parse_constant=lambda value: (_ for _ in ()).throw(
-                                ValueError(value)
-                            ),
+                        action, mapping = parse_action(
+                            result.text, env.game, request.response_mode
                         )
-                        if not isinstance(action, dict):
-                            raise ValueError("action_object_required")
-                    except (ValueError, TypeError):
+                        record["response_mapping"] = mapping
+                    except LabError:
                         record["error"] = "invalid_format"
-                        raise LabError("invalid_format", 422) from None
+                        raise
                 else:
                     start = time.monotonic()
                     action = reference_action(

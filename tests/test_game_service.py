@@ -727,3 +727,30 @@ async def test_retention_removes_access_even_for_a_cached_snapshot(eval_rig):
     await finish(service, next_row)
     with pytest.raises(LabError, match="evaluation_not_found"):
         service.snapshot(row["id"])
+
+
+@pytest.mark.asyncio
+async def test_mapped_response_is_auditable_without_retry_and_strict_stays_strict(
+    eval_rig,
+):
+    service, adapters, settings, _ = eval_rig
+    settings["response"] = '{"action":"move","value":"right"}'
+    req = request(case_ids=["sokoban-push-v1"], response_mode="mapped")
+    row, _ = await service.start(req, "mapped-game")
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    assert episode["status"] == "game_completed" and episode["result"]["success"]
+    decision = episode["decisions"][0]
+    assert decision["response"] == settings["response"]
+    assert decision["raw_response"] == settings["response"]
+    assert decision["action"] == {"move": "right"}
+    assert decision["response_mapping"]["mapped"]
+    assert final["summary"]["by_game"][0]["mapped_responses"] == 1
+    assert adapters[-1].calls == 1
+    row, _ = await service.start(
+        request(case_ids=["sokoban-push-v1"], response_mode="strict_json"),
+        "strict-game",
+    )
+    strict = await finish(service, row)
+    assert strict["episodes"][0]["status"] == "illegal_action"
+    assert adapters[-1].calls == 1

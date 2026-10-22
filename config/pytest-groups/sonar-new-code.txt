@@ -10,6 +10,7 @@ tests/test_catalog.py
 tests/test_dialogue_language.py
 tests/test_experiments.py
 tests/test_experiments_acceptance.py
+tests/test_game_actions.py
 tests/test_game_api.py
 tests/test_game_lifecycle.py
 tests/test_game_references.py

@@ -28,6 +28,7 @@ class EvaluationRequest(BaseModel):
     num_steps: Literal[8, 16, 32, 64] = 8
     legal_moves: Literal["hidden", "listed"] = "listed"
     action_constraint: Literal["none", "masked"] = "none"
+    response_mode: Literal["strict_json", "mapped"] = "strict_json"
     opponent: Literal["optimal", "random", "remembering", "model"] = "optimal"
     swap_sides: bool = True
     max_new_tokens: int = Field(default=128, ge=8, le=256)
