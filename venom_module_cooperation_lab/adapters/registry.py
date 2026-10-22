@@ -9,6 +9,7 @@ from pathlib import Path
 from ..errors import LabError
 from .base import Lease, ModelAdapter, ModelSpec
 from .component import OVERLAY_RUNTIME
+from .hf import pinned_specs
 from .rwkv_process import MODEL_FILENAME, MODEL_REVISION, MODEL_SHA256, TOKENIZER_SHA256
 
 RWKV_TEMPLATE = "System: {system}\n\nUser: {user}\n\nAssistant:"
@@ -37,6 +38,8 @@ RWKV_29_SPEC = ModelSpec(
     quantization="float16",
 )
 RWKV_SPECS = (RWKV_SPEC, RWKV_29_SPEC)
+HF_SPECS = pinned_specs()
+LOCAL_SPECS = (*RWKV_SPECS, *HF_SPECS)
 
 OLLAMA_SPEC = ModelSpec(
     model_id="qwen3-4b-control",
@@ -53,7 +56,7 @@ OLLAMA_SPEC = ModelSpec(
 
 
 def model_specs() -> tuple[ModelSpec, ...]:
-    return (*RWKV_SPECS, OLLAMA_SPEC)
+    return (*LOCAL_SPECS, OLLAMA_SPEC)
 
 
 def list_model_specs() -> list[ModelSpec]:
@@ -91,6 +94,10 @@ def create_adapter(model_id: str, lease: Lease) -> ModelAdapter:
         return RecurrentAdapter(
             spec, lease, root / spec.revision / spec.artifact, runtime
         )
+    if model_id in {s.model_id for s in HF_SPECS}:
+        from .hf import HfAdapter
+
+        return HfAdapter(get_model_spec(model_id), lease)
     if model_id == OLLAMA_SPEC.model_id:
         from .ollama import OllamaAdapter
 

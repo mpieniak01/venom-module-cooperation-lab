@@ -1,0 +1,80 @@
+{
+  "hrm-text-1b": {
+    "repository": "sapientinc/HRM-Text-1B",
+    "revision": "22097cbcecdd1301afe30a19a3ee61b96a9863e5",
+    "directory": "HRM-Text-1B",
+    "files": {
+      "config.json": {
+        "bytes": 619,
+        "git_sha1": "9ad3925bfe72274e537861d16fbc198d1399afd5"
+      },
+      "model.safetensors": {
+        "bytes": 2365606568,
+        "sha256": "f8fe2b2bf6948414e8e8d6538659198726d98f967c55b533b7aabe8a1fa9a584"
+      },
+      "tokenizer.json": {
+        "bytes": 4732713,
+        "git_sha1": "d08ed34cc79b3c788d7b5d81399511439a0e39af"
+      },
+      "tokenizer_config.json": {
+        "bytes": 326,
+        "git_sha1": "7edd277bdfb29acbc27330e218f8459ca95b7848"
+      }
+    }
+  },
+  "huginn-0125": {
+    "repository": "tomg-group-umd/huginn-0125",
+    "revision": "bb6621b65e90b6a4b9b29ef88dc83866d450470c",
+    "directory": "huginn-0125",
+    "files": {
+      "config.json": {
+        "bytes": 1447,
+        "git_sha1": "f448f9b60b283751af64243818b5965d1cd7ab8c"
+      },
+      "generation_config.json": {
+        "bytes": 178,
+        "git_sha1": "5d625768ec0e6f0b4aacd266ca3fc0ed8a930cd5"
+      },
+      "model-00001-of-00004.safetensors": {
+        "bytes": 4771970936,
+        "sha256": "5b461584b74249e87eabec34b59a13e188791dd8a7ccf2c7be95bb7fa8383e43"
+      },
+      "model-00002-of-00004.safetensors": {
+        "bytes": 4744780096,
+        "sha256": "44bac332b204abb687b2820eb0fadcb5795fdb0cfc06b3b6f2ac5241eec5c591"
+      },
+      "model-00003-of-00004.safetensors": {
+        "bytes": 4744737616,
+        "sha256": "07160dce9da01918d0b0bf2159ffe11d007e1fbe661d687ad4a7b0e65bde4e84"
+      },
+      "model-00004-of-00004.safetensors": {
+        "bytes": 1384120448,
+        "sha256": "40ce4f159938857dbbfa1020962045e1b96303ff902cfa76051ce54d2d51dea4"
+      },
+      "model.safetensors.index.json": {
+        "bytes": 6188,
+        "git_sha1": "7dd127c3bcb85de38c60a4c13e1a687e340b4450"
+      },
+      "raven_config_minimal.py": {
+        "bytes": 3913,
+        "git_sha1": "3d02eb20e5e248bd3edfe2454bde0e4d448aaffe"
+      },
+      "raven_modeling_minimal.py": {
+        "bytes": 88021,
+        "git_sha1": "d57a41491acf24701e59b449fc457467d8b10c20"
+      },
+      "special_tokens_map.json": {
+        "bytes": 435,
+        "git_sha1": "68ea7550618dcfd65a1faf6fdfb37336eeaa96f1"
+      },
+      "tokenizer.json": {
+        "bytes": 2726482,
+        "git_sha1": "ba898bc0ca9d948ef26ad339d5bf041b2de604ef"
+      },
+      "tokenizer_config.json": {
+        "bytes": 6624,
+        "git_sha1": "33657b7f5efddc9b9a71ce613d42b58cbad23306"
+      }
+    }
+  }
+}

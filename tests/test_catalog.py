@@ -117,7 +117,7 @@ def test_filter_non_chat_empty_template_and_pinned_baseline():
         },
     ]
     c._apply(runtimes, metadata)
-    assert len(c.specs()) == 4
+    assert len(c.specs()) == 6
     c._ollama([], {"version": "0.40.6", "models": []}, False)
     from venom_module_cooperation_lab import catalog as module
 

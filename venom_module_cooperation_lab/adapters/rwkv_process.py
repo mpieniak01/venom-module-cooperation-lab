@@ -15,9 +15,10 @@ import multiprocessing
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from .component import verify_overlay
 from .rwkv_worker import worker_main
@@ -30,6 +31,11 @@ MODEL_FILENAME = "rwkv7-g1d-0.4b-20260210-ctx8192.pth"
 MAX_WIRE_BYTES = 65536
 
 
+class WorkerConfig(Protocol):
+    def validate(self) -> None: ...
+    def payload(self) -> dict[str, Any]: ...
+
+
 class RwkvError(RuntimeError):
     pass
 
@@ -40,6 +46,9 @@ class RwkvConfig:
     runtime_root: Path
     strategy: str = "cuda fp16"
     model_sha256: str | None = None
+
+    def payload(self) -> dict[str, Any]:
+        return asdict(self)
 
     def validate(self) -> None:
         if self.strategy not in {"cuda fp16", "cpu fp32"}:
@@ -114,8 +123,11 @@ class RwkvParameters:
 
 
 class RwkvAdapter:
-    def __init__(self, config: RwkvConfig) -> None:
+    def __init__(
+        self, config: WorkerConfig, *, worker_target: Callable[..., None] = worker_main
+    ) -> None:
         self.config = config
+        self._worker_target = worker_target
         self._context = multiprocessing.get_context("spawn")
         self._cancel = self._context.Event()
         self._process: Any = None
@@ -136,8 +148,8 @@ class RwkvAdapter:
             parent, child = self._context.Pipe()
             self._connection = parent
             self._process = self._context.Process(
-                target=worker_main,
-                args=(child, self._cancel, asdict(self.config), os.getpid()),
+                target=self._worker_target,
+                args=(child, self._cancel, self.config.payload(), os.getpid()),
                 daemon=True,
                 name="cooperation-rwkv",
             )

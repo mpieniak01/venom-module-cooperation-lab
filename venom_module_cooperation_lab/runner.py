@@ -635,7 +635,11 @@ class LabRunner:
             top_p=config.top_p,
             seed=config.seed,
         )
-        if job.game is not None and config.public()["model"]["architecture"] == "rwkv7":
+        if job.game is not None and config.public()["model"]["architecture"] in {
+            "rwkv7",
+            "hrm_text",
+            "huginn_raven",
+        }:
             parameters = GenerationParameters(
                 max_new_tokens=config.budgets.max_new_tokens,
                 max_context_tokens=config.budgets.max_context_tokens,

@@ -28,3 +28,6 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 check_untyped_defs = true
 ignore_missing_imports = true
+
+[tool.setuptools.package-data]
+"venom_module_cooperation_lab.adapters" = ["hf_artifacts.json"]

@@ -50,7 +50,7 @@ class Lease:
 
 def test_registry_is_pure_and_fixed(monkeypatch):
     models = registry.list_model_specs()
-    assert len(models) == 3
+    assert len(models) == 5
     assert all(not spec.qualified for spec in models)
     assert "http" not in json.dumps([asdict(model) for model in models])
     assert registry.get_model_spec("rwkv7-g1d-0.4b").digest

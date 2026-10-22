@@ -13,7 +13,7 @@ from typing import Any
 
 from .adapters.base import Lease, ModelAdapter, ModelSpec
 from .adapters.ollama import NoRedirect, OllamaAdapter
-from .adapters.registry import OLLAMA_SPEC, RWKV_SPECS, create_adapter
+from .adapters.registry import LOCAL_SPECS, OLLAMA_SPEC, create_adapter
 from .errors import LabError
 
 
@@ -72,8 +72,8 @@ class ModelCatalog:
         metadata: Callable[[], dict[str, Any]] = ollama_metadata,
     ) -> None:
         self.loader, self.metadata = loader, metadata
-        self._specs = {s.model_id: s for s in (*RWKV_SPECS, OLLAMA_SPEC)}
-        self._available = {s.model_id for s in RWKV_SPECS}
+        self._specs = {s.model_id: s for s in (*LOCAL_SPECS, OLLAMA_SPEC)}
+        self._available = {s.model_id for s in LOCAL_SPECS}
         self._details: dict[str, dict[str, Any]] = {}
         self.engines: list[dict[str, Any]] = []
         self.unsupported: list[dict[str, Any]] = []
@@ -100,7 +100,7 @@ class ModelCatalog:
     def adapter(self, model_id: str, lease: Lease) -> ModelAdapter:
         if lease is None or not callable(getattr(lease, "operation", None)):
             raise LabError("runtime_lease_required")
-        if model_id in {s.model_id for s in RWKV_SPECS}:
+        if model_id in {s.model_id for s in LOCAL_SPECS}:
             return create_adapter(model_id, lease)
         return OllamaAdapter(self.candidate(model_id), lease)
 
@@ -122,7 +122,7 @@ class ModelCatalog:
                 self._apply(runtimes, metadata)
                 self.error = None
             except Exception:
-                self._available = {s.model_id for s in RWKV_SPECS}
+                self._available = {s.model_id for s in LOCAL_SPECS}
                 self.error = "catalog_unavailable"
             self._updated = time.monotonic()
 
@@ -130,16 +130,16 @@ class ModelCatalog:
         self.engines = [
             {
                 "engine_id": "local_component",
-                "name": "RWKV",
+                "name": "RWKV / HF research",
                 "status": "available",
                 "supported": True,
             }
         ]
         self.unsupported = []
-        self._available = {s.model_id for s in RWKV_SPECS}
+        self._available = {s.model_id for s in LOCAL_SPECS}
         self._details = {}
         # Historical identities remain visible, even if the live catalog changed.
-        self._specs = {s.model_id: s for s in (*RWKV_SPECS, OLLAMA_SPEC)}
+        self._specs = {s.model_id: s for s in (*LOCAL_SPECS, OLLAMA_SPEC)}
         for runtime in runtimes:
             engine = runtime.get("runtime_id")
             if engine not in {"ollama", "vllm", "multi_runtime", "onnx"}:
