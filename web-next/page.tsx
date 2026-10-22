@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { EvaluationWorkspace } from "./lib/evaluation";
+import { evaluationTexts } from "./lib/evaluation-i18n";
 import { useLanguage } from "@/lib/i18n";
 import { messageKindLabel, modeLabel, scenarioLabel, statusLabel, texts } from "./lib/i18n";
 import { modelId, terminal, type Json, type LabEvent } from "./lib/protocol";
@@ -20,6 +22,20 @@ function value(event: LabEvent, key: string) {
   return typeof item === "string" || typeof item === "number" ? String(item) : "";
 }
 export default function CooperationLabPage() {
+  const { language } = useLanguage();
+  const t = evaluationTexts(language);
+  const [tab, setTab] = useState<"conversation" | "evaluation">("conversation");
+  const [opened, setOpened] = useState(false);
+  return <div>
+    <nav aria-label={texts(language).title} style={{display:"flex",gap:8,padding:"4px 12px",flexWrap:"wrap"}}>
+      <button type="button" aria-pressed={tab==="conversation"} onClick={()=>setTab("conversation")} style={{padding:"6px 10px",border:"1px solid #64748b",borderRadius:8,background:tab==="conversation"?"#065f46":"#0f172a",color:"#e2e8f0"}}>{t.conversationTab}</button>
+      <button type="button" aria-pressed={tab==="evaluation"} onClick={()=>{setOpened(true);setTab("evaluation");}} style={{padding:"6px 10px",border:"1px solid #64748b",borderRadius:8,background:tab==="evaluation"?"#065f46":"#0f172a",color:"#e2e8f0"}}>{t.evaluationTab}</button>
+    </nav>
+    <div hidden={tab!=="conversation"}><ConversationWorkspace/></div>
+    {opened&&<div hidden={tab!=="evaluation"}><EvaluationWorkspace language={language}/></div>}
+  </div>;
+}
+function ConversationWorkspace() {
   const { language } = useLanguage();
   const t = texts(language);
   const lab = useLab();

@@ -34,9 +34,16 @@ class GenerationParameters:
     seed: int = 0
     profile: str = "chat"
     allowed_outputs: tuple[str, ...] = ()
+    num_steps: int = 8
+    session_protocol: str = "v1"
 
     def __post_init__(self) -> None:
-        if self.profile not in {"chat", "structured"}:
+        if (
+            self.profile not in {"chat", "structured"}
+            or self.session_protocol not in {"v1", "game-eval-v2"}
+            or type(self.num_steps) is not int
+            or self.num_steps not in {8, 16, 32, 64}
+        ):
             raise LabError("invalid_parameters", 422)
         if (
             not isinstance(self.allowed_outputs, tuple)
@@ -136,8 +143,15 @@ class ModelAdapter(Protocol):
     def is_quiescent(self) -> bool: ...
 
 
-def validate_messages(participant_id: str, messages: Sequence[ChatMessage]) -> None:
-    if participant_id not in {"A", "B"} or not messages or len(messages) > 24:
+def validate_messages(
+    participant_id: str,
+    messages: Sequence[ChatMessage],
+    *,
+    protocol: str = "v1",
+) -> None:
+    # V2 preserves exact event history; the backend still enforces real tokens.
+    limit = 512 if protocol == "game-eval-v2" else 24
+    if participant_id not in {"A", "B"} or not messages or len(messages) > limit:
         raise LabError("invalid_messages", 422)
     if (
         messages[-1].role != "user"

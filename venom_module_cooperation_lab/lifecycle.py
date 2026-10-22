@@ -107,8 +107,17 @@ async def lifespan(app: Any):
                 catalog_service=catalog,
             )
         app.state.cooperation_lab_runner = runner
+        if runner is not None:
+            from .evaluation.service import EvaluationService
+
+            evaluations = EvaluationService(runner)
+            evaluations.store.recover()
+            app.state.cooperation_lab_evaluations = evaluations
         yield
     finally:
+        evaluations = getattr(app.state, "cooperation_lab_evaluations", None)
+        if evaluations is not None:
+            await evaluations.close()
         runner = getattr(app.state, "cooperation_lab_runner", None)
         if runner is not None:
             await runner.close()

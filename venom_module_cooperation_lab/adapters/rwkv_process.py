@@ -79,9 +79,16 @@ class RwkvParameters:
     max_context_tokens: int = 2048
     profile: str = "chat"
     allowed_outputs: tuple[str, ...] = ()
+    num_steps: int = 8
+    session_protocol: str = "v1"
 
     def __post_init__(self) -> None:
-        if self.profile not in {"chat", "structured"}:
+        if (
+            self.profile not in {"chat", "structured"}
+            or self.session_protocol not in {"v1", "game-eval-v2"}
+            or type(self.num_steps) is not int
+            or self.num_steps not in {8, 16, 32, 64}
+        ):
             raise RwkvError("invalid_parameters")
         if (
             not isinstance(self.allowed_outputs, tuple)

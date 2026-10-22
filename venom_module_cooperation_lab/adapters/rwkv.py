@@ -47,7 +47,11 @@ class RecurrentAdapter(ModelAdapter):
         parameters: GenerationParameters,
         deadline_s: float,
     ) -> GenerationResult:
-        validate_messages(participant_id, messages)
+        validate_messages(
+            participant_id, messages, protocol=parameters.session_protocol
+        )
+        if parameters.num_steps != 8:
+            raise LabError("unsupported_compute_steps", 422)
         with self._lease.operation(kind="generation"):
             previous = self._histories[participant_id]
             appending = (

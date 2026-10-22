@@ -226,14 +226,22 @@ def _sample_token(
             logits[token] -= 2.0 + frequency * 0.1
     if allowed_tokens is not None:
         return max(sorted(allowed_tokens), key=lambda t: float(logits[t].item()))
-    if params["temperature"] == 0 or params["top_p"] == 0:
+    v2 = params.get("session_protocol") == "game-eval-v2"
+    if params["temperature"] == 0 or (params["top_p"] == 0 and not v2):
         return int(torch.argmax(logits).item())
-    probabilities = torch.softmax(logits, dim=-1)
+    # Keep v1's qualified sampler intact; v2 applies temperature before nucleus
+    # selection, matching the HF evaluation worker. top_p=0 disables nucleus.
+    scores = logits / params["temperature"] if v2 else logits
+    probabilities = torch.softmax(scores, dim=-1)
     sorted_probabilities, indices = torch.sort(probabilities, descending=True)
-    cumulative = torch.cumsum(sorted_probabilities, dim=-1)
-    keep = cumulative - sorted_probabilities < params["top_p"]
-    selected = torch.where(keep, sorted_probabilities, 0.0)
-    selected = selected ** (1.0 / params["temperature"])
+    if v2 and not 0 < params["top_p"] < 1:
+        selected = sorted_probabilities
+    else:
+        cumulative = torch.cumsum(sorted_probabilities, dim=-1)
+        keep = cumulative - sorted_probabilities < params["top_p"]
+        selected = torch.where(keep, sorted_probabilities, 0.0)
+    if not v2:
+        selected = selected ** (1.0 / params["temperature"])
     return int(indices[torch.multinomial(selected, 1)].item())
 
 
@@ -315,6 +323,12 @@ def _generation_receipt(
         "quiescent": True,
         "effective_parameters": {
             **params,
+            "num_steps": None,
+            "num_steps_requested": params.get("num_steps", 8),
+            "num_steps_applied": None,
+            "sampling_profile": "temperature_then_nucleus_v2"
+            if params.get("session_protocol") == "game-eval-v2"
+            else "rwkv_chat_v1",
             "alpha_presence": 0.0 if params.get("profile") == "structured" else 2.0,
             "alpha_frequency": 0.0 if params.get("profile") == "structured" else 0.1,
             "alpha_decay": 0.99,
@@ -340,6 +354,8 @@ def _generate(
     participant = command["participant"]
     previous = states[participant]
     params = command["parameters"]
+    if params.get("num_steps", 8) != 8:
+        return {"error": "unsupported_compute_steps"}
     prompt_tokens = tokenizer.encode(command["prompt"])
     if (
         previous["tokens"] + len(prompt_tokens) + params["max_new_tokens"]

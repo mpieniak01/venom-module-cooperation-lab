@@ -1,7 +1,8 @@
 # L7 — decyzja o wykorzystaniu istniejących gier
 
-Data: 2026-10-22. Stan: research kodu i licencji, bez instalacji pakietów,
-bez kopiowania kodu gier i bez twierdzenia o zgodności wykonanej w runtime.
+Data: 2026-10-22. Research zakończony; zaadaptowano ograniczony podzbiór reguł
+Nim/Memory. Pochodzenie i MIT są w THIRD_PARTY_NOTICES.md oraz licenses/.
+Bez instalacji całego frameworka; odbiór runtime opisujemy osobno.
 
 ## Gałąź i cały zaległy zakres
 

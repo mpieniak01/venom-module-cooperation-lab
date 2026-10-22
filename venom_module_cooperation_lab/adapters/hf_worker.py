@@ -89,6 +89,11 @@ def generate(
     cancel: Any,
 ) -> dict[str, Any]:
     params = command["parameters"]
+    steps = params.get("num_steps", 8)
+    if type(steps) is not int or steps not in {8, 16, 32, 64}:
+        raise RuntimeError("unsupported_compute_steps")
+    if config["model_id"] != "huginn-0125" and steps != 8:
+        raise RuntimeError("unsupported_compute_steps")
     messages = json.loads(command["prompt"])
     text, condition = prompt_text(
         config["model_id"], messages, tokenizer, params["profile"] == "structured"
@@ -127,7 +132,7 @@ def generate(
                     past_key_values=cache,
                 )
             else:
-                kwargs["num_steps"] = 8
+                kwargs["num_steps"] = steps
             result = model(**kwargs)
             cache = result.past_key_values if hrm else None
             logits = result.logits[0, -1].float()
@@ -186,7 +191,9 @@ def generate(
             **params,
             "context_mode": "replay",
             "condition": condition,
-            "num_steps": 8 if config["model_id"] == "huginn-0125" else None,
+            "num_steps": steps if config["model_id"] == "huginn-0125" else None,
+            "num_steps_requested": steps,
+            "num_steps_applied": steps if config["model_id"] == "huginn-0125" else None,
             "cache": "prefixlm" if config["model_id"] == "hrm-text-1b" else "disabled",
             "decoding_constraint": "allowed_outputs" if choices else "none",
         },
@@ -253,6 +260,7 @@ def worker_main(
 
 def error_code(exc: Exception) -> str:
     allowed = {
+        "unsupported_compute_steps",
         "runtime_identity_changed",
         "cuda_unavailable",
         "insufficient_gpu_memory",
