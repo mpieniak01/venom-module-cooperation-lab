@@ -113,3 +113,18 @@ def test_uncertain_or_contradictory_formats_do_not_become_valid_actions(game, te
     env = make_environment(game, config, 17)
     with pytest.raises(LabError, match="illegal_action"):
         env.step("A", action)
+
+
+def test_memory_actual_hrm_array_is_explicit_pair_not_missing_decision():
+    action, receipt = parse_action("[0, 5]", "memory", "mapped")
+    assert action == {"cards": [0, 5]} and receipt["rule"] == "memory_pair_array"
+    for game, text in [
+        ("nim", "1"),
+        ("nim", "[0,5]"),
+        ("memory", "[0]"),
+        ("memory", "[0,5,8]"),
+    ]:
+        with pytest.raises(LabError, match="invalid_format"):
+            parse_action(text, game, "mapped")
+    with pytest.raises(LabError, match="invalid_format"):
+        parse_action("[0,5]", "memory", "strict_json")

@@ -20,10 +20,8 @@ def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _json(text: str) -> dict[str, Any]:
+def _json(text: str) -> Any:
     value = json.loads(text, object_pairs_hook=_pairs)
-    if not isinstance(value, dict):
-        raise ValueError("object_required")
     # Non-finite numbers are never valid game actions.
     json.dumps(value, allow_nan=False)
     return value
@@ -126,7 +124,12 @@ def parse_action(
             action = _plain(game, cleaned)
             rule = "explicit_text"
         else:
-            action, rule = _object(game, action)
+            if isinstance(action, list) and game == "memory" and len(action) == 2:
+                action, rule = {"cards": action}, "memory_pair_array"
+            elif isinstance(action, dict):
+                action, rule = _object(game, action)
+            else:
+                raise ValueError("object_required")
         mapped = rule != "json" or cleaned != text.strip()
         return action, {"version": VERSION, "mapped": mapped, "rule": rule}
     except (ValueError, TypeError, RecursionError):
