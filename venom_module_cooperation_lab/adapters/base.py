@@ -67,7 +67,11 @@ class GenerationParameters:
         ):
             raise LabError("invalid_parameters", 422)
         for name, lower, upper in (
-            ("max_new_tokens", 1, 256),
+            (
+                "max_new_tokens",
+                1,
+                1024 if self.session_protocol == "game-eval-v2" else 256,
+            ),
             ("seed", 0, 2**31 - 1),
             (
                 "max_context_tokens",

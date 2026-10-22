@@ -31,8 +31,8 @@ class EvaluationRequest(BaseModel):
     response_mode: Literal["strict_json", "mapped"] = "strict_json"
     opponent: Literal["optimal", "random", "remembering", "model"] = "optimal"
     swap_sides: bool = True
-    max_new_tokens: int = Field(default=128, ge=8, le=256)
-    decision_timeout_s: int = Field(default=30, ge=1, le=90)
+    max_new_tokens: int = Field(default=128, ge=8, le=1024)
+    decision_timeout_s: int = Field(default=30, ge=1, le=300)
     max_context_tokens: int = Field(default=2048, ge=128, le=8192)
 
     @model_validator(mode="after")

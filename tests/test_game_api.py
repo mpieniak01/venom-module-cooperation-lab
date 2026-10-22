@@ -124,7 +124,7 @@ async def test_game_api_discovery_preflight_and_list_are_observational(
         {"case_ids": ["missing-case"]},
         {"num_steps": 7},
         {"max_new_tokens": 7},
-        {"decision_timeout_s": 91},
+        {"decision_timeout_s": 301},
         {"decoding": "sampled", "temperature": 0},
         {"model_id": "../../private"},
         {"unrecognized": "not-a-setting"},
@@ -389,3 +389,32 @@ async def test_game_api_delete_active_then_export_remove_and_reuse_capacity(
     new_id = again.json()["evaluation"]["id"]
     assert new_id != eid
     assert (await finish(evaluation_client, new_id))["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_model_settings_are_persistent_validated_and_observational(
+    evaluation_client, rig
+):
+    runner, adapters = rig
+    path = BASE + "/model-settings/" + SPEC.model_id
+    initial = await evaluation_client.get(path)
+    assert initial.status_code == 200 and not initial.json()["saved"]
+    budgets = {
+        "max_context_tokens": 4096,
+        "max_new_tokens": 512,
+        "decision_timeout_s": 180,
+    }
+    saved = await evaluation_client.put(path, json=budgets)
+    assert saved.status_code == 200 and saved.json()["saved"]
+    assert (await evaluation_client.get(path)).json()["budgets"] == budgets
+    caps = (await evaluation_client.get(BASE + "/capabilities")).json()
+    assert caps["models"][0]["budget_profile"]["budgets"] == budgets
+    assert (
+        await evaluation_client.put(path, json={**budgets, "max_context_tokens": 8192})
+    ).status_code == 422
+    assert (
+        await evaluation_client.put(path, json={**budgets, "extra": "ignored"})
+    ).status_code == 422
+    assert (await evaluation_client.get(path)).json()["budgets"] == budgets
+    assert not adapters
+    assert not EvaluationStore(runner.store).exists()

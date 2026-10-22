@@ -150,7 +150,7 @@ def test_unsupported_model_and_native_combinations_fail_before_operations():
         ("bad", "fresh", 2048),
         ("history_replay", "bad", 2048),
         ("history_replay", "fresh", True),
-        ("history_replay", "fresh", 2049),
+        ("history_replay", "fresh", 8193),
     ],
 )
 def test_bad_driver_configuration(mode, memory, limit):

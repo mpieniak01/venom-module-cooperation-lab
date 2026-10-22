@@ -246,3 +246,43 @@ test("saved evaluation settings whitelist the public form and reject malformed h
   assert.equal(savedEvaluationRequest({request:{...request,case_ids:"bad"}}),null);
   assert.equal(savedEvaluationRequest({request:{...request,episode_memory:"unrecognized"}}),null);
 });
+
+
+test("model budgets persist through server save, model switching and form remount without starting inference",async()=>{
+  const budgets={max_context_tokens:4096,max_new_tokens:512,decision_timeout_s:180};
+  let profile:{budgets:typeof budgets;saved:boolean;stale:boolean}|undefined;
+  const puts:string[]=[];
+  const fetcher:typeof fetch=async(url,init)=>{
+    const path=String(url);
+    if(init?.method==="PUT"){
+      puts.push(path);assert.deepEqual(JSON.parse(String(init.body)),budgets);
+      profile={budgets,saved:true,stale:false};return response(profile);
+    }
+    if(init?.method==="POST")throw new Error("unexpected inference");
+    if(path.endsWith("/capabilities"))return response({...caps,models:[
+      {...caps.models[0],max_context_tokens:4096,max_new_tokens:1024,max_decision_timeout_s:300,budget_profile:profile},
+      {model_id:"rwkv7-other",can_run:true,max_context_tokens:8192,max_new_tokens:1024,max_decision_timeout_s:300},
+    ]});
+    return response({evaluations:[]});
+  };
+  const value=(box:Element,label:string)=>([...box.querySelectorAll("input[type=number]")].find(item=>item.parentElement?.textContent?.startsWith(label)) as HTMLInputElement).value;
+  let mounted=await setup(fetcher);
+  try {
+    await number(mounted.box,"Budżet kontekstu","4096");
+    await number(mounted.box,"Tokenów na decyzję","512");
+    await number(mounted.box,"Czas decyzji (s)","180");
+    await act(async()=>findButton(mounted.box,"Zapisz limity modelu").click());await settle();
+    assert.equal(puts.length,1);assert.match(mounted.box.textContent??"",/Limity zapisane/);
+    await choose(mounted.box,"Model","rwkv7-other");
+    assert.equal(value(mounted.box,"Budżet kontekstu"),"2048");
+    await choose(mounted.box,"Model","huginn-0125");
+    assert.equal(value(mounted.box,"Budżet kontekstu"),"4096");
+    assert.equal(value(mounted.box,"Tokenów na decyzję"),"512");
+  } finally {await mounted.close();}
+  mounted=await setup(fetcher);
+  try {
+    assert.equal(value(mounted.box,"Budżet kontekstu"),"4096");
+    assert.equal(value(mounted.box,"Czas decyzji (s)"),"180");
+    assert.equal(puts.length,1);
+  } finally {await mounted.close();}
+});

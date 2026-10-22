@@ -4,7 +4,7 @@ import { API } from "./api";
 import { diagnosticCode, reasonLabel, texts } from "./i18n";
 import { modelId, type Json } from "./protocol";
 import { workspaceStyles, useWorkspaceViewport } from "./workspace";
-import { evaluationDefaults, savedEvaluationRequest, validEvaluationRequest, type EvaluationRequest, type EvaluationSnapshot } from "./evaluation-protocol";
+import { evaluationDefaults, modelBudgets, validModelBudgets, savedEvaluationRequest, validEvaluationRequest, type EvaluationRequest, type EvaluationSnapshot } from "./evaluation-protocol";
 import { evaluationTexts, evaluationLabel, gameLabel, type EvaluationTexts } from "./evaluation-i18n";
 import { useEvaluations } from "./evaluation-use";
 
@@ -89,8 +89,9 @@ export function EvaluationWorkspace({language}: {language:string}) {
   const [settings, setSettings] = useState(true);
   const models = lab.capabilities?.models ?? [];
   const cases = lab.capabilities?.cases ?? [];
-  const input: EvaluationRequest = { ...evaluationDefaults(), ...draft, model_id:draft.model_id ?? modelId(models.find(item=>item.can_run ?? item.qualified) ?? models[0] ?? {}), case_ids:draft.case_ids ?? cases.slice(0,1).map(item=>item.id) };
-  const model = models.find(item=>modelId(item) === input.model_id);
+  const selectedModelId=draft.model_id ?? modelId(models.find(item=>item.can_run ?? item.qualified) ?? models[0] ?? {});
+  const model=models.find(item=>modelId(item)===selectedModelId);
+  const input: EvaluationRequest = { ...evaluationDefaults(), ...modelBudgets(model), ...draft, model_id:selectedModelId, case_ids:draft.case_ids ?? cases.slice(0,1).map(item=>item.id) };
   const checked = lab.checked?.key === JSON.stringify(input) ? lab.checked.value : null;
   const editable = !lab.active && !lab.pending;
   const valid = validEvaluationRequest(input);
@@ -117,7 +118,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
     <div className="coop-body">
       {settings && <fieldset className="coop-settings" disabled={!editable}><legend>{t.settings}</legend>
         <div className="coop-settings-group">
-          <Field label={t.model}><select className={field} value={input.model_id} onChange={event=>patch({model_id:event.target.value,num_steps:8,max_context_tokens:models.find(item=>modelId(item)===event.target.value)?.max_context_tokens ?? 2048})}>
+          <Field label={t.model}><select className={field} value={input.model_id} onChange={event=>patch({...modelBudgets(models.find(item=>modelId(item)===event.target.value)),model_id:event.target.value,num_steps:8})}>
             {!models.length&&!input.model_id&&<option value="">{t.unavailable}</option>}
             {input.model_id&&!model&&<option value={input.model_id}>{input.model_id} — {t.unavailable}</option>}
             {models.map(item=><option key={modelId(item)} value={modelId(item)}>{item.display_name ?? modelId(item)}{(item.can_run ?? item.qualified) ? "" : ` — ${t.unavailable}`}</option>)}
@@ -150,9 +151,11 @@ export function EvaluationWorkspace({language}: {language:string}) {
           {number("temperature",t.temperature,0,2,0.1,input.decoding==="greedy")}
           {number("top_p",t.topP,0.01,1,0.01,input.decoding==="greedy")}
           {number("seed",t.seed,0,2147483647)}
-          {number("max_new_tokens",t.tokens,8,256)}
+          {number("max_new_tokens",t.tokens,8,model?.max_new_tokens??1024)}
           {number("max_context_tokens",t.contextTokens,128,model?.max_context_tokens ?? 2048)}
-          {number("decision_timeout_s",t.timeout,1,90)}
+          {number("decision_timeout_s",t.timeout,1,model?.max_decision_timeout_s??300)}
+          <button className={button} disabled={!editable || !validModelBudgets(input,model)} onClick={()=>{void lab.saveBudgets(input.model_id,{max_context_tokens:input.max_context_tokens,max_new_tokens:input.max_new_tokens,decision_timeout_s:input.decision_timeout_s});}}>{t.saveBudgets}</button>
+          <p className="coop-message-meta" role="status">{model?.budget_profile?.stale ? t.staleBudgets : model?.budget_profile?.saved && (["max_context_tokens","max_new_tokens","decision_timeout_s"] as const).every(key=>model.budget_profile!.budgets[key]===input[key]) ? t.savedBudgets : t.budgetsHelp}</p>
           <p className="coop-message-meta">{t.decoderHelp}</p>
         </div>
       </fieldset>}

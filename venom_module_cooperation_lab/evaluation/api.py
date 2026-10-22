@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Header, Query, Request, Response
 
 from .config import EvaluationRequest
+from .model_settings import ModelBudgets, read_budgets, save_budgets
 from .reports import export
 from .service import EvaluationService
 
@@ -50,6 +51,20 @@ def register(router: APIRouter, require_runner: Callable[[Request], Any]) -> Non
             payload, idempotency_key
         )
         return {"evaluation": value, "created": created}
+
+    @router.get("/evaluations/model-settings/{model_id}")
+    async def model_settings(request: Request, model_id: str) -> dict[str, Any]:
+        value = await refreshed(request)
+        model = value.runner._runnable_model(model_id)
+        return read_budgets(value.runner.store, model)
+
+    @router.put("/evaluations/model-settings/{model_id}")
+    async def store_model_settings(
+        request: Request, model_id: str, payload: ModelBudgets
+    ) -> dict[str, Any]:
+        value = await refreshed(request)
+        model = value.runner._runnable_model(model_id)
+        return save_budgets(value.runner.store, model, payload)
 
     @router.get("/evaluations/{eid}")
     async def snapshot(request: Request, eid: str) -> dict[str, Any]:

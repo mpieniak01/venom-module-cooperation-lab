@@ -59,9 +59,17 @@ class EvaluationService:
 
     def capabilities(self) -> dict[str, Any]:
         from .manifest import SUITE_VERSION, list_cases
+        from .model_settings import read_budgets
         from .sessions import capabilities_for
 
-        models = [{**m, **capabilities_for(m)} for m in self.runner.models()]
+        models = [
+            {
+                **m,
+                **capabilities_for(m),
+                "budget_profile": read_budgets(self.runner.store, m),
+            }
+            for m in self.runner.models()
+        ]
         runtime = self.runner.admission.snapshot()
         return {
             "cases": list_cases(),
@@ -106,6 +114,8 @@ class EvaluationService:
             reasons.append("unsupported_observation_mode")
         if request.max_context_tokens > caps["max_context_tokens"]:
             reasons.append("unsupported_context_budget")
+        if request.max_new_tokens > caps["max_new_tokens"]:
+            reasons.append("unsupported_output_budget")
         if request.action_constraint != "none":
             reasons.append("unsupported_action_constraint")
         if request.num_steps != 8 and model.get("architecture") != "huginn_raven":

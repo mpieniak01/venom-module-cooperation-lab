@@ -821,3 +821,42 @@ async def test_gemma_large_budget_reaches_generation_not_legacy_parameter_valida
     assert (
         actual.max_context_tokens == 8192 and actual.session_protocol == "game-eval-v2"
     )
+
+
+@pytest.mark.asyncio
+async def test_budgets_persist_per_identity_and_never_start_a_model(eval_rig):
+    from venom_module_cooperation_lab.evaluation.model_settings import (
+        ModelBudgets,
+        read_budgets,
+        save_budgets,
+    )
+
+    service, adapters, _, _ = eval_rig
+    model = asdict(EVAL_SPEC)
+    first = read_budgets(service.runner.store, model)
+    assert not first["saved"] and not first["stale"]
+    budgets = ModelBudgets(
+        max_context_tokens=4096, max_new_tokens=512, decision_timeout_s=180
+    )
+    assert save_budgets(service.runner.store, model, budgets)["saved"]
+    # A different model has independent defaults.
+    other = {**model, "model_id": "another-model"}
+    assert not read_budgets(service.runner.store, other)["saved"]
+    assert read_budgets(service.runner.store, model)["budgets"] == budgets.model_dump()
+    changed = {**model, "revision": "new-checkpoint"}
+    result = read_budgets(service.runner.store, changed)
+    assert result["stale"] and not result["saved"]
+    assert result["budgets"]["max_new_tokens"] == 64
+    with pytest.raises(LabError, match="unsupported_context_budget"):
+        save_budgets(
+            service.runner.store,
+            model,
+            ModelBudgets(
+                max_context_tokens=8192, max_new_tokens=512, decision_timeout_s=180
+            ),
+        )
+    with pytest.raises(LabError, match="unsupported_model_adapter"):
+        save_budgets(
+            service.runner.store, {**model, "architecture": "unknown"}, budgets
+        )
+    assert not adapters

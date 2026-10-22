@@ -120,10 +120,21 @@ export function useEvaluations() {
     } catch (error) { if (alive.current) setError(code(error)); }
     finally { locked.current = false; if (alive.current) setPending(false); }
   }, [get, refresh]);
+  const saveBudgets = useCallback(async (model:string,budgets:{max_context_tokens:number;max_new_tokens:number;decision_timeout_s:number}) => {
+    if(locked.current)return;
+    locked.current=true;setPending(true);setError("");
+    try {
+      await get("/evaluations/model-settings/"+encodeURIComponent(model),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(budgets)});
+      const caps=await get<unknown>("/evaluations/capabilities");
+      if(!isEvaluationCapabilities(caps))throw invalid();
+      if(alive.current)setCapabilities(caps);
+    } catch(error) {if(alive.current)setError(code(error));}
+    finally {locked.current=false;if(alive.current)setPending(false);}
+  },[get]);
   const select = useCallback((id: string) => {
     const snapshot = evaluations.find(item => item.id === id) ?? null;
     selectedId.current = snapshot?.id ?? null; selectionEpoch.current++;
     setSelected(snapshot); setChecked(null); setError("");
   }, [evaluations]);
-  return { capabilities, evaluations, selected, checked, error, pending, refreshing, active, refresh, check, start, mutate, select, remove };
+  return { capabilities, evaluations, selected, checked, error, pending, refreshing, active, refresh, check, start, mutate, select, remove, saveBudgets };
 }

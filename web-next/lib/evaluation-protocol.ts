@@ -20,8 +20,10 @@ export type EvaluationRequest = {
   decision_timeout_s: number;
   max_context_tokens: number;
 };
+export type ModelBudgets = Pick<EvaluationRequest, "max_context_tokens"|"max_new_tokens"|"decision_timeout_s">;
+export type BudgetProfile = {budgets:ModelBudgets;saved:boolean;stale:boolean};
 export type EvaluationCase = { id: string; game: string; max_actions: number; config?: Record<string, Json>; seed?: number };
-export type EvaluationModel = Model & { observation_modes?: string[]; episode_memories?: string[]; compute_steps?: number[]; num_steps?: number[]; max_context_tokens?: number; capabilities?: Record<string, Json> };
+export type EvaluationModel = Model & { architecture?:string; observation_modes?: string[]; episode_memories?: string[]; compute_steps?: number[]; num_steps?: number[]; max_context_tokens?: number; max_new_tokens?:number; max_decision_timeout_s?:number; budget_profile?:BudgetProfile; capabilities?: Record<string, Json> };
 export type EvaluationCapabilities = {
   cases: EvaluationCase[];
   models: EvaluationModel[];
@@ -101,8 +103,8 @@ export function validEvaluationRequest(input: EvaluationRequest): boolean {
     ["history_replay", "native_incremental"].includes(input.observation_mode) && ["fresh", "carry"].includes(input.episode_memory) && ["off", "episode_note"].includes(input.reflection) &&
     ["strict_json", "mapped"].includes(input.response_mode) && ["greedy", "sampled"].includes(input.decoding) && [8,16,32,64].includes(input.num_steps) && ["hidden", "listed"].includes(input.legal_moves) &&
     ["optimal", "random", "remembering", "model"].includes(input.opponent) && typeof input.swap_sides === "boolean" && Number.isInteger(input.repetitions) && input.repetitions >= 1 && input.repetitions <= 10 &&
-    Number.isInteger(input.max_context_tokens) && input.max_context_tokens >= 128 && input.max_context_tokens <= 8192 && Number.isInteger(input.seed) && input.seed >= 0 && input.seed <= 2147483647 && Number.isInteger(input.max_new_tokens) && input.max_new_tokens >= 8 && input.max_new_tokens <= 256 &&
-    Number.isInteger(input.decision_timeout_s) && input.decision_timeout_s >= 1 && input.decision_timeout_s <= 90 && Number.isFinite(input.temperature) && input.temperature >= 0 && input.temperature <= 2 && (input.decoding !== "sampled" || input.temperature > 0) &&
+    Number.isInteger(input.max_context_tokens) && input.max_context_tokens >= 128 && input.max_context_tokens <= 8192 && Number.isInteger(input.seed) && input.seed >= 0 && input.seed <= 2147483647 && Number.isInteger(input.max_new_tokens) && input.max_new_tokens >= 8 && input.max_new_tokens <= 1024 &&
+    Number.isInteger(input.decision_timeout_s) && input.decision_timeout_s >= 1 && input.decision_timeout_s <= 300 && Number.isFinite(input.temperature) && input.temperature >= 0 && input.temperature <= 2 && (input.decoding !== "sampled" || input.temperature > 0) &&
     Number.isFinite(input.top_p) && input.top_p > 0 && input.top_p <= 1;
 }
 
@@ -112,4 +114,21 @@ export function savedEvaluationRequest(config: Record<string, Json>): Evaluation
   // Restore only the public form contract, never metadata or backend-only keys.
   const candidate = Object.fromEntries(Object.entries(defaults).map(([key, fallback])=>[key, Object.hasOwn(source,key) ? source[key] : fallback])) as EvaluationRequest;
   return validEvaluationRequest(candidate) ? {...candidate, case_ids:[...candidate.case_ids]} : null;
+}
+
+
+export function modelBudgets(model:EvaluationModel|undefined):ModelBudgets {
+  const defaults={max_context_tokens:model?.architecture==="gemma4" ? 8192 : 2048,max_new_tokens:64,decision_timeout_s:30};
+  const values=model?.budget_profile?.budgets;
+  if(!values || !Number.isInteger(values.max_context_tokens) || values.max_context_tokens<128 || values.max_context_tokens>(model?.max_context_tokens??2048) ||
+     !Number.isInteger(values.max_new_tokens) || values.max_new_tokens<8 || values.max_new_tokens>(model?.max_new_tokens??1024) ||
+     !Number.isInteger(values.decision_timeout_s) || values.decision_timeout_s<1 || values.decision_timeout_s>300)return defaults;
+  return values;
+}
+
+
+export function validModelBudgets(values:ModelBudgets,model:EvaluationModel|undefined):boolean {
+  return !!model && Number.isInteger(values.max_context_tokens) && values.max_context_tokens>=128 && values.max_context_tokens<=(model.max_context_tokens??2048) &&
+    Number.isInteger(values.max_new_tokens) && values.max_new_tokens>=8 && values.max_new_tokens<=(model.max_new_tokens??1024) &&
+    Number.isInteger(values.decision_timeout_s) && values.decision_timeout_s>=1 && values.decision_timeout_s<=(model.max_decision_timeout_s??300);
 }

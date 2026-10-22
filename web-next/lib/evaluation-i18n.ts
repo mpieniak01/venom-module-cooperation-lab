@@ -1,4 +1,11 @@
 const labels = {
+  saveBudgets:["Zapisz limity modelu", "Save model limits", "Modelllimits speichern"],
+  savedBudgets:["Limity zapisane dla tego modelu w Venomie.", "Limits saved for this model in Venom.", "Limits für dieses Modell in Venom gespeichert."],
+  budgetsHelp:["Zapisz limity osobno dla modelu. Większa odpowiedź potrzebuje czasu i mieści się razem z wejściem w kontekście.", "Save limits per model. Longer output needs time and shares the context with input.", "Limits je Modell speichern. Längere Ausgabe braucht Zeit und teilt den Kontext mit der Eingabe."],
+  staleBudgets:["Model lub jego limity zmieniły się. Sprawdź i zapisz ustawienia ponownie.", "The model or limits changed. Review and save settings again.", "Modell oder Limits geändert. Einstellungen prüfen und erneut speichern."],
+  unsupported_context_budget:["Budżet kontekstu przekracza limit adaptera.", "Context budget exceeds the adapter limit.", "Kontextbudget überschreitet das Adapterlimit."],
+  unsupported_output_budget:["Limit odpowiedzi przekracza możliwości adaptera.", "Output budget exceeds the adapter limit.", "Ausgabelimit überschreitet das Adapterlimit."],
+
   contextTokens:["Budżet kontekstu", "Context budget", "Kontextbudget"],
   responseMode:["Format odpowiedzi", "Response format", "Antwortformat"],
   strict_json:["Ścisły JSON", "Strict JSON", "Striktes JSON"],
