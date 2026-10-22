@@ -273,3 +273,33 @@ test("tic-tac-toe selects dialog and nine moves and live game events update the 
   assert.equal(box.querySelector('[aria-label="A1"]')?.textContent,"X");
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });
+
+
+test("game series controls submit count and memory policy without changing other scenarios",async()=>{
+ const old=globalThis.fetch;localStorage.clear();Stream.instances=[];
+ let body:Record<string,unknown>|null=null;
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(path.endsWith("/capabilities"))return response(caps);
+  if(init?.method==="POST") {body=JSON.parse(String(init.body));return response({run:aRun("completed"),created:true},202);}
+  if(path.endsWith("/events"))return response({events:[]});
+  if(path.endsWith("/runs/r1"))return response({run:aRun("completed")});
+  return response({runs:[]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await settle();
+  assert.ok(!box.textContent?.includes("Liczba gier"));
+  const scenario=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Scenariusz"))!;
+  await act(async()=>{scenario.value="tic_tac_toe";scenario.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  const count=[...box.querySelectorAll("input")].find(i=>i.parentElement?.textContent?.startsWith("Liczba gier"))!;
+  assert.equal(count.min,"1");assert.equal(count.max,"10");
+  const set=Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,"value")!.set!;
+  await act(async()=>{set.call(count,"2");count.dispatchEvent(new dom.window.Event("input",{bubbles:true}));});
+  const memory=box.querySelector('input[type="checkbox"]')! as HTMLInputElement;
+  assert.equal(memory.disabled,false);assert.equal(memory.checked,true);
+  await act(async()=>memory.click());
+  await act(async()=>findButton(box,"Rozpocznij eksperyment").click());await settle();
+  assert.equal(body?.["game_count"],2);assert.equal(body?.["remember_games"],false);
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
+});

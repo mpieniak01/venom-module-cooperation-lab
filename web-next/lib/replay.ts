@@ -4,7 +4,7 @@ import { isLabEvent, mergeEvents, type LabEvent, type Run } from "./protocol";
 export async function readReplay(runId: string, signal: AbortSignal, isLive: () => boolean) {
   let events: LabEvent[] = [];
   let cursor = 0;
-  for (let page = 0; page < 4; page += 1) {
+  for (let page = 0; page < 8; page += 1) {
     const result = await request<{ events: LabEvent[]; resync?: boolean }>(
       "/runs/" + encodeURIComponent(runId) + "/events?after=" + cursor, {signal});
     if (!isLive()) return null;

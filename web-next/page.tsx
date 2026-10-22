@@ -26,7 +26,7 @@ export default function CooperationLabPage() {
   const viewport = useWorkspaceViewport();
   const [settings, setSettings] = useState(true);
   const [form, setForm] = useState<SavedSettings & { runId: string | null }>({
-    model:"", scenario:"split_facts", mode:"dialog_encouraged", turns:8, tokens:128, seed:0, communicationLanguage:language === "pl" ? "pl" : "en", runId:null,
+    model:"", scenario:"split_facts", mode:"dialog_encouraged", turns:8, tokens:128, seed:0, gameCount:1, rememberGames:true, communicationLanguage:language === "pl" ? "pl" : "en", runId:null,
   });
   const runId = lab.run?.id ?? null;
   // Adjust the draft when selection changes, before committing a render. An
@@ -36,7 +36,7 @@ export default function CooperationLabPage() {
     const qualification = lab.run?.config.scenario_id==="model_qualification";
     setForm({ ...form, ...(qualification ? {model:restored.model??form.model} : lab.run ? { communicationLanguage:"en" as const, ...restored } : {}), runId });
   }
-  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage } = form;
+  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage, gameCount=1, rememberGames=true } = form;
   const [engineFilter, setEngineFilter] = useState<{runId:string|null; engine:string}|null>(null);
   const models = lab.capabilities?.models ?? [];
   const fallback = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
@@ -51,7 +51,7 @@ export default function CooperationLabPage() {
   const qualifying = lab.run?.config.scenario_id==="model_qualification";
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
-  const validSettings = !!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const validSettings = (scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const lastFailure = lab.events.findLast(event=>event.kind==="error");
@@ -71,6 +71,7 @@ export default function CooperationLabPage() {
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
+    if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;}
      setSettings(false); void lab.start(input);
   };
   return <section aria-labelledby="cooperation-lab-title" className="coop-workspace" data-operator={operatorChat} ref={viewport}>
@@ -140,8 +141,13 @@ export default function CooperationLabPage() {
         </div>
         <div className="coop-settings-group">
           <h3>{t.setupLimits}</h3>
-          <label className="coop-setting">{t.turns}<input className={field} type="number" min={policy?.min??1} step={policy?.step??1} max={policy?.max??8} value={turns} onChange={event=>setForm({...form,turns:Number(event.target.value)})}/></label>
+          <label className="coop-setting">{t.turns}<input className={field} type="number" disabled={scenario==="tic_tac_toe"&&gameCount>1} min={policy?.min??1} step={policy?.step??1} max={policy?.max??8} value={turns} onChange={event=>setForm({...form,turns:Number(event.target.value)})}/></label>
           {policy&&<p className="coop-message-meta">{operatorChat?t.roundsCount+": "+Math.floor(turns/policy.step):isGame?t.gameMoves+": "+turns:""}</p>}
+          {scenario==="tic_tac_toe"&&<>
+            <label className="coop-setting">{t.gameCount}<input className={field} type="number" min={1} max={10} value={gameCount} onInput={event=>setForm({...form,gameCount:Number(event.currentTarget.value),turns:9})}/></label>
+            <label><input type="checkbox" checked={rememberGames} disabled={gameCount===1} onChange={event=>setForm({...form,rememberGames:event.target.checked})}/> {t.gameMemory}</label>
+            <p className="coop-message-meta">{t.gameMemoryHint}</p>
+          </>}
           <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={256} value={tokens} onChange={event=>setForm({...form,tokens:Number(event.target.value)})}/></label>
           <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
         </div>

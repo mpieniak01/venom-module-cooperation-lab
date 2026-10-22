@@ -14,7 +14,7 @@ test("replay uses the latest typed status and never stringifies an object status
   assert.equal(replayedRun(snapshot,[event(1,"message","cancelled")],1).status,"running");
 });
 
-test("catch-up is bounded to four GET pages and stops applying results after disposal", async () => {
+test("catch-up is bounded to eight GET pages and stops applying results after disposal", async () => {
   const previous = globalThis.fetch;
   let calls = 0;
   const abort = new AbortController();
@@ -25,10 +25,10 @@ test("catch-up is bounded to four GET pages and stops applying results after dis
   };
   try {
     const result = await readReplay("r1",abort.signal,()=>true);
-    assert.equal(calls,4);
-    assert.equal(result?.cursor,400);
-    assert.equal(result?.events.length,256);
+    assert.equal(calls,8);
+    assert.equal(result?.cursor,800);
+    assert.equal(result?.events.length,512);
     assert.equal(await readReplay("r1",abort.signal,()=>false),null);
-    assert.equal(calls,5);
+    assert.equal(calls,9);
   } finally { globalThis.fetch=previous; }
 });
