@@ -202,3 +202,26 @@ async def test_dead_owner_startup_opens_state_for_recovery_without_releasing_lea
     admission.operation.assert_not_called()
     assert admission.snapshot() == snapshot
     await lifecycle.close()
+
+
+@pytest.mark.parametrize(
+    "current,expected", [("same-instance", False), ("reused-pid", True), (None, False)]
+)
+def test_recovery_compares_process_lifetime_not_just_numeric_pid(
+    monkeypatch, current, expected
+):
+    from venom_module_cooperation_lab.lifecycle import _quarantine_owner_is_gone
+
+    monkeypatch.setattr(
+        runtime_admission, "process_instance_identity", lambda _pid: current
+    )
+    monkeypatch.setattr(os, "kill", Mock(return_value=None))
+    snapshot = {
+        "status": "quarantined",
+        "active_operations": 0,
+        "owner": "cooperation_lab",
+        "engine": "ollama",
+        "owner_pid": os.getpid(),
+        "owner_process_identity": "same-instance",
+    }
+    assert _quarantine_owner_is_gone(snapshot) is expected

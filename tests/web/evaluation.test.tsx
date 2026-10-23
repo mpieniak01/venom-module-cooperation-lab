@@ -355,3 +355,30 @@ test("evaluation edits stay untouched until Start then show the applied per-mode
     assert.equal(posts.filter(p=>p.path.endsWith("/evaluations")).length,1);
   }finally{await close();}
 });
+
+
+test("lost evaluation START acknowledgement retains preflight and original body/key after clamping",async()=>{
+  const attempts:{key:string;body:string}[]=[];
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response({...caps,models:[{...caps.models[0],max_new_tokens:256}]});
+    if(path.endsWith("/preflight"))return response({...preflight,configuration:{max_new_tokens:256}});
+    if(init?.method==="POST"&&path.endsWith("/evaluations")){
+      attempts.push({key:new Headers(init.headers).get("Idempotency-Key")!,body:String(init.body)});
+      if(attempts.length===1)throw Error("accepted by server but acknowledgement lost");
+      return response({evaluation:{...saved("completed"),config:{max_new_tokens:256,request:JSON.parse(String(init.body))}},created:false},202);
+    }
+    return response({evaluations:[]});
+  });
+  const token=()=>[...box.querySelectorAll("input[type=number]")].find(i=>i.parentElement?.textContent?.startsWith("Tokenów na decyzję")) as HTMLInputElement;
+  try{
+    await number(box,"Tokenów na decyzję","4096");
+    await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    await act(async()=>findButton(box,"Ustawienia serii").click());
+    assert.equal(token().value,"4096");assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    assert.equal(attempts.length,2);assert.deepEqual(attempts[1],attempts[0]);
+    await act(async()=>findButton(box,"Ustawienia serii").click());assert.equal(token().value,"256");
+  }finally{await close();}
+});

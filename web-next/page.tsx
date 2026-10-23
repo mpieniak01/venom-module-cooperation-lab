@@ -13,7 +13,7 @@ import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSetting
 import { Conversation } from "./lib/chat";
 import { OperatorComposer } from "./lib/operator-composer";
 import { GameBoard } from "./lib/game-board";
-import { appliedOutputTokens, outputTokenLimit } from "./lib/model-limits";
+import { outputTokenLimit } from "./lib/model-limits";
 import { engineId, modelState } from "./lib/model-selection";
 
 const button = "coop-button";
@@ -90,8 +90,6 @@ function ConversationWorkspace() {
   const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued, operatorWaiting);
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
-    const appliedTokens = appliedOutputTokens(tokens, selected);
-    if (appliedTokens !== tokens) setForm({...form,tokens:appliedTokens});
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
     if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;}
      setSettings(false); void lab.start(input);

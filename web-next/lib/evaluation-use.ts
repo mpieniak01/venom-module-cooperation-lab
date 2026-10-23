@@ -91,6 +91,7 @@ export function useEvaluations() {
       if (!isEvaluationSnapshot(body?.evaluation)) throw invalid();
       selectedId.current = body.evaluation.id; selectionEpoch.current++;
       update(body.evaluation); setChecked(null); mutationKey.current = {input:"", id:""};
+      return body.evaluation;
     } catch (error) { if (alive.current) setError(code(error)); }
     finally { locked.current = false; if (alive.current) setPending(false); }
   }, [checked, get, update]);

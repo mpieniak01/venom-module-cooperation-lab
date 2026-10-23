@@ -234,3 +234,35 @@ test("ordinary Start clamps to selected model only after clicking and submits on
   assert.equal(token().value,"256");assert.match(box.querySelector("output")?.textContent??"",/16384 → 256/);
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });
+
+
+test("lost ordinary START acknowledgement retries original body/key and restores one accepted run",async()=>{
+ const old=globalThis.fetch;localStorage.clear();Source.all=[];
+ const attempts:{key:string;body:string}[]=[];
+ const accepted=run("accepted","completed");accepted.config={...accepted.config,budgets:{max_turns:8,max_new_tokens:256},requested_max_new_tokens:4096};
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(path.endsWith("/capabilities"))return response({...caps,models:caps.models.map(m=>({...m,max_new_tokens:256}))});
+  if(init?.method==="POST"&&path.endsWith("/runs")){
+   attempts.push({key:new Headers(init.headers).get("Idempotency-Key")!,body:String(init.body)});
+   if(attempts.length===1)throw Error("accepted by server but acknowledgement lost");
+   return response({run:accepted,created:false},202);
+  }
+  if(path.endsWith("/events"))return response({events:[]});
+  if(path.endsWith("/runs/accepted"))return response({run:accepted});
+  return response({runs:[]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ const token=()=>[...box.querySelectorAll("input")].find(i=>i.parentElement?.textContent?.startsWith("Tokenów na turę"))!;
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await flush();
+  await act(async()=>{token().value="4096";token().dispatchEvent(new dom.window.Event("input",{bubbles:true}));});
+  await act(async()=>button(box,"Rozpocznij eksperyment").click());await flush();
+  await act(async()=>button(box,"Ustawienia eksperymentu").click());
+  assert.equal(token().value,"4096","unconfirmed START must keep the original request");
+  await act(async()=>button(box,"Rozpocznij eksperyment").click());await flush();
+  assert.equal(attempts.length,2);assert.deepEqual(attempts[1],attempts[0]);
+  await act(async()=>button(box,"Ustawienia eksperymentu").click());
+  assert.equal(token().value,"256");assert.equal(localStorage.getItem("cooperation-lab.run"),"accepted");
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
+});

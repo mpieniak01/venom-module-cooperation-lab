@@ -78,3 +78,17 @@ Scalenie po zielonych kontrolach i recenzji jest ponownie autoryzowane. Niezale�
 - API po zakończeniu available/0; przycisk kolejnego startu aktywny. Zapisanych
   danych i profili nie usuwano ani nie nadpisywano. Publikacja i scalenie są autoryzowane po odebraniu poprawki.
 - Zrzut lokalny: Playwright `.playwright-cli/page-2026-10-23T07-26-51-651Z.png`.
+
+
+### Korekty po recenzji PR #19
+
+Utrata odpowiedzi na już przyjęty START nie może tworzyć drugiej próby. Pole
+pokazuje zastosowany limit dopiero po potwierdzeniu serwera. Do tego momentu
+zachowujemy pierwotne body, preflight i klucz retry, również po błędzie sieci.
+Dotyczy obu formularzy; testy odtwarzają zaakceptowany START ze zgubioną odpowiedzią.
+
+Core utrwala odcisk instancji procesu: boot ID + przestrzeń PID + czas startu
+procesu. Odcisk pozwala rozpoznać ponownie użyty numer PID. Brak metadanych lub
+odmowa odczytu jest stanem nieznanym; stare ledger-y bez odcisku nadal są
+obsługiwane konserwatywnie. Odcisk nie zdejmuje kwarantanny: nadal obowiązuje
+jawne odzyskiwanie po sprawdzeniu bezczynności backendu.

@@ -1,6 +1,5 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { appliedOutputTokens } from "./model-limits";
 import { API } from "./api";
 import { diagnosticCode, reasonLabel, texts } from "./i18n";
 import { modelId, type Json } from "./protocol";
@@ -112,7 +111,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
     <style>{workspaceStyles+styles}</style>
     <header className="coop-header"><div><h1>{t.title}</h1><p>{t.subtitle}</p></div><button className={button} disabled={lab.refreshing} onClick={()=>{void lab.refresh();}}>{t.refresh}</button></header>
     <div className="coop-controls" role="group" aria-label={t.title}>
-      <button className={button+" coop-start"} disabled={!canStart} onClick={()=>{const applied=appliedOutputTokens(input.max_new_tokens,model);if(applied!==input.max_new_tokens)patch({max_new_tokens:applied});setSettings(false);void lab.start(input);}}>{t.start}</button>
+      <button className={button+" coop-start"} disabled={!canStart} onClick={()=>{setSettings(false);void lab.start(input).then(started=>{if(started){const applied=savedEvaluationRequest(started.config);if(applied)setDraft({...input,max_new_tokens:applied.max_new_tokens});}});}}>{t.start}</button>
       <button className={button+" coop-stop"} disabled={!lab.active || lab.pending} onClick={()=>{void lab.mutate("cancel");}}>{t.stop}</button>
       <button className={button} disabled={lab.pending || !lab.selected || lab.active || !(lab.selected.can_resume ?? ["cancelled","interrupted","failed"].includes(lab.selected.status))} onClick={()=>{void lab.mutate("resume");}} title={t.resumeHelp}>{t.resume}</button>
       {lab.selected && (lab.selected.status === "cleanup_pending" || (lab.selected.status === "interrupted" && lab.capabilities?.runtime?.owner === "cooperation_lab" && lab.capabilities.runtime.run_id === `evaluation-${lab.selected.id}`)) && <button className={button} disabled={lab.pending} onClick={()=>{void lab.recover();}}>{t.recoverQuiescent}</button>}

@@ -37,6 +37,13 @@ def _quarantine_owner_is_gone(snapshot: dict[str, Any]) -> bool:
     pid = snapshot.get("owner_pid")
     if type(pid) is not int or pid <= 1:
         return False
+    recorded = snapshot.get("owner_process_identity")
+    if isinstance(recorded, str) and recorded:
+        from venom_core.services.runtime_admission import process_instance_identity
+
+        current = process_instance_identity(pid)
+        if current is not None and current != recorded:
+            return True  # PID was reused; the recorded API lifetime has ended.
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
