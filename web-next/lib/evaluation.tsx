@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import { appliedOutputTokens } from "./model-limits";
 import { API } from "./api";
 import { diagnosticCode, reasonLabel, texts } from "./i18n";
 import { modelId, type Json } from "./protocol";
@@ -104,12 +105,14 @@ export function EvaluationWorkspace({language}: {language:string}) {
   const steps = model?.compute_steps ?? model?.num_steps ?? [];
   const patch = (value: Partial<EvaluationRequest>) => setDraft({...input,...value});
   const number = (key: "repetitions"|"temperature"|"top_p"|"seed"|"max_new_tokens"|"decision_timeout_s"|"max_context_tokens", title:string, min:number, max:number, step=1, disabled=false) => <Field label={title}><input className={field} type="number" min={min} max={max} step={step} value={input[key]} disabled={disabled} onInput={event=>patch({[key]:Number(event.currentTarget.value)})}/></Field>;
-  const notice = lab.error ? reasonText(t, language, lab.error) : !valid ? t.invalid : !ready ? reasonText(t,language,lab.capabilities?.reason_code ?? "runtime_busy") : checked ? checked.supported ? t.checked : t.unsupported : t.needsCheck;
+  const originalTokens=lab.selected?.config.request;
+  const appliedNotice=originalTokens&&typeof originalTokens==="object"&&!Array.isArray(originalTokens)&&originalTokens.max_new_tokens!==lab.selected?.config.max_new_tokens ? `${texts(language).tokensApplied}: ${originalTokens.max_new_tokens} → ${lab.selected?.config.max_new_tokens}` : "";
+  const notice = lab.error ? reasonText(t, language, lab.error) : !valid ? t.invalid : !ready ? reasonText(t,language,lab.capabilities?.reason_code ?? "runtime_busy") : appliedNotice || (checked ? checked.supported ? t.checked : t.unsupported : t.needsCheck);
   return <section ref={viewport} className="coop-workspace coop-evaluation" aria-label={t.title}>
     <style>{workspaceStyles+styles}</style>
     <header className="coop-header"><div><h1>{t.title}</h1><p>{t.subtitle}</p></div><button className={button} disabled={lab.refreshing} onClick={()=>{void lab.refresh();}}>{t.refresh}</button></header>
     <div className="coop-controls" role="group" aria-label={t.title}>
-      <button className={button+" coop-start"} disabled={!canStart} onClick={()=>{setSettings(false);void lab.start(input);}}>{t.start}</button>
+      <button className={button+" coop-start"} disabled={!canStart} onClick={()=>{const applied=appliedOutputTokens(input.max_new_tokens,model);if(applied!==input.max_new_tokens)patch({max_new_tokens:applied});setSettings(false);void lab.start(input);}}>{t.start}</button>
       <button className={button+" coop-stop"} disabled={!lab.active || lab.pending} onClick={()=>{void lab.mutate("cancel");}}>{t.stop}</button>
       <button className={button} disabled={lab.pending || !lab.selected || lab.active || !(lab.selected.can_resume ?? ["cancelled","interrupted","failed"].includes(lab.selected.status))} onClick={()=>{void lab.mutate("resume");}} title={t.resumeHelp}>{t.resume}</button>
       {lab.selected && (lab.selected.status === "cleanup_pending" || (lab.selected.status === "interrupted" && lab.capabilities?.runtime?.owner === "cooperation_lab" && lab.capabilities.runtime.run_id === `evaluation-${lab.selected.id}`)) && <button className={button} disabled={lab.pending} onClick={()=>{void lab.recover();}}>{t.recoverQuiescent}</button>}

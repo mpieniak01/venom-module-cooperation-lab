@@ -17,7 +17,7 @@ class Source{
  emit(e:LabEvent){this.listeners.get(e.kind)?.({data:JSON.stringify(e)}as unknown as Event);}
 }
 Object.defineProperty(globalThis,"EventSource",{value:Source,configurable:true});
-const caps={...metadata,ready:true,state:"ready",models:metadata.models.map((m)=>({...m,qualified:true}))};
+const caps={...metadata,ready:true,state:"ready",models:metadata.models.map((m)=>({...m,qualified:true,max_new_tokens:1024}))};
 const run=(id:string,status:string):Run=>({id,status,created:1,last_seq:0,bytes:1,config:{model:{model_id:"rwkv7-g1d-0.4b"},scenario_id:"split_facts",mode:"dialog_encouraged",seed:0,budgets:{max_turns:8,max_new_tokens:128}}});
 const response=(body:unknown,status=200)=>({ok:status<400,status,json:async()=>body})as Response;
 const flush=()=>act(async()=>{await new Promise((r)=>setImmediate(r));});
@@ -200,5 +200,37 @@ test("a completed ordinary run can start another with a restored 1024-token budg
   assert.equal(button(box,"Rozpocznij eksperyment").disabled,false);
   await act(async()=>button(box,"Rozpocznij eksperyment").click());await flush();
   assert.equal(captured?.max_new_tokens,1024);
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
+});
+
+
+test("ordinary Start clamps to selected model only after clicking and submits once", async()=>{
+ const old=globalThis.fetch;localStorage.clear();Source.all=[];
+ const submissions:Record<string,unknown>[]=[];
+ const complete=run("complete","completed");complete.config.budgets={max_turns:8,max_new_tokens:128};
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(path.endsWith("/capabilities"))return response({...caps,models:caps.models.map(m=>({...m,max_new_tokens:256}))});
+  if(init?.method==="POST"&&path.endsWith("/runs")){
+   submissions.push(JSON.parse(String(init.body)));
+   const next=run("next","queued");next.config={...next.config,budgets:{max_turns:8,max_new_tokens:256},requested_max_new_tokens:16384};
+   return response({run:next,created:true},202);
+  }
+  if(path.endsWith("/events"))return response({events:[]});
+  if(path.endsWith("/runs/next")){const next=run("next","queued");next.config={...next.config,budgets:{max_turns:8,max_new_tokens:256},requested_max_new_tokens:16384};return response({run:next});}
+  if(path.endsWith("/runs/complete"))return response({run:complete});
+  return response({runs:[complete]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await flush();
+  const token=()=>[...box.querySelectorAll("input")].find(i=>i.parentElement?.textContent?.startsWith("Tokenów na turę"))!;
+  await act(async()=>{token().value="16384";token().dispatchEvent(new dom.window.Event("input",{bubbles:true}));});
+  assert.equal(token().value,"16384");assert.equal(submissions.length,0);
+  const start=button(box,"Rozpocznij eksperyment");assert.equal(start.disabled,false);
+  await act(async()=>{start.click();start.click();});await flush();
+  assert.equal(submissions[0]?.max_new_tokens,16384,"API receives the original request for its audit/idempotency");
+  await act(async()=>button(box,"Ustawienia eksperymentu").click());
+  assert.equal(token().value,"256");assert.match(box.querySelector("output")?.textContent??"",/16384 → 256/);
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });

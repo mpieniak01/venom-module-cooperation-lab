@@ -1,5 +1,8 @@
 # Limity i profile modeli — lokalne wdrożenie 2026-10-22
 
+Historyczny odbiór. Aktualne lokalne limity HF i zachowanie START opisuje
+[poprawka z 2026-10-23](MODEL_BUDGET_UNIFICATION_PLAN_20261023.md).
+
 Kod 6812b3a, gałąź codex/rwkv7-g1k-2.9b, bez publikacji GH.
 Użytkownik wymaga przywracania ostatnio zapisanych wartości po zmianie modelu.
 

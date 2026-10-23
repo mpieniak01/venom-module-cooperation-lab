@@ -114,8 +114,11 @@ class EvaluationService:
             reasons.append("unsupported_observation_mode")
         if request.max_context_tokens > caps["max_context_tokens"]:
             reasons.append("unsupported_context_budget")
-        if request.max_new_tokens > caps["max_new_tokens"]:
-            reasons.append("unsupported_output_budget")
+        request = request.model_copy(
+            update={
+                "max_new_tokens": min(request.max_new_tokens, caps["max_new_tokens"])
+            }
+        )
         if request.action_constraint != "none":
             reasons.append("unsupported_action_constraint")
         if request.num_steps != 8 and model.get("architecture") != "huginn_raven":
@@ -297,7 +300,9 @@ class EvaluationService:
             if not check["supported"]:
                 raise LabError(check["reason_codes"][0], 422)
             if (
-                previous["config"]["model_identity"]
+                previous["config"]["max_new_tokens"]
+                != check["configuration"]["max_new_tokens"]
+                or previous["config"]["model_identity"]
                 != check["configuration"]["model_identity"]
                 or previous["config"]["manifest_hash"]
                 != check["configuration"]["manifest_hash"]
@@ -580,7 +585,12 @@ class EvaluationService:
         return "runtime_error"
 
     async def _execute(self, job: EvaluationJob) -> None:
-        request = EvaluationRequest(**job.state["config"]["request"])
+        request = EvaluationRequest(
+            **{
+                **job.state["config"]["request"],
+                "max_new_tokens": job.state["config"]["max_new_tokens"],
+            }
+        )
         try:
             from .sessions import SessionDriver
 

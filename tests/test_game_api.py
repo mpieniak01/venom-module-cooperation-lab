@@ -401,7 +401,7 @@ async def test_model_settings_are_persistent_validated_and_observational(
     assert initial.status_code == 200 and not initial.json()["saved"]
     budgets = {
         "max_context_tokens": 4096,
-        "max_new_tokens": 512,
+        "max_new_tokens": 256,
         "decision_timeout_s": 180,
     }
     saved = await evaluation_client.put(path, json=budgets)
@@ -446,7 +446,7 @@ async def test_invalid_request_has_safe_parameter_error_without_prompt_contents(
         json={
             "model_id": SPEC.model_id,
             "scenario_id": "tic_tac_toe",
-            "max_new_tokens": 1025,
+            "max_new_tokens": 2**31,
         },
     )
     assert response.status_code == 422
@@ -457,7 +457,7 @@ async def test_invalid_request_has_safe_parameter_error_without_prompt_contents(
 
 
 @pytest.mark.asyncio
-async def test_ordinary_runs_accept_1024_output_tokens_on_next_start(
+async def test_ordinary_runs_start_after_clamping_next_budget_for_hf_model(
     evaluation_client, monkeypatch
 ):
     runner = evaluation_client._transport.app.state.cooperation_lab_runner
@@ -486,4 +486,28 @@ async def test_ordinary_runs_accept_1024_output_tokens_on_next_start(
         runner = evaluation_client._transport.app.state.cooperation_lab_runner
         await asyncio.wait_for(runner.jobs[row["id"]].task, timeout=3)
         assert runner.snapshot(row["id"])["run"]["status"] == "completed"
-        assert row["config"]["budgets"]["max_new_tokens"] == tokens
+        assert row["config"]["budgets"]["max_new_tokens"] == min(tokens, 256)
+
+
+@pytest.mark.asyncio
+async def test_evaluation_clamps_before_generation_and_preserves_idempotency(
+    evaluation_client, rig
+):
+    runner, adapters = rig
+    original = payload(max_new_tokens=16384)
+    preflight = await evaluation_client.post(BASE + "/preflight", json=original)
+    assert preflight.status_code == 200
+    assert preflight.json()["supported"]
+    assert preflight.json()["configuration"]["max_new_tokens"] == 256
+    assert adapters == []
+    headers = {"Idempotency-Key": "clamped-evaluation"}
+    start = await evaluation_client.post(BASE, json=original, headers=headers)
+    assert start.status_code == 202, start.text
+    eid = start.json()["evaluation"]["id"]
+    state = await finish(evaluation_client, eid)
+    assert state["config"]["max_new_tokens"] == 256
+    assert state["config"]["request"]["max_new_tokens"] == 16384
+    assert adapters[-1].recorded[0][2].max_new_tokens == 256
+    again = await evaluation_client.post(BASE, json=original, headers=headers)
+    assert again.status_code == 202 and not again.json()["created"]
+    assert again.json()["evaluation"]["id"] == eid

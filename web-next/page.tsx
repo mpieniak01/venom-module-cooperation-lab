@@ -13,6 +13,7 @@ import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSetting
 import { Conversation } from "./lib/chat";
 import { OperatorComposer } from "./lib/operator-composer";
 import { GameBoard } from "./lib/game-board";
+import { appliedOutputTokens, outputTokenLimit } from "./lib/model-limits";
 import { engineId, modelState } from "./lib/model-selection";
 
 const button = "coop-button";
@@ -67,13 +68,16 @@ function ConversationWorkspace() {
   const qualifying = lab.run?.config.scenario_id==="model_qualification";
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
-  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=1024&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=2147483647&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const lastFailure = lab.events.findLast(event=>event.kind==="error");
   const persistedError=typeof lastFailure?.payload.code==="string"?lastFailure.payload.code:"";
   const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error||persistedError);
   const blocked = !validSettings?t.problemSettings:!canStart && selected ? modelState(selected,t) : "";
+  const adjusted = lab.run?.config.requested_max_new_tokens;
+  const actualBudgets = lab.run?.config.budgets;
+  const appliedNotice = adjusted && actualBudgets && typeof actualBudgets === "object" && !Array.isArray(actualBudgets) ? `${t.tokensApplied}: ${adjusted} → ${actualBudgets.max_new_tokens}` : "";
   const resultScenario = lab.run?.config.scenario_id??scenario;
   const resultMode = lab.run?.config.mode??mode;
   const organizations = lab.events.filter((event) => event.kind === "organization");
@@ -86,6 +90,8 @@ function ConversationWorkspace() {
   const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued, operatorWaiting);
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
+    const appliedTokens = appliedOutputTokens(tokens, selected);
+    if (appliedTokens !== tokens) setForm({...form,tokens:appliedTokens});
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
     if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;}
      setSettings(false); void lab.start(input);
@@ -112,7 +118,7 @@ function ConversationWorkspace() {
       {lab.connection === "disconnected" && lab.run && <button type="button" className={button} onClick={lab.reconnect}>{t.reconnect}</button>}
     </fieldset>
     <output aria-live="polite" className="coop-notice h-5" title={notice || undefined}>
-      {lab.capabilities?.catalog_error?t.catalogError:notice || (!lab.active?blocked:"") || (lab.active&&operatorWaiting ? t.operatorInputHint : "")}
+      {lab.capabilities?.catalog_error?t.catalogError:notice || appliedNotice || (!lab.active?blocked:"") || (lab.active&&operatorWaiting ? t.operatorInputHint : "")}
     </output>
     <div className="coop-body">
       {settings && <fieldset disabled={lab.active || lab.pending} className="coop-settings">
@@ -164,7 +170,7 @@ function ConversationWorkspace() {
             <label><input type="checkbox" checked={rememberGames} disabled={gameCount===1} onChange={event=>setForm({...form,rememberGames:event.target.checked})}/> {t.gameMemory}</label>
             <p className="coop-message-meta">{t.gameMemoryHint}</p>
           </>}
-          <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={1024} value={tokens} onChange={event=>setForm({...form,tokens:Number(event.target.value)})}/></label>
+          <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={outputTokenLimit(selected)} value={tokens} onInput={event=>setForm({...form,tokens:Number(event.currentTarget.value)})}/></label>
           <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
         </div>
       </fieldset>}

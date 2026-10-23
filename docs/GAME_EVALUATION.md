@@ -176,3 +176,13 @@ budżetem. Zmiana 128 → 1024 po zakończeniu poprzedniej próby nie wymaga pon
 kwalifikacji modelu. Budżet odpowiedzi nadal dzieli kontekst z promptem i historią;
 przekroczenie kontekstu jest raportowane oddzielnie. Odrzucony formularz pokazuje
 kod `invalid_parameters`; log zawiera tylko nazwy nieprawidłowych pól.
+
+
+### Zbyt duży budżet odpowiedzi — lokalna poprawka 2026-10-23
+
+Wpisywanie wartości nie zmienia pola. Po kliknięciu START zbyt duża liczba jest
+ograniczana do lokalnego limitu wybranego modelu; formularz pokazuje zastosowaną
+wartość i próba rozpoczyna się w tym samym działaniu. Dotyczy zwykłych prób oraz
+ewaluacji gier. Sprawdzenie konfiguracji pozostaje bez uruchamiania modelu i bez
+zmiany wpisu. Szczegóły polityki, zakres i dowód odbioru:
+[budżety modeli i start](MODEL_BUDGET_UNIFICATION_PLAN_20261023.md).

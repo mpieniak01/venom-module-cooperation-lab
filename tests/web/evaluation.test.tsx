@@ -330,3 +330,28 @@ test("quarantined cleanup exposes one explicit recovery request and returns to a
     assert.match(box.textContent??"",/Błąd/);
   } finally {await close();}
 });
+
+
+test("evaluation edits stay untouched until Start then show the applied per-model budget",async()=>{
+  const posts:{path:string;tokens:number}[]=[];
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response({...caps,models:[{...caps.models[0],max_new_tokens:256}]});
+    if(init?.method==="POST"){
+      const input=JSON.parse(String(init.body));posts.push({path,tokens:input.max_new_tokens});
+      if(path.endsWith("/preflight"))return response({...preflight,configuration:{max_new_tokens:256}});
+      return response({evaluation:{...saved("queued"),config:{max_new_tokens:256,request:{...input}}},created:true},202);
+    }
+    return response({evaluations:[]});
+  });
+  const token=()=>[...box.querySelectorAll("input[type=number]")].find(i=>i.parentElement?.textContent?.startsWith("Tokenów na decyzję")) as HTMLInputElement;
+  try{
+    await number(box,"Tokenów na decyzję","16384");assert.equal(token().value,"16384");assert.equal(posts.length,0);
+    await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
+    assert.equal(token().value,"16384","preflight must not rewrite entered data");
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    await act(async()=>findButton(box,"Ustawienia serii").click());
+    assert.equal(token().value,"256");assert.match(box.querySelector("output")?.textContent??"",/16384 → 256/);
+    assert.equal(posts.filter(p=>p.path.endsWith("/evaluations")).length,1);
+  }finally{await close();}
+});

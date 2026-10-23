@@ -26,3 +26,16 @@ zaliczonych strategii LLM: obecne realne próby mają błędy formatu/ruchów i 
 Jeden silnik naraz, bez autostartu. Dalsza publikacja wymaga aktualnego polecenia
 użytkownika. Po zmianie modułu używaj oficjalnego mirroru hosta; nie restartuj
 API z aktywnym eksperymentem.
+
+
+## Wstrzymanie wydania laboratorium — 2026-10-23
+
+Operator wstrzymał scalenie gałęzi `fix/single-game-runtime-recovery`.
+Nie scalać jej bez nowej zgody. Zwykłe próby /runs i ewaluacja miały rozbieżne
+limity: wpisanie 1024 po pierwszej poprawnej próbie dawało HTTP 422 przed startem
+silnika. Sam roboczy wspólny sufit 1024 nie zastępuje sprawdzonych profili modeli.
+Uproszczony przepływ zatwierdzony: limitowanie dopiero po START, aktualizacja pola
+i start gry. Plan `docs/MODEL_BUDGET_UNIFICATION_PLAN_20261023.md`;
+nie uruchamiać ponownie drogich testów maksimum ani nie nadpisywać istniejących
+profili. L7 został wcześniej wydany w PR #18 (main 515266c); dawna sekcja o
+nieopublikowanej gałęzi codex/rwkv7-g1k-2.9b jest historyczna.

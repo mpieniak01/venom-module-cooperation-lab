@@ -1082,7 +1082,7 @@ async def test_budgets_persist_per_identity_and_never_start_a_model(eval_rig):
     first = read_budgets(service.runner.store, model)
     assert not first["saved"] and not first["stale"]
     budgets = ModelBudgets(
-        max_context_tokens=4096, max_new_tokens=512, decision_timeout_s=180
+        max_context_tokens=4096, max_new_tokens=256, decision_timeout_s=180
     )
     assert save_budgets(service.runner.store, model, budgets)["saved"]
     # A different model has independent defaults.
@@ -1098,7 +1098,7 @@ async def test_budgets_persist_per_identity_and_never_start_a_model(eval_rig):
             service.runner.store,
             model,
             ModelBudgets(
-                max_context_tokens=8192, max_new_tokens=512, decision_timeout_s=180
+                max_context_tokens=8192, max_new_tokens=256, decision_timeout_s=180
             ),
         )
     with pytest.raises(LabError, match="unsupported_model_adapter"):

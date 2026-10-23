@@ -263,7 +263,9 @@ class LabRunner:
             game_count=config.get("game_count", 1),
             remember_games=config.get("remember_games", True),
             max_turns=config["budgets"]["max_turns"],
-            max_new_tokens=config["budgets"]["max_new_tokens"],
+            max_new_tokens=config.get(
+                "requested_max_new_tokens", config["budgets"]["max_new_tokens"]
+            ),
         )
         return stored == request.model_dump()
 

@@ -19,6 +19,7 @@ from ..errors import LabError
 from ..evaluation.api import register as register_evaluations
 from ..lifecycle import LabLifecycle, admission_enabled, enabled, lifespan
 from ..limits import Limits
+from ..model_limits import output_token_limit
 from ..run_config import MODES, Budgets, RunRequest
 from ..runner import OWNER, LabRunner
 from ..scenarios import SCENARIOS
@@ -164,7 +165,7 @@ async def capabilities(request: Request) -> dict[str, Any]:
         **metadata,
         **current,
         "generation": current["ready"],
-        "models": models,
+        "models": [{**m, "max_new_tokens": output_token_limit(m)} for m in models],
         "qualified_models": [m["model_id"] for m in models if m["qualified"]],
     }
 
