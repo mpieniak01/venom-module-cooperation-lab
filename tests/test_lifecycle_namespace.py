@@ -42,7 +42,10 @@ async def test_c0_disabled_preserves_storage_only_startup(tmp_path, monkeypatch)
     admission.assert_not_called()
 
 
-def test_second_worker_cannot_recover_or_interrupt_first_workers_run(tmp_path):
+@pytest.mark.parametrize("recovery_only", [False, True])
+def test_second_worker_cannot_recover_or_interrupt_first_workers_run(
+    tmp_path, recovery_only
+):
     ledger = tmp_path / "admission.sqlite3"
     root = tmp_path / "module"
     store = LabStore(root, Mock(), Mock())
@@ -55,6 +58,15 @@ def test_second_worker_cannot_recover_or_interrupt_first_workers_run(tmp_path):
     first = runtime_admission.RuntimeAdmission(ledger, enabled=True)
     with first.operation(kind="module_startup_check"):
         pass
+    if recovery_only:
+        first.acquire(
+            owner="cooperation_lab",
+            run_id="evaluation-owned-run",
+            engine="ollama",
+            model="fixture",
+        )
+        with first._transaction() as ledger_db:
+            ledger_db.execute("UPDATE lease SET quarantine=1")
     child = """
 import asyncio, json, sys
 from pathlib import Path
@@ -65,6 +77,9 @@ runtime_admission._ADMISSION = runtime_admission.RuntimeAdmission(
     Path(sys.argv[1]),enabled=True)
 store=LabStore(Path(sys.argv[2]),lambda _op:None,lambda _owner,_op:None)
 lifecycle=LabLifecycle(lambda:store)
+if sys.argv[3] == "1":
+    import venom_module_cooperation_lab.lifecycle as lifecycle_module
+    lifecycle_module._quarantine_owner_is_gone=lambda _snapshot:True
 asyncio.run(lifecycle.start(True))
 print(json.dumps({'opened':store.opened,'state':lifecycle.state,'reason':lifecycle.reason}))
 """
@@ -72,7 +87,14 @@ print(json.dumps({'opened':store.opened,'state':lifecycle.state,'reason':lifecyc
     # Keep the module source location explicit because the child uses a safe cwd.
     env["PYTHONPATH"] = str(Path.cwd()) + os.pathsep + os.environ.get("PYTHONPATH", "")
     result = subprocess.run(
-        [sys.executable, "-c", child, str(ledger), str(root)],
+        [
+            sys.executable,
+            "-c",
+            child,
+            str(ledger),
+            str(root),
+            "1" if recovery_only else "0",
+        ],
         capture_output=True,
         text=True,
         timeout=10,
@@ -134,3 +156,99 @@ async def test_startup_rejects_stale_disabled_admission_before_open(
     assert not store.opened
     assert not store.root.exists()
     assert not admission.database.exists()
+
+
+def test_quarantine_recovery_startup_requires_stale_module_owner(monkeypatch):
+    from venom_module_cooperation_lab.lifecycle import _quarantine_owner_is_gone
+
+    base = {
+        "status": "quarantined",
+        "active_operations": 0,
+        "owner": "cooperation_lab",
+        "run_id": "evaluation-stale",
+        "engine": "ollama",
+        "model": "codestral:latest",
+        "owner_pid": os.getpid(),
+    }
+    assert not _quarantine_owner_is_gone(base)
+    monkeypatch.setattr(os, "kill", Mock(side_effect=ProcessLookupError))
+    assert _quarantine_owner_is_gone(base)
+    assert not _quarantine_owner_is_gone({**base, "active_operations": 1})
+    assert not _quarantine_owner_is_gone({**base, "owner": "chat"})
+    assert not _quarantine_owner_is_gone({**base, "engine": "vllm"})
+    assert not _quarantine_owner_is_gone({**base, "owner_pid": 0})
+
+
+@pytest.mark.parametrize("error", [PermissionError, OSError])
+def test_quarantine_recovery_requires_proof_not_a_process_access_error(
+    monkeypatch, error
+):
+    from venom_module_cooperation_lab.lifecycle import _quarantine_owner_is_gone
+
+    monkeypatch.setattr(os, "kill", Mock(side_effect=error))
+    assert not _quarantine_owner_is_gone(
+        {
+            "status": "quarantined",
+            "active_operations": 0,
+            "owner": "cooperation_lab",
+            "engine": "ollama",
+            "owner_pid": os.getpid(),
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_dead_owner_startup_opens_state_for_recovery_without_releasing_lease(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(SETTINGS, "RUNTIME_ADMISSION_ENABLED", True)
+    monkeypatch.setattr(os, "kill", Mock(side_effect=ProcessLookupError))
+    snapshot = {
+        "status": "quarantined",
+        "active_operations": 0,
+        "owner": "cooperation_lab",
+        "engine": "ollama",
+        "owner_pid": 10001,
+    }
+    admission = Mock(enabled=True)
+    admission.snapshot.return_value = snapshot
+    from contextlib import nullcontext
+
+    admission.operation.side_effect = AssertionError(
+        "quarantined runtime cannot admit work"
+    )
+    admission.recovery_startup.return_value = nullcontext()
+    monkeypatch.setattr(runtime_admission, "get_runtime_admission", lambda: admission)
+    store = LabStore(tmp_path / "recovery", Mock(), Mock())
+    lifecycle = LabLifecycle(lambda: store)
+    await lifecycle.start(True)
+    assert lifecycle.recovery_only and store.opened
+    admission.recover.assert_not_called()
+    admission.operation.assert_not_called()
+    admission.recovery_startup.assert_called_once()
+    assert admission.snapshot() == snapshot
+    await lifecycle.close()
+
+
+@pytest.mark.parametrize("owner_pid", [1, os.getpid()])
+@pytest.mark.parametrize(
+    "current,expected", [("same-instance", False), ("reused-pid", True), (None, False)]
+)
+def test_recovery_compares_process_lifetime_not_just_numeric_pid(
+    monkeypatch, current, expected, owner_pid
+):
+    from venom_module_cooperation_lab.lifecycle import _quarantine_owner_is_gone
+
+    monkeypatch.setattr(
+        runtime_admission, "process_instance_identity", lambda _pid: current
+    )
+    monkeypatch.setattr(os, "kill", Mock(return_value=None))
+    snapshot = {
+        "status": "quarantined",
+        "active_operations": 0,
+        "owner": "cooperation_lab",
+        "engine": "ollama",
+        "owner_pid": owner_pid,
+        "owner_process_identity": "same-instance",
+    }
+    assert _quarantine_owner_is_gone(snapshot) is expected

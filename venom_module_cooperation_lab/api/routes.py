@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import asdict
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -17,6 +19,7 @@ from ..errors import LabError
 from ..evaluation.api import register as register_evaluations
 from ..lifecycle import LabLifecycle, admission_enabled, enabled, lifespan
 from ..limits import Limits
+from ..model_limits import output_token_limit
 from ..run_config import MODES, Budgets, RunRequest
 from ..runner import OWNER, LabRunner
 from ..scenarios import SCENARIOS
@@ -30,6 +33,27 @@ class LabRoute(APIRoute):
         async def handle(request: Request) -> Response:
             try:
                 return await original(request)
+            except RequestValidationError as exc:
+                fields = sorted(
+                    {
+                        error["loc"][1]
+                        for error in exc.errors()
+                        if len(error["loc"]) > 1
+                        and error["loc"][0] == "body"
+                        and error["loc"][1] in RunRequest.model_fields
+                    }
+                )
+                logging.getLogger(__name__).warning(
+                    "cooperation_lab rejected experiment parameters: fields=%s", fields
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "invalid_parameters",
+                        "reason_code": "invalid_parameters",
+                        "fields": fields,
+                    },
+                ) from exc
             except LabError as exc:
                 raise HTTPException(
                     status_code=exc.status,
@@ -141,7 +165,7 @@ async def capabilities(request: Request) -> dict[str, Any]:
         **metadata,
         **current,
         "generation": current["ready"],
-        "models": models,
+        "models": [{**m, "max_new_tokens": output_token_limit(m)} for m in models],
         "qualified_models": [m["model_id"] for m in models if m["qualified"]],
     }
 

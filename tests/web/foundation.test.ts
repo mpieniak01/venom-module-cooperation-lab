@@ -48,7 +48,7 @@ test("saved form settings use immutable nested model/budgets and reject invalid 
     {model:"qwen3-4b-control",scenario:"correction",mode:"no_contact",seed:17,turns:4,tokens:32});
   assert.deepEqual(savedSettings({model:[],scenario_id:"unexpected",mode:"shell",seed:-1,budgets:{max_turns:9,max_new_tokens:0}}),{});
   assert.deepEqual(savedSettings({scenario_id:["split_facts"],mode:["dialog"]}),{});
-  assert.deepEqual(savedSettings({model:{model_id:"/private/path"},seed:1.5,budgets:{max_turns:true,max_new_tokens:257}}),{});
+  assert.deepEqual(savedSettings({model:{model_id:"/private/path"},seed:1.5,budgets:{max_turns:true,max_new_tokens:1025}}),{});
   assert.deepEqual(savedSettings({model:{model_id:".hidden"}}), {});
 });
 

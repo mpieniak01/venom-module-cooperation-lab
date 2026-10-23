@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..errors import LabError
+from ..model_limits import MAX_REQUESTED_TOKENS
 
 
 class EvaluationRequest(BaseModel):
@@ -31,7 +32,7 @@ class EvaluationRequest(BaseModel):
     response_mode: Literal["strict_json", "mapped"] = "strict_json"
     opponent: Literal["optimal", "random", "remembering", "model"] = "optimal"
     swap_sides: bool = True
-    max_new_tokens: int = Field(default=128, ge=8, le=1024)
+    max_new_tokens: int = Field(default=128, ge=8, le=MAX_REQUESTED_TOKENS)
     decision_timeout_s: int = Field(default=30, ge=1, le=300)
     max_context_tokens: int = Field(default=2048, ge=128, le=16384)
 

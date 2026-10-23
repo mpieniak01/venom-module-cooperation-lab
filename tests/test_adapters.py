@@ -233,6 +233,49 @@ def stream(adapter, items, cancel=False):
     return response
 
 
+def test_ollama_mapped_tic_tac_toe_schema_keeps_all_squares_and_sampling():
+    adapter, _, _ = configured_ollama()
+    adapter.load(time.monotonic() + 3)
+    seen = []
+
+    def open_request(path, payload, timeout):
+        seen.append((path, payload))
+        return stream(
+            adapter,
+            [
+                {"message": {"content": '{"square":"A3"}'}},
+                {"done": True, "prompt_eval_count": 40, "eval_count": 5},
+            ],
+        )
+
+    adapter._open = open_request
+    parameters = GenerationParameters(
+        profile="structured",
+        temperature=0.7,
+        top_p=0.8,
+        response_format="tic_tac_toe_json",
+        session_protocol="game-eval-v2",
+    )
+    result = adapter.generate(
+        "A",
+        [ChatMessage("user", '{"instruction":"JSON square"}')],
+        parameters,
+        time.monotonic() + 3,
+    )
+    assert result.text == '{"square":"A3"}'
+    assert seen[0][1]["format"] == {
+        "type": "object",
+        "properties": {
+            "square": {
+                "type": "string",
+                "enum": [row + column for row in "ABC" for column in "123"],
+            }
+        },
+        "required": ["square"],
+        "additionalProperties": False,
+    }
+
+
 def test_ollama_generation_usage_isolation_reset():
     adapter, _, _ = configured_ollama()
     adapter.load(time.monotonic() + 3)
@@ -304,6 +347,38 @@ def test_ollama_failure_does_not_fake_quiescence(items, code):
         assert not adapter.is_quiescent()
         with pytest.raises(LabError, match="runtime_not_quiescent"):
             adapter.close()
+
+
+def test_ollama_reconcile_quiescence_requires_repeated_idle(monkeypatch):
+    from venom_module_cooperation_lab.adapters import ollama
+
+    adapter, _, _ = configured_ollama()
+    adapter._request_sent = True
+    adapter._uncertain = True
+    monkeypatch.setattr(ollama.time, "sleep", lambda _: None)
+    monkeypatch.setattr(ollama, "backend_model_idle", lambda _artifact: True)
+    assert adapter.reconcile_quiescence()
+    assert adapter.is_quiescent()
+
+
+def test_ollama_reconcile_quiescence_refuses_active_or_unavailable_backend(monkeypatch):
+    from venom_module_cooperation_lab.adapters import ollama
+
+    adapter, _, values = configured_ollama()
+    adapter._request_sent = True
+    adapter._uncertain = True
+    values["/api/ps"] = {"models": [{"name": adapter.spec.artifact}]}
+    monkeypatch.setattr(ollama, "backend_model_idle", lambda _artifact: False)
+    assert not adapter.reconcile_quiescence()
+    assert not adapter.is_quiescent()
+    values["/api/ps"] = {"models": []}
+    adapter._busy = True
+    assert not adapter.reconcile_quiescence()
+    assert not adapter.is_quiescent()
+    adapter._busy = False
+    adapter._json = lambda *args: (_ for _ in ()).throw(OSError("offline"))
+    assert not adapter.reconcile_quiescence()
+    assert not adapter.is_quiescent()
 
 
 def test_ollama_rejects_context_and_redirect():
@@ -485,3 +560,68 @@ def test_larger_ollama_context_is_explicit_and_v2_only():
     )
     assert result.effective_parameters["max_context_tokens"] == 8192
     assert adapter.close()
+
+
+def test_backend_idle_requires_three_empty_daemon_observations(monkeypatch):
+    from types import SimpleNamespace
+
+    from venom_module_cooperation_lab.adapters import ollama
+
+    calls = []
+
+    def opened(request, timeout):
+        calls.append((request.full_url, timeout))
+        return io.BytesIO(b'{"models":[]}')
+
+    monkeypatch.setattr(
+        ollama.urllib.request, "build_opener", lambda *_: SimpleNamespace(open=opened)
+    )
+    monkeypatch.setattr(ollama.time, "sleep", lambda _: None)
+    assert ollama.backend_model_idle("qwen3:4b")
+    assert len(calls) == 3
+    assert all(
+        url == "http://127.0.0.1:11434/api/ps" and timeout > 0 for url, timeout in calls
+    )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"{}",
+        b"[]",
+        b'{"models":null}',
+        b'{"models":"invalid"}',
+        b'{"models":[{"name":"other-model:latest"}]}',
+        b'{"models":[{"name":"qwen3:4b"}]}',
+        b"not-json",
+        b"x" * 262145,
+    ],
+)
+def test_backend_idle_refuses_loaded_models_and_malformed_responses(monkeypatch, raw):
+    from types import SimpleNamespace
+
+    from venom_module_cooperation_lab.adapters import ollama
+
+    monkeypatch.setattr(
+        ollama.urllib.request,
+        "build_opener",
+        lambda *_: SimpleNamespace(open=lambda *_a, **_k: io.BytesIO(raw)),
+    )
+    assert not ollama.backend_model_idle("qwen3:4b")
+
+
+def test_backend_idle_refuses_transport_failure_or_expired_check(monkeypatch):
+    from types import SimpleNamespace
+
+    from venom_module_cooperation_lab.adapters import ollama
+
+    def unavailable(*_args, **_kwargs):
+        raise OSError("offline")
+
+    monkeypatch.setattr(
+        ollama.urllib.request,
+        "build_opener",
+        lambda *_: SimpleNamespace(open=unavailable),
+    )
+    assert not ollama.backend_model_idle("qwen3:4b")
+    assert not ollama.backend_model_idle("qwen3:4b", timeout_s=0)

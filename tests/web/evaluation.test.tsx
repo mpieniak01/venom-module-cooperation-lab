@@ -309,3 +309,98 @@ test("game selector exposes all environments and replaces the plan without reset
     assert.equal(requests.length,5);
   }finally{await close();}
 });
+
+
+test("quarantined cleanup exposes one explicit recovery request and returns to a terminal report",async()=>{
+  let value=saved("cleanup_pending");let released=false;let posts=0;
+  const runtime={status:"quarantined",active_operations:0,owner:"cooperation_lab",run_id:"evaluation-series-1"};
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response({...caps,ready:released,runtime:released?{status:"available",active_operations:0}:runtime});
+    if(path.endsWith("/recover")&&init?.method==="POST"){posts++;released=true;value=saved("failed");return response({evaluation:value});}
+    if(path.endsWith("/series-1"))return response({evaluation:value});
+    return response({evaluations:[value]});
+  });
+  try {
+    await choose(box,"Historia serii","series-1");await settle();
+    const button=findButton(box,"Sprawdź i zwolnij zasób");assert.ok(button);assert.equal(button.disabled,false);
+    assert.equal(findButton(box,"Rozpocznij serię").disabled,true);
+    await act(async()=>{button.click();button.click();});await settle();
+    assert.equal(posts,1);assert.equal(findButton(box,"Sprawdź i zwolnij zasób"),undefined);
+    assert.match(box.textContent??"",/Błąd/);
+  } finally {await close();}
+});
+
+
+test("evaluation edits stay untouched until Start then show the applied per-model budget",async()=>{
+  const posts:{path:string;tokens:number}[]=[];
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response({...caps,models:[{...caps.models[0],max_new_tokens:256}]});
+    if(init?.method==="POST"){
+      const input=JSON.parse(String(init.body));posts.push({path,tokens:input.max_new_tokens});
+      if(path.endsWith("/preflight"))return response({...preflight,configuration:{max_new_tokens:256}});
+      return response({evaluation:{...saved("queued"),config:{max_new_tokens:256,request:{...input}}},created:true},202);
+    }
+    return response({evaluations:[]});
+  });
+  const token=()=>[...box.querySelectorAll("input[type=number]")].find(i=>i.parentElement?.textContent?.startsWith("Tokenów na decyzję")) as HTMLInputElement;
+  try{
+    await number(box,"Tokenów na decyzję","16384");assert.equal(token().value,"16384");assert.equal(posts.length,0);
+    await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
+    assert.equal(token().value,"16384","preflight must not rewrite entered data");
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    await act(async()=>findButton(box,"Ustawienia serii").click());
+    assert.equal(token().value,"256");assert.match(box.querySelector("output")?.textContent??"",/16384 → 256/);
+    assert.equal(posts.filter(p=>p.path.endsWith("/evaluations")).length,1);
+  }finally{await close();}
+});
+
+
+test("lost evaluation START acknowledgement retains preflight and original body/key after clamping",async()=>{
+  const attempts:{key:string;body:string}[]=[];
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response({...caps,models:[{...caps.models[0],max_new_tokens:256}]});
+    if(path.endsWith("/preflight"))return response({...preflight,configuration:{max_new_tokens:256}});
+    if(init?.method==="POST"&&path.endsWith("/evaluations")){
+      attempts.push({key:new Headers(init.headers).get("Idempotency-Key")!,body:String(init.body)});
+      if(attempts.length===1)throw Error("accepted by server but acknowledgement lost");
+      return response({evaluation:{...saved("completed"),config:{max_new_tokens:256,request:JSON.parse(String(init.body))}},created:false},202);
+    }
+    return response({evaluations:[]});
+  });
+  const token=()=>[...box.querySelectorAll("input[type=number]")].find(i=>i.parentElement?.textContent?.startsWith("Tokenów na decyzję")) as HTMLInputElement;
+  try{
+    await number(box,"Tokenów na decyzję","4096");
+    await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    await act(async()=>findButton(box,"Ustawienia serii").click());
+    assert.equal(token().value,"4096");assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    assert.equal(attempts.length,2);assert.deepEqual(attempts[1],attempts[0]);
+    await act(async()=>findButton(box,"Ustawienia serii").click());assert.equal(token().value,"256");
+  }finally{await close();}
+});
+
+
+test("interrupted series cannot be deleted until its quarantined runtime is recovered",async()=>{
+  let released=false;let removed=false;let deletes=0;
+  const value={...saved("interrupted"),error:"process_restarted"};
+  const runtime={status:"quarantined",active_operations:0,owner:"cooperation_lab",run_id:"evaluation-series-1"};
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response({...caps,runtime:released?{status:"available",active_operations:0}:runtime});
+    if(path.endsWith("/recover")){released=true;return response({evaluation:value});}
+    if(init?.method==="DELETE"){deletes++;removed=true;return response({deleted:true});}
+    return response({evaluations:removed?[]:[value]});
+  });
+  try{
+    await choose(box,"Historia serii","series-1");
+    assert.equal(findButton(box,"Usuń serię").disabled,true);
+    await act(async()=>findButton(box,"Usuń serię").click());assert.equal(deletes,0);
+    await act(async()=>findButton(box,evaluationTexts("pl").recoverQuiescent).click());await settle();
+    assert.equal(findButton(box,"Usuń serię").disabled,false);
+    await act(async()=>findButton(box,"Usuń serię").click());await settle();assert.equal(deletes,1);
+  }finally{await close();}
+});

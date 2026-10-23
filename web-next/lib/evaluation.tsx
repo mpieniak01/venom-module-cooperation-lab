@@ -100,20 +100,24 @@ export function EvaluationWorkspace({language}: {language:string}) {
   const valid = validEvaluationRequest(input);
   const ready = lab.capabilities?.ready === true && !!model && (model.can_run ?? model.qualified) === true;
   const canStart = editable && valid && ready && checked?.supported === true;
+  const ownsRuntime=!!lab.selected&&lab.capabilities?.runtime?.owner==="cooperation_lab"&&lab.capabilities.runtime.run_id===`evaluation-${lab.selected.id}`;
   const counts = counters(lab.selected);
   const steps = model?.compute_steps ?? model?.num_steps ?? [];
   const patch = (value: Partial<EvaluationRequest>) => setDraft({...input,...value});
   const number = (key: "repetitions"|"temperature"|"top_p"|"seed"|"max_new_tokens"|"decision_timeout_s"|"max_context_tokens", title:string, min:number, max:number, step=1, disabled=false) => <Field label={title}><input className={field} type="number" min={min} max={max} step={step} value={input[key]} disabled={disabled} onInput={event=>patch({[key]:Number(event.currentTarget.value)})}/></Field>;
-  const notice = lab.error ? reasonText(t, language, lab.error) : !valid ? t.invalid : !ready ? reasonText(t,language,lab.capabilities?.reason_code ?? "runtime_busy") : checked ? checked.supported ? t.checked : t.unsupported : t.needsCheck;
+  const originalTokens=lab.selected?.config.request;
+  const appliedNotice=originalTokens&&typeof originalTokens==="object"&&!Array.isArray(originalTokens)&&originalTokens.max_new_tokens!==lab.selected?.config.max_new_tokens ? `${texts(language).tokensApplied}: ${originalTokens.max_new_tokens} → ${lab.selected?.config.max_new_tokens}` : "";
+  const notice = lab.error ? reasonText(t, language, lab.error) : !valid ? t.invalid : !ready ? reasonText(t,language,lab.capabilities?.reason_code ?? "runtime_busy") : appliedNotice || (checked ? checked.supported ? t.checked : t.unsupported : t.needsCheck);
   return <section ref={viewport} className="coop-workspace coop-evaluation" aria-label={t.title}>
     <style>{workspaceStyles+styles}</style>
     <header className="coop-header"><div><h1>{t.title}</h1><p>{t.subtitle}</p></div><button className={button} disabled={lab.refreshing} onClick={()=>{void lab.refresh();}}>{t.refresh}</button></header>
     <div className="coop-controls" role="group" aria-label={t.title}>
-      <button className={button+" coop-start"} disabled={!canStart} onClick={()=>{setSettings(false);void lab.start(input);}}>{t.start}</button>
+      <button className={button+" coop-start"} disabled={!canStart} onClick={()=>{setSettings(false);void lab.start(input).then(started=>{if(started){const applied=savedEvaluationRequest(started.config);if(applied)setDraft({...input,max_new_tokens:applied.max_new_tokens});}});}}>{t.start}</button>
       <button className={button+" coop-stop"} disabled={!lab.active || lab.pending} onClick={()=>{void lab.mutate("cancel");}}>{t.stop}</button>
       <button className={button} disabled={lab.pending || !lab.selected || lab.active || !(lab.selected.can_resume ?? ["cancelled","interrupted","failed"].includes(lab.selected.status))} onClick={()=>{void lab.mutate("resume");}} title={t.resumeHelp}>{t.resume}</button>
+      {lab.selected && (lab.selected.status === "cleanup_pending" || (lab.selected.status === "interrupted" && lab.capabilities?.runtime?.owner === "cooperation_lab" && lab.capabilities.runtime.run_id === `evaluation-${lab.selected.id}`)) && <button className={button} disabled={lab.pending} onClick={()=>{void lab.recover();}}>{t.recoverQuiescent}</button>}
       <button className={button} aria-expanded={settings} onClick={()=>setSettings(value=>!value)}>{t.settings}</button>
-      <button className={button+" coop-danger"} disabled={lab.pending || !lab.selected || lab.active} onClick={()=>{void lab.remove();}}>{t.remove}</button>
+      <button className={button+" coop-danger"} disabled={lab.pending || !lab.selected || lab.active || ownsRuntime} onClick={()=>{void lab.remove();}}>{t.remove}</button>
       {lab.selected && ["json","jsonl","csv"].map(format=><a className={button} key={format} href={`${API}/evaluations/${encodeURIComponent(lab.selected!.id)}/export?format=${format}`} download>{t.export} {format.toUpperCase()}</a>)}
       <span className="coop-run-state">{t.status}: {lab.selected ? evaluationLabel(t, lab.selected.status) : t.draft}</span>
     </div>

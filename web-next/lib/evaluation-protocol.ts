@@ -33,6 +33,7 @@ export type EvaluationCapabilities = {
   storage?: { series_used: number; max_series: number; retention_days: number };
   ready?: boolean;
   reason_code?: string;
+  runtime?: { status?: string; active_operations?: number; owner?: string; run_id?: string; engine?: string; model?: string };
 };
 export type EvaluationPreflight = {
   supported: boolean;
@@ -103,13 +104,13 @@ export function validEvaluationRequest(input: EvaluationRequest): boolean {
     ["history_replay", "native_incremental"].includes(input.observation_mode) && ["fresh", "carry"].includes(input.episode_memory) && ["off", "episode_note"].includes(input.reflection) &&
     ["strict_json", "mapped"].includes(input.response_mode) && ["greedy", "sampled"].includes(input.decoding) && [8,16,32,64].includes(input.num_steps) && ["hidden", "listed"].includes(input.legal_moves) &&
     ["optimal", "random", "remembering", "model"].includes(input.opponent) && typeof input.swap_sides === "boolean" && Number.isInteger(input.repetitions) && input.repetitions >= 1 && input.repetitions <= 10 &&
-    Number.isInteger(input.max_context_tokens) && input.max_context_tokens >= 128 && input.max_context_tokens <= 16384 && Number.isInteger(input.seed) && input.seed >= 0 && input.seed <= 2147483647 && Number.isInteger(input.max_new_tokens) && input.max_new_tokens >= 8 && input.max_new_tokens <= 1024 &&
+    Number.isInteger(input.max_context_tokens) && input.max_context_tokens >= 128 && input.max_context_tokens <= 16384 && Number.isInteger(input.seed) && input.seed >= 0 && input.seed <= 2147483647 && Number.isInteger(input.max_new_tokens) && input.max_new_tokens >= 8 && input.max_new_tokens <= 2147483647 &&
     Number.isInteger(input.decision_timeout_s) && input.decision_timeout_s >= 1 && input.decision_timeout_s <= 300 && Number.isFinite(input.temperature) && input.temperature >= 0 && input.temperature <= 2 && (input.decoding !== "sampled" || input.temperature > 0) &&
     Number.isFinite(input.top_p) && input.top_p > 0 && input.top_p <= 1;
 }
 
 export function savedEvaluationRequest(config: Record<string, Json>): EvaluationRequest | null {
-  const source = object(config.request) ? config.request : config;
+  const source = object(config.request) ? {...config.request,max_new_tokens:config.max_new_tokens??config.request.max_new_tokens} : config;
   const defaults = {...evaluationDefaults(), response_mode:"strict_json" as const};
   // Restore only the public form contract, never metadata or backend-only keys.
   const candidate = Object.fromEntries(Object.entries(defaults).map(([key, fallback])=>[key, Object.hasOwn(source,key) ? source[key] : fallback])) as EvaluationRequest;

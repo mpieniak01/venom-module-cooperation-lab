@@ -91,6 +91,7 @@ export function useEvaluations() {
       if (!isEvaluationSnapshot(body?.evaluation)) throw invalid();
       selectedId.current = body.evaluation.id; selectionEpoch.current++;
       update(body.evaluation); setChecked(null); mutationKey.current = {input:"", id:""};
+      return body.evaluation;
     } catch (error) { if (alive.current) setError(code(error)); }
     finally { locked.current = false; if (alive.current) setPending(false); }
   }, [checked, get, update]);
@@ -101,6 +102,20 @@ export function useEvaluations() {
       const body = await get<{evaluation:unknown}>(`/evaluations/${encodeURIComponent(selectedId.current)}/${action}`, {method:"POST"});
       if (!isEvaluationSnapshot(body?.evaluation)) throw invalid();
       update(body.evaluation); setChecked(null);
+    } catch (error) { if (alive.current) setError(code(error)); }
+    finally { locked.current = false; if (alive.current) setPending(false); }
+  }, [get, update]);
+  const recover = useCallback(async () => {
+    const id = selectedId.current;
+    if (!id || locked.current) return;
+    const epoch = selectionEpoch.current;
+    locked.current = true; setPending(true); setError("");
+    try {
+      const body = await get<{evaluation:unknown}>(`/evaluations/${encodeURIComponent(id)}/recover`, {method:"POST"});
+      if (!isEvaluationSnapshot(body?.evaluation) || body.evaluation.id !== id) throw invalid();
+      if (selectionEpoch.current === epoch) { update(body.evaluation); setChecked(null); }
+      const caps = await get<unknown>("/evaluations/capabilities");
+      if (isEvaluationCapabilities(caps) && alive.current) setCapabilities(caps);
     } catch (error) { if (alive.current) setError(code(error)); }
     finally { locked.current = false; if (alive.current) setPending(false); }
   }, [get, update]);
@@ -136,5 +151,5 @@ export function useEvaluations() {
     selectedId.current = snapshot?.id ?? null; selectionEpoch.current++;
     setSelected(snapshot); setChecked(null); setError("");
   }, [evaluations]);
-  return { capabilities, evaluations, selected, checked, error, pending, refreshing, active, refresh, check, start, mutate, select, remove, saveBudgets };
+  return { capabilities, evaluations, selected, checked, error, pending, refreshing, active, refresh, check, start, mutate, recover, select, remove, saveBudgets };
 }

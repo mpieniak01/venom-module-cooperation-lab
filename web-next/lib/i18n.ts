@@ -1,5 +1,6 @@
 // Each key has one PL/EN/DE row; translation completeness is structural.
 const translations = {
+  tokensApplied: ["Zastosowany limit tokenów modelu", "Applied model token limit", "Angewandtes Modell-Tokenlimit"],
   engine: ["Silnik", "Engine", "Laufzeit"],
   qualify: ["Sprawdź model (opcjonalnie)", "Check model (optional)", "Modell prüfen (optional)"],
   qualification: ["Sprawdzenie techniczne modelu", "Technical model check", "Technische Modellprüfung"],

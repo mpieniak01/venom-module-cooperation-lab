@@ -70,6 +70,10 @@ def register(router: APIRouter, require_runner: Callable[[Request], Any]) -> Non
     async def snapshot(request: Request, eid: str) -> dict[str, Any]:
         return {"evaluation": service(request).snapshot(eid)}
 
+    @router.post("/evaluations/{eid}/recover", status_code=200)
+    async def recover(request: Request, eid: str) -> dict[str, Any]:
+        return {"evaluation": await service(request).recover_quiescent(eid)}
+
     @router.post("/evaluations/{eid}/cancel", status_code=202)
     async def cancel(request: Request, eid: str) -> dict[str, Any]:
         return {"evaluation": await service(request).cancel(eid)}

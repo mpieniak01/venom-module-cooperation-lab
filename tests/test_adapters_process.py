@@ -21,7 +21,7 @@ from venom_module_cooperation_lab.adapters.rwkv_tokenizer import (
     "values",
     [
         {"max_new_tokens": 0},
-        {"max_new_tokens": 257},
+        {"max_new_tokens": 1025},
         {"max_new_tokens": True},
         {"seed": -1},
         {"temperature": float("nan")},

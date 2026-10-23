@@ -1,5 +1,12 @@
 # Odbiór Cooperation Lab — 2026-10-21
 
+> Current host/CI qualification (2026-10-23): `e313319f2367599794be3231bda9d22df5a3daef`,
+> ABI 1.0.0. Source of truth: [host-compatibility.json](../host-compatibility.json).
+> The L1–L5 / 2026-10-21 acceptance and deployment SHAs below are historical;
+> their measurements have not been rewritten. PR #19 contains the new recovery
+> and repeatable-start acceptance.
+
+
 Stan: **lokalny odbiór techniczny GPU, macierzy L5, browser/SSE/STOP i OFF
 wykonany; L1–L5 scalone i wdrożone lokalnie**. C0 i cleanup
 follow-up Venom #553 scalone. [L5 PR #13](https://github.com/mpieniak01/venom-module-cooperation-lab/pull/13) scalono jako
@@ -21,7 +28,7 @@ Torch/RWKV ładowano dopiero w izolowanym procesie po uzyskaniu lease.
 | Kod core podczas kwalifikacji | `711d70b33ca4b18c3711907e3bb72ee3fdbe7433` |
 | Kod modułu/adapterów podczas kwalifikacji | `becd08b876d5b2fe7166c12b74a23721e5f61b28` |
 | Oryginalne minimum ABI C0 (1.0.0), historyczny baseline | `aa2d612434949f1149d27f64ff10e5dd05334e8e` |
-| Aktualny pin hosta i CI po cleanup follow-up | `7401493f73db98dcdf2cb39503fca57eb2cbe421`; ABI 1.0.0/min_core_version 1.6.0 bez zmian |
+| Historyczny pin hosta i CI po cleanup follow-up | `7401493f73db98dcdf2cb39503fca57eb2cbe421`; ABI 1.0.0/min_core_version 1.6.0 bez zmian |
 | Sprzęt | NVIDIA GeForce RTX 3060, 12288 MiB VRAM |
 | Preset próby | maks. 32 tokeny wyjścia, kontekst 2048, seed 0, temperature 0, top_p 0 |
 | Budżet | do 120 s/model, do 360 s łącznie; rzeczywiście 56.48 s łącznie |

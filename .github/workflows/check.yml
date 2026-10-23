@@ -23,8 +23,8 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: mpieniak01/Venom
-          # ABI baseline: C0 aa2d6124 (1.0.0); qualified cleanup follow-up below.
-          ref: 7401493f73db98dcdf2cb39503fca57eb2cbe421
+          # ABI 1.0.0 plus durable runtime process-lifetime identity.
+          ref: e313319f2367599794be3231bda9d22df5a3daef
           path: host
           persist-credentials: false
       - uses: actions/checkout@v5

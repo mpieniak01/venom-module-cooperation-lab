@@ -79,12 +79,14 @@ class RwkvParameters:
     max_context_tokens: int = 2048
     profile: str = "chat"
     allowed_outputs: tuple[str, ...] = ()
+    response_format: str = "text"
     num_steps: int = 8
     session_protocol: str = "v1"
 
     def __post_init__(self) -> None:
         if (
             self.profile not in {"chat", "structured"}
+            or self.response_format != "text"
             or self.session_protocol not in {"v1", "game-eval-v2"}
             or type(self.num_steps) is not int
             or self.num_steps not in {8, 16, 32, 64}
@@ -115,7 +117,7 @@ class RwkvParameters:
             (
                 "max_new_tokens",
                 1,
-                1024 if self.session_protocol == "game-eval-v2" else 256,
+                1024,
             ),
             ("seed", 0, 2**31 - 1),
             (

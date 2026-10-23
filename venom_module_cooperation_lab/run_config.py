@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .model_limits import MAX_REQUESTED_TOKENS, applied_output_tokens
 from .scenarios import DialogueLanguage, get_dialogue_scenario, get_scenario
 
 Mode = Literal[
@@ -50,7 +51,7 @@ class RunRequest(BaseModel):
     max_turns: int = Field(default=8, ge=1, le=9)
     game_count: int = Field(default=1, ge=1, le=10)
     remember_games: bool = True
-    max_new_tokens: int = Field(default=128, ge=1, le=256)
+    max_new_tokens: int = Field(default=128, ge=1, le=MAX_REQUESTED_TOKENS)
     temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
     top_p: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
 
@@ -123,9 +124,14 @@ class RunConfig:
     communication_language: DialogueLanguage | None = None
     game_count: int = 1
     remember_games: bool = True
+    requested_max_new_tokens: int | None = None
 
     @classmethod
     def build(cls, request: RunRequest, model: dict[str, Any]) -> RunConfig:
+        requested_tokens = request.max_new_tokens
+        request = request.model_copy(
+            update={"max_new_tokens": applied_output_tokens(requested_tokens, model)}
+        )
         language = request.communication_language
         scenario = (
             get_scenario(request.scenario_id)
@@ -260,6 +266,9 @@ class RunConfig:
                 + private
             )
         return cls(
+            requested_max_new_tokens=requested_tokens
+            if requested_tokens != request.max_new_tokens
+            else None,
             model_json=json.dumps(model, sort_keys=True, ensure_ascii=False),
             scenario_id=scenario.scenario_id,
             scenario_version=(
@@ -283,7 +292,14 @@ class RunConfig:
                 )
                 if request.scenario_id == "tic_tac_toe"
                 else Budgets(
-                    max_turns=request.max_turns, max_new_tokens=request.max_new_tokens
+                    max_turns=request.max_turns,
+                    max_new_tokens=request.max_new_tokens,
+                    total_output_tokens=max(
+                        2048, request.max_turns * request.max_new_tokens
+                    ),
+                    processing_steps=max(
+                        18432, request.max_turns * (2048 + request.max_new_tokens)
+                    ),
                 )
             ),
             seed=request.seed,
@@ -311,6 +327,8 @@ class RunConfig:
 
     def public(self) -> dict[str, Any]:
         result = asdict(self)
+        if self.requested_max_new_tokens is None:
+            result.pop("requested_max_new_tokens")
         if self.game_count == 1:
             result.pop("game_count")
             result.pop("remember_games")

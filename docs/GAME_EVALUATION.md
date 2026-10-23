@@ -151,3 +151,50 @@ Odbiór lokalny 2026-10-22: make pr-fast HOST=/home/ubuntu/venom PASS
 Playwright: rzeczywisty wybór Nim/Memory/Sokoban zaznacza wyłącznie ich
 przypadki; 0 błędów konsoli, pozostają ostrzeżenia powłoki hosta.
 Oficjalny mirror zsynchronizowany, bez restartu API i bez generacji modeli.
+
+
+### Odzyskanie po przerwanym żądaniu Ollama
+
+Jeżeli seria pozostała w oczekiwaniu na zwolnienie zasobu, wybierz ją w historii
+i użyj **Sprawdź i zwolnij zasób**. Endpoint sprawdza zgodność właściciela i ID
+serii, zakończenie lokalnych zadań oraz trzy kolejne puste odczyty Ollama `/api/ps`.
+Nie zwalnia aktywnych operacji. Po restarcie API stan jest dostępny do odzyskania
+wyłącznie po potwierdzeniu zakończenia procesu poprzedniego właściciela.
+Brak dostępu do procesu lub brak odpowiedzi Ollama pozostawia blokadę.
+
+W mapowaniu kółka i krzyżyka Ollama otrzymuje schemat formatu JSON obejmujący
+wszystkie dziewięć współrzędnych. Schemat nie usuwa zajętych pól ani nie wybiera
+ruchu: zajęte pole nadal kończy próbę jako `illegal_action`. Parametry próbkowania
+operatora są zachowane. W raporcie zapisuje się `response_format=tic_tac_toe_json`,
+`allowed_outputs=[]` i politykę promptu `mapped-game-v4`; stare przebiegi pozostają
+bez zmian i nie są wznawiane z inną polityką promptu.
+
+
+Zwykłe próby w zakładce **Rozmowa i serie** przyjmują teraz również od 1 do 1024
+tokenów na turę we wszystkich adapterach; limity całej próby rosną wraz z wybranym
+budżetem. Zmiana 128 → 1024 po zakończeniu poprzedniej próby nie wymaga ponownej
+kwalifikacji modelu. Budżet odpowiedzi nadal dzieli kontekst z promptem i historią;
+przekroczenie kontekstu jest raportowane oddzielnie. Odrzucony formularz pokazuje
+kod `invalid_parameters`; log zawiera tylko nazwy nieprawidłowych pól.
+
+
+### Zbyt duży budżet odpowiedzi — lokalna poprawka 2026-10-23
+
+Wpisywanie wartości nie zmienia pola. Po kliknięciu START zbyt duża liczba jest
+ograniczana do lokalnego limitu wybranego modelu; formularz pokazuje zastosowaną
+wartość i próba rozpoczyna się w tym samym działaniu. Dotyczy zwykłych prób oraz
+ewaluacji gier. Sprawdzenie konfiguracji pozostaje bez uruchamiania modelu i bez
+zmiany wpisu. Szczegóły polityki, zakres i dowód odbioru:
+[budżety modeli i start](MODEL_BUDGET_UNIFICATION_PLAN_20261023.md).
+
+
+Próba, do której nadal odwołuje się dzierżawa runtime, pozostaje chroniona przed
+usunięciem także po restarcie API. Najpierw potwierdź zakończenie obliczeń.
+Odrzucony START nie tworzy rekordu ani nie uruchamia rotacji historii, więc nie
+usuwa próby potrzebnej do odzyskania. Startup recovery-only otwiera magazyn pod
+wyłączną ochroną przestrzeni hosta i transakcji ledgeru, również w kwarantannie.
+
+Po restarcie odzyskiwanie ewaluacji używa zapisanej tożsamości wykonawcy
+(provider/artifact) oraz zgodnej dzierżawy. Nie wymaga ponownego wykrycia ani
+instalacji usuniętego tagu Ollama. Brak poprawnej zapisanej tożsamości pozostawia
+kwarantannę; nadal wymagane są trzy puste odpowiedzi `/api/ps`.

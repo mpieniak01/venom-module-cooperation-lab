@@ -19,6 +19,7 @@ from ..adapters.base import (
     validate_messages,
 )
 from ..errors import LabError
+from ..model_limits import output_token_limit
 
 PROTOCOL = "game-eval-v2"
 SUPPORTED_ARCHITECTURES = {"rwkv7", "hrm_text", "huginn_raven"}
@@ -48,7 +49,7 @@ def capabilities_for(model_spec: dict[str, Any]) -> dict[str, Any]:
             if architecture == "rwkv7"
             else (4096 if architecture in {"hrm_text", "huginn_raven"} else 2048)
         ),
-        "max_new_tokens": 1024 if supported else 256,
+        "max_new_tokens": output_token_limit(model_spec),
         "max_decision_timeout_s": 300,
         "max_history_bytes": 16384,
         "max_history_messages": 512,

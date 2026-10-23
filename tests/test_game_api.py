@@ -401,7 +401,7 @@ async def test_model_settings_are_persistent_validated_and_observational(
     assert initial.status_code == 200 and not initial.json()["saved"]
     budgets = {
         "max_context_tokens": 4096,
-        "max_new_tokens": 512,
+        "max_new_tokens": 256,
         "decision_timeout_s": 180,
     }
     saved = await evaluation_client.put(path, json=budgets)
@@ -418,3 +418,144 @@ async def test_model_settings_are_persistent_validated_and_observational(
     assert (await evaluation_client.get(path)).json()["budgets"] == budgets
     assert not adapters
     assert not EvaluationStore(runner.store).exists()
+
+
+@pytest.mark.asyncio
+async def test_recovery_route_awaits_the_selected_evaluation_verifier(
+    evaluation_client, monkeypatch
+):
+    from unittest.mock import AsyncMock
+
+    await evaluation_client.get(BASE + "/capabilities")
+    service = evaluation_client._transport.app.state.cooperation_lab_evaluations
+    recovery = AsyncMock(return_value={"id": "selected-run", "status": "interrupted"})
+    monkeypatch.setattr(service, "recover_quiescent", recovery)
+    response = await evaluation_client.post(BASE + "/selected-run/recover")
+    assert response.status_code == 200
+    assert response.json()["evaluation"]["id"] == "selected-run"
+    recovery.assert_awaited_once_with("selected-run")
+
+
+@pytest.mark.asyncio
+async def test_invalid_request_has_safe_parameter_error_without_prompt_contents(
+    evaluation_client,
+):
+    response = await evaluation_client.post(
+        "/api/v1/cooperation-lab/runs",
+        headers={"Idempotency-Key": "invalid-form"},
+        json={
+            "model_id": SPEC.model_id,
+            "scenario_id": "tic_tac_toe",
+            "max_new_tokens": 2**31,
+        },
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "invalid_parameters"
+    assert detail["fields"] == ["max_new_tokens"]
+    assert "input" not in str(detail)
+
+
+@pytest.mark.asyncio
+async def test_ordinary_runs_start_after_clamping_next_budget_for_hf_model(
+    evaluation_client, monkeypatch
+):
+    runner = evaluation_client._transport.app.state.cooperation_lab_runner
+    original = runner.adapter_factory
+
+    def conversation(model, lease):
+        adapter = original(model, lease)
+        adapter.responses = ["Short conversation reply"]
+        return adapter
+
+    monkeypatch.setattr(runner, "adapter_factory", conversation)
+    for key, tokens in [("ordinary-128", 128), ("ordinary-1024", 1024)]:
+        response = await evaluation_client.post(
+            "/api/v1/cooperation-lab/runs",
+            headers={"Idempotency-Key": key},
+            json={
+                "model_id": SPEC.model_id,
+                "scenario_id": "split_facts",
+                "mode": "single",
+                "max_turns": 1,
+                "max_new_tokens": tokens,
+            },
+        )
+        assert response.status_code == 202, response.text
+        row = response.json()["run"]
+        runner = evaluation_client._transport.app.state.cooperation_lab_runner
+        await asyncio.wait_for(runner.jobs[row["id"]].task, timeout=3)
+        assert runner.snapshot(row["id"])["run"]["status"] == "completed"
+        assert row["config"]["budgets"]["max_new_tokens"] == min(tokens, 256)
+
+
+@pytest.mark.asyncio
+async def test_evaluation_clamps_before_generation_and_preserves_idempotency(
+    evaluation_client, rig
+):
+    runner, adapters = rig
+    original = payload(max_new_tokens=16384)
+    preflight = await evaluation_client.post(BASE + "/preflight", json=original)
+    assert preflight.status_code == 200
+    assert preflight.json()["supported"]
+    assert preflight.json()["configuration"]["max_new_tokens"] == 256
+    assert adapters == []
+    headers = {"Idempotency-Key": "clamped-evaluation"}
+    start = await evaluation_client.post(BASE, json=original, headers=headers)
+    assert start.status_code == 202, start.text
+    eid = start.json()["evaluation"]["id"]
+    state = await finish(evaluation_client, eid)
+    assert state["config"]["max_new_tokens"] == 256
+    assert state["config"]["request"]["max_new_tokens"] == 16384
+    assert adapters[-1].recorded[0][2].max_new_tokens == 256
+    again = await evaluation_client.post(BASE, json=original, headers=headers)
+    assert again.status_code == 202 and not again.json()["created"]
+    assert again.json()["evaluation"]["id"] == eid
+
+
+@pytest.mark.asyncio
+async def test_interrupted_evaluation_cannot_be_deleted_while_lease_references_it(
+    evaluation_client, rig
+):
+    runner, _adapters = rig
+    created = await evaluation_client.post(
+        BASE, json=payload(), headers={"Idempotency-Key": "protected-quarantine-record"}
+    )
+    eid = created.json()["evaluation"]["id"]
+    await finish(evaluation_client, eid)
+    service = evaluation_client._transport.app.state.cooperation_lab_evaluations
+    state = service.store.get(eid)
+    state.update(status="interrupted", error="process_restarted")
+    service.store.save(state)
+    service.jobs.pop(eid)
+    lease = runner.admission.acquire(
+        owner="cooperation_lab",
+        run_id="evaluation-" + eid,
+        engine="ollama",
+        model=SPEC.model_id,
+    )
+    with runner.admission._transaction() as ledger:
+        ledger.execute("UPDATE lease SET quarantine=1")
+    rejected = await evaluation_client.delete(f"{BASE}/{eid}")
+    assert (
+        rejected.status_code == 409
+        and rejected.json()["detail"]["code"] == "evaluation_active"
+    )
+    assert (await evaluation_client.get(f"{BASE}/{eid}")).status_code == 200
+    assert runner.admission.snapshot()["status"] == "quarantined"
+    runner.store.limits = replace(runner.store.limits, max_runs=1)
+    blocked = await evaluation_client.post(
+        "/api/v1/cooperation-lab/runs",
+        headers={"Idempotency-Key": "blocked-start-cannot-evict-recovery"},
+        json={
+            "model_id": SPEC.model_id,
+            "scenario_id": "split_facts",
+            "mode": "single",
+            "max_turns": 1,
+        },
+    )
+    assert blocked.status_code == 409
+    assert runner.store.history_count() == 1
+    assert (await evaluation_client.get(f"{BASE}/{eid}")).status_code == 200
+    assert lease.recover(confirm_quiescent=lambda: True)
+    assert (await evaluation_client.delete(f"{BASE}/{eid}")).status_code == 200

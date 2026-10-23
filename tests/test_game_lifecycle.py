@@ -274,7 +274,10 @@ async def test_cancel_before_execute_never_constructs_or_loads_adapter(owned):
     request = EvaluationRequest(
         model_id="rwkv7-g1k-2.9b", case_ids=["nim-last-stone-v1"]
     )
-    job.state["config"] = {"request": request.model_dump()}
+    job.state["config"] = {
+        "request": request.model_dump(),
+        "max_new_tokens": request.max_new_tokens,
+    }
     constructed = []
     service.runner.adapter_factory = lambda *args: constructed.append(args) or adapter
     await service._execute(job)
@@ -475,7 +478,10 @@ async def test_cancel_during_final_unload_reaches_terminal_instead_of_stuck_canc
     request = EvaluationRequest(
         model_id="rwkv7-g1k-2.9b", case_ids=["nim-last-stone-v1"]
     )
-    job.state["config"] = {"request": request.model_dump()}
+    job.state["config"] = {
+        "request": request.model_dump(),
+        "max_new_tokens": request.max_new_tokens,
+    }
     job.task = asyncio.create_task(service._execute(job))
     await entered(adapter.close_entered)
     await service.cancel("fixture")

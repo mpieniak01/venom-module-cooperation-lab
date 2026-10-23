@@ -124,7 +124,7 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   result.rememberGames = config.remember_games !== false;
   }
   const budgets = record(config.budgets);
-  const pairs = [["turns", budgets.max_turns, config.mode === "operator_review" ? 3 : 1, config.mode === "operator_review" ? 6 : config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 256], ["seed", config.seed, 0, 2147483647]] as const;
+  const pairs = [["turns", budgets.max_turns, config.mode === "operator_review" ? 3 : 1, config.mode === "operator_review" ? 6 : config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 1024], ["seed", config.seed, 0, 2147483647]] as const;
   for (const [name, value, minimum, maximum] of pairs) {
     if (typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum) result[name] = value;
   }
