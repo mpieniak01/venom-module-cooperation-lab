@@ -27,6 +27,34 @@ from .base import (
 MAX_RESPONSE_BYTES = 262144
 
 
+def backend_model_idle(artifact: str, *, timeout_s: float = 3.0) -> bool:
+    """Poll local Ollama and require three consecutive absent checks."""
+    opener = urllib.request.build_opener(NoRedirect())
+    deadline = time.monotonic() + timeout_s
+    absent_checks = 0
+    while time.monotonic() < deadline and absent_checks < 3:
+        request = urllib.request.Request("http://127.0.0.1:11434/api/ps")
+        try:
+            with opener.open(
+                request, timeout=max(0.1, min(1.0, deadline - time.monotonic()))
+            ) as response:
+                data = response.read(MAX_RESPONSE_BYTES + 1)
+            if len(data) > MAX_RESPONSE_BYTES:
+                return False
+            running = json.loads(data)
+            models = running.get("models")
+            # Loaded models may still own work outside this API process. Recovery
+            # requires an empty daemon, not merely an absent tag or alias.
+            if not artifact or not isinstance(models, list) or models:
+                return False
+        except (OSError, ValueError, TypeError, AttributeError):
+            return False
+        absent_checks += 1
+        if absent_checks < 3:
+            time.sleep(0.25)
+    return absent_checks == 3
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(
         self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str
@@ -152,6 +180,18 @@ class OllamaAdapter(ModelAdapter):
                     "seed": parameters.seed,
                 },
             }
+            if parameters.response_format == "tic_tac_toe_json":
+                payload["format"] = {
+                    "type": "object",
+                    "properties": {
+                        "square": {
+                            "type": "string",
+                            "enum": [row + column for row in "ABC" for column in "123"],
+                        }
+                    },
+                    "required": ["square"],
+                    "additionalProperties": False,
+                }
             terminal = None
             try:
                 text, ttft, terminal = self._consume_generation(
@@ -269,6 +309,21 @@ class OllamaAdapter(ModelAdapter):
 
     def is_quiescent(self) -> bool:
         return not self._busy and not self._uncertain
+
+    def reconcile_quiescence(self) -> bool:
+        """Clear timeout uncertainty only after Ollama repeatedly reports idle.
+
+        This is an operator-triggered recovery path. It must only run after the
+        generation worker has returned; a closed client socket alone is never
+        treated as proof that the daemon stopped its work.
+        """
+        if self._busy or not self._request_sent:
+            return self.is_quiescent()
+        if not backend_model_idle(self.spec.artifact):
+            return False
+        self._uncertain = False
+        self._state = "failed"
+        return True
 
     def close(self) -> bool:
         self._cancel.set()

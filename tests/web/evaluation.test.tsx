@@ -309,3 +309,24 @@ test("game selector exposes all environments and replaces the plan without reset
     assert.equal(requests.length,5);
   }finally{await close();}
 });
+
+
+test("quarantined cleanup exposes one explicit recovery request and returns to a terminal report",async()=>{
+  let value=saved("cleanup_pending");let released=false;let posts=0;
+  const runtime={status:"quarantined",active_operations:0,owner:"cooperation_lab",run_id:"evaluation-series-1"};
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response({...caps,ready:released,runtime:released?{status:"available",active_operations:0}:runtime});
+    if(path.endsWith("/recover")&&init?.method==="POST"){posts++;released=true;value=saved("failed");return response({evaluation:value});}
+    if(path.endsWith("/series-1"))return response({evaluation:value});
+    return response({evaluations:[value]});
+  });
+  try {
+    await choose(box,"Historia serii","series-1");await settle();
+    const button=findButton(box,"Sprawdź i zwolnij zasób");assert.ok(button);assert.equal(button.disabled,false);
+    assert.equal(findButton(box,"Rozpocznij serię").disabled,true);
+    await act(async()=>{button.click();button.click();});await settle();
+    assert.equal(posts,1);assert.equal(findButton(box,"Sprawdź i zwolnij zasób"),undefined);
+    assert.match(box.textContent??"",/Błąd/);
+  } finally {await close();}
+});

@@ -418,3 +418,39 @@ async def test_model_settings_are_persistent_validated_and_observational(
     assert (await evaluation_client.get(path)).json()["budgets"] == budgets
     assert not adapters
     assert not EvaluationStore(runner.store).exists()
+
+
+@pytest.mark.asyncio
+async def test_recovery_route_awaits_the_selected_evaluation_verifier(
+    evaluation_client, monkeypatch
+):
+    from unittest.mock import AsyncMock
+
+    await evaluation_client.get(BASE + "/capabilities")
+    service = evaluation_client._transport.app.state.cooperation_lab_evaluations
+    recovery = AsyncMock(return_value={"id": "selected-run", "status": "interrupted"})
+    monkeypatch.setattr(service, "recover_quiescent", recovery)
+    response = await evaluation_client.post(BASE + "/selected-run/recover")
+    assert response.status_code == 200
+    assert response.json()["evaluation"]["id"] == "selected-run"
+    recovery.assert_awaited_once_with("selected-run")
+
+
+@pytest.mark.asyncio
+async def test_invalid_request_has_safe_parameter_error_without_prompt_contents(
+    evaluation_client,
+):
+    response = await evaluation_client.post(
+        "/api/v1/cooperation-lab/runs",
+        headers={"Idempotency-Key": "invalid-form"},
+        json={
+            "model_id": SPEC.model_id,
+            "scenario_id": "tic_tac_toe",
+            "max_new_tokens": 512,
+        },
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "invalid_parameters"
+    assert detail["fields"] == ["max_new_tokens"]
+    assert "input" not in str(detail)

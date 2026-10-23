@@ -33,6 +33,7 @@ export type EvaluationCapabilities = {
   storage?: { series_used: number; max_series: number; retention_days: number };
   ready?: boolean;
   reason_code?: string;
+  runtime?: { status?: string; active_operations?: number; owner?: string; run_id?: string; engine?: string; model?: string };
 };
 export type EvaluationPreflight = {
   supported: boolean;

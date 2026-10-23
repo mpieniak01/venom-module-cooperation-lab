@@ -151,3 +151,20 @@ Odbiór lokalny 2026-10-22: make pr-fast HOST=/home/ubuntu/venom PASS
 Playwright: rzeczywisty wybór Nim/Memory/Sokoban zaznacza wyłącznie ich
 przypadki; 0 błędów konsoli, pozostają ostrzeżenia powłoki hosta.
 Oficjalny mirror zsynchronizowany, bez restartu API i bez generacji modeli.
+
+
+### Odzyskanie po przerwanym żądaniu Ollama
+
+Jeżeli seria pozostała w oczekiwaniu na zwolnienie zasobu, wybierz ją w historii
+i użyj **Sprawdź i zwolnij zasób**. Endpoint sprawdza zgodność właściciela i ID
+serii, zakończenie lokalnych zadań oraz trzy kolejne puste odczyty Ollama `/api/ps`.
+Nie zwalnia aktywnych operacji. Po restarcie API stan jest dostępny do odzyskania
+wyłącznie po potwierdzeniu zakończenia procesu poprzedniego właściciela.
+Brak dostępu do procesu lub brak odpowiedzi Ollama pozostawia blokadę.
+
+W mapowaniu kółka i krzyżyka Ollama otrzymuje schemat formatu JSON obejmujący
+wszystkie dziewięć współrzędnych. Schemat nie usuwa zajętych pól ani nie wybiera
+ruchu: zajęte pole nadal kończy próbę jako `illegal_action`. Parametry próbkowania
+operatora są zachowane. W raporcie zapisuje się `response_format=tic_tac_toe_json`,
+`allowed_outputs=[]` i politykę promptu `mapped-game-v4`; stare przebiegi pozostają
+bez zmian i nie są wznawiane z inną polityką promptu.

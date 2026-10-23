@@ -67,7 +67,7 @@ function ConversationWorkspace() {
   const qualifying = lab.run?.config.scenario_id==="model_qualification";
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
-  const validSettings = (scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=256&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const lastFailure = lab.events.findLast(event=>event.kind==="error");

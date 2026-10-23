@@ -13,9 +13,13 @@ from conftest import SPEC, FakeAdapter
 from venom_core.services.runtime_admission import RuntimeAdmission
 
 from venom_module_cooperation_lab.adapters.base import GenerationResult
+from venom_module_cooperation_lab.adapters.ollama import OllamaAdapter
 from venom_module_cooperation_lab.errors import LabError
 from venom_module_cooperation_lab.evaluation.config import EvaluationRequest
-from venom_module_cooperation_lab.evaluation.service import EvaluationService
+from venom_module_cooperation_lab.evaluation.service import (
+    EvaluationJob,
+    EvaluationService,
+)
 from venom_module_cooperation_lab.runner import OWNER, LabRunner
 from venom_module_cooperation_lab.storage import LabStore
 
@@ -156,6 +160,188 @@ async def wait_entered(adapters):
         while not adapters or not adapters[-1].entered.is_set():
             await asyncio.sleep(0.001)
     return adapters[-1]
+
+
+@pytest.mark.asyncio
+async def test_operator_recovery_releases_only_the_matching_quiescent_ollama_lease(
+    tmp_path,
+):
+    admission = RuntimeAdmission(tmp_path / "recovery.sqlite3", enabled=True)
+    eid = "recovery-run"
+    lease = admission.acquire(
+        owner="cooperation_lab",
+        run_id="evaluation-" + eid,
+        engine="ollama",
+        model=EVAL_SPEC.model_id,
+    )
+    with pytest.raises(RuntimeError):
+        with lease.operation(kind="generation"):
+            raise RuntimeError("simulated transport uncertainty")
+    assert admission.snapshot()["status"] == "quarantined"
+
+    spec = replace(EVAL_SPEC, provider="ollama")
+    adapter = OllamaAdapter(spec, lease)
+    adapter._request_sent = True
+    adapter._uncertain = True
+
+    def prove_idle():
+        adapter._uncertain = False
+        adapter._state = "failed"
+        return True
+
+    adapter.reconcile_quiescence = prove_idle
+    state = {
+        "id": eid,
+        "created": time.time(),
+        "status": "cleanup_pending",
+        "config": {
+            "request": {"model_id": EVAL_SPEC.model_id},
+            "model": {"provider": "ollama"},
+        },
+        "episodes": [],
+        "attempt_history": [],
+        "block_restarts": 0,
+    }
+    job = EvaluationJob(
+        state,
+        lease,
+        time.monotonic() + 60,
+        target_status="failed",
+        target_error="decision_timeout",
+    )
+    job.adapter = adapter
+    job.task = asyncio.create_task(asyncio.sleep(0))
+    await job.task
+
+    class Store:
+        def save(self, value):
+            return None
+
+        def get(self, _eid):
+            return state
+
+    runner = type("Runner", (), {"admission": admission})()
+    service = object.__new__(EvaluationService)
+    service.runner = runner
+    service.store = Store()
+    service.jobs = {eid: job}
+    service.lock = asyncio.Lock()
+    service.closed = False
+
+    result = await service.recover_quiescent(eid)
+    assert result["status"] == "failed"
+    assert result["error"] == "decision_timeout"
+    assert job.released is True
+    assert admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_operator_recovery_handles_persisted_run_after_api_restart(
+    tmp_path, monkeypatch
+):
+    from venom_module_cooperation_lab.adapters import ollama
+
+    admission = RuntimeAdmission(tmp_path / "restarted.sqlite3", enabled=True)
+    eid = "persisted-run"
+    lease = admission.acquire(
+        owner="cooperation_lab",
+        run_id="evaluation-" + eid,
+        engine="ollama",
+        model=EVAL_SPEC.model_id,
+    )
+    with pytest.raises(RuntimeError):
+        with lease.operation(kind="generation"):
+            raise RuntimeError("simulated lost API process")
+    state = {
+        "id": eid,
+        "created": time.time(),
+        "status": "interrupted",
+        "error": "process_restarted",
+        "config": {
+            "request": {"model_id": EVAL_SPEC.model_id},
+            "model": {"provider": "ollama"},
+        },
+        "episodes": [],
+        "attempt_history": [],
+        "block_restarts": 0,
+    }
+
+    class Store:
+        def get(self, _eid):
+            return state
+
+    model = {
+        "model_id": EVAL_SPEC.model_id,
+        "provider": "ollama",
+        "artifact": "codestral:latest",
+    }
+    runner = type(
+        "Runner", (), {"admission": admission, "models": lambda _self: [model]}
+    )()
+    service = object.__new__(EvaluationService)
+    service.runner = runner
+    service.store = Store()
+    service.jobs = {}
+    service.lock = asyncio.Lock()
+    service.closed = False
+    monkeypatch.setattr(ollama, "backend_model_idle", lambda _artifact: True)
+
+    result = await service.recover_quiescent(eid)
+    assert result["status"] == "interrupted"
+    assert admission.snapshot()["status"] == "available"
+
+
+@pytest.mark.asyncio
+async def test_operator_recovery_refuses_a_lease_with_active_operations(tmp_path):
+    admission = RuntimeAdmission(tmp_path / "active-recovery.sqlite3", enabled=True)
+    eid = "active-run"
+    lease = admission.acquire(
+        owner="cooperation_lab",
+        run_id="evaluation-" + eid,
+        engine="ollama",
+        model=EVAL_SPEC.model_id,
+    )
+    spec = replace(EVAL_SPEC, provider="ollama")
+    adapter = OllamaAdapter(spec, lease)
+    adapter._request_sent = True
+    adapter._uncertain = True
+    adapter.reconcile_quiescence = lambda: pytest.fail("must not probe active work")
+    state = {
+        "id": eid,
+        "created": time.time(),
+        "status": "cleanup_pending",
+        "config": {
+            "request": {"model_id": EVAL_SPEC.model_id},
+            "model": {"provider": "ollama"},
+        },
+        "episodes": [],
+        "attempt_history": [],
+        "block_restarts": 0,
+    }
+    job = EvaluationJob(state, lease, time.monotonic() + 60, adapter=adapter)
+    job.task = asyncio.create_task(asyncio.sleep(0))
+    await job.task
+
+    class Store:
+        def save(self, value):
+            return None
+
+        def get(self, _eid):
+            return state
+
+    runner = type("Runner", (), {"admission": admission})()
+    service = object.__new__(EvaluationService)
+    service.runner = runner
+    service.store = Store()
+    service.jobs = {eid: job}
+    service.lock = asyncio.Lock()
+    service.closed = False
+
+    with lease.operation(kind="generation"):
+        with pytest.raises(LabError, match="runtime_recovery_unavailable"):
+            await service.recover_quiescent(eid)
+    assert admission.snapshot()["status"] == "owned"
+    assert not job.released
 
 
 @pytest.mark.asyncio
@@ -767,6 +953,9 @@ async def test_mapped_response_is_auditable_without_retry_and_strict_stays_stric
     assert decision["action"] == {"move": "right"}
     assert decision["response_mapping"]["mapped"]
     assert final["summary"]["by_game"][0]["mapped_responses"] == 1
+    wire = json.loads(adapters[-1].recorded[0][1][-1].content)
+    assert "one legal move: up, down, left, or right" in wire["instruction"]
+    assert final["config"]["prompt_policy"] == "mapped-game-v4"
     assert adapters[-1].calls == 1
     row, _ = await service.start(
         request(case_ids=["sokoban-push-v1"], response_mode="strict_json"),
@@ -774,6 +963,42 @@ async def test_mapped_response_is_auditable_without_retry_and_strict_stays_stric
     )
     strict = await finish(service, row)
     assert strict["episodes"][0]["status"] == "illegal_action"
+    assert adapters[-1].calls == 1
+
+
+@pytest.mark.asyncio
+async def test_mapped_tic_tac_toe_requests_one_square_and_accepts_it(eval_rig):
+    service, adapters, settings, specs = eval_rig
+    specs[0] = replace(
+        specs[0], architecture="qwen3", provider="ollama", runtime="ollama==0.40.6"
+    )
+    service.runner.store.put_document(
+        "qualifications",
+        specs[0].model_id,
+        {
+            **asdict(specs[0]),
+            "qualified": True,
+            "receipt_id": "cpu-fixture-not-model-qualification",
+        },
+        owner=OWNER,
+    )
+    settings["response"] = "A3"
+    req = request(case_ids=["ttt-win-v1"], response_mode="mapped")
+    row, _ = await service.start(req, "mapped-ttt")
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    assert episode["status"] == "game_completed"
+    assert episode["result"]["winner"] == "A"
+    decision = episode["decisions"][0]
+    assert decision["action"] == {"square": "A3"}
+    assert decision["response_mapping"]["mapped"]
+    assert adapters[-1].recorded[0][2].allowed_outputs == ()
+    assert adapters[-1].recorded[0][2].response_format == "tic_tac_toe_json"
+    assert adapters[-1].recorded[0][2].top_p == 1
+    wire = json.loads(adapters[-1].recorded[0][1][-1].content)
+    assert "one JSON object with a square property" in wire["instruction"]
+    assert "no explanation" in wire["instruction"].lower()
+    assert "/no_think" in wire["instruction"]
     assert adapters[-1].calls == 1
 
 
@@ -881,3 +1106,43 @@ async def test_budgets_persist_per_identity_and_never_start_a_model(eval_rig):
             service.runner.store, {**model, "architecture": "unknown"}, budgets
         )
     assert not adapters
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("legal_moves", ["listed", "hidden"])
+async def test_ollama_format_does_not_mask_occupied_squares_or_override_sampling(
+    eval_rig, legal_moves
+):
+    service, adapters, settings, specs = eval_rig
+    specs[0] = replace(
+        specs[0], architecture="qwen3", provider="ollama", runtime="ollama==0.40.6"
+    )
+    service.runner.store.put_document(
+        "qualifications",
+        specs[0].model_id,
+        {
+            **asdict(specs[0]),
+            "qualified": True,
+            "receipt_id": "cpu-fixture",
+        },
+        owner=OWNER,
+    )
+    settings["response"] = '{"square":"A1"}'
+    row, _ = await service.start(
+        request(
+            case_ids=["ttt-win-v1"],
+            response_mode="mapped",
+            decoding="sampled",
+            temperature=0.7,
+            top_p=0.8,
+            legal_moves=legal_moves,
+        ),
+        "sampled-occupied-" + legal_moves,
+    )
+    final = await finish(service, row)
+    assert final["episodes"][0]["status"] == "illegal_action"
+    actual = adapters[-1].recorded[0][2]
+    assert actual.response_format == "tic_tac_toe_json"
+    assert actual.allowed_outputs == ()
+    assert actual.temperature == 0.7 and actual.top_p == 0.8
+    assert adapters[-1].calls == 1

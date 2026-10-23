@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Callable
 from contextlib import AbstractContextManager, asynccontextmanager, nullcontext
 from typing import Any
@@ -24,12 +25,34 @@ def admission_enabled() -> bool:
     return setting_enabled("RUNTIME_ADMISSION_ENABLED")
 
 
+def _quarantine_owner_is_gone(snapshot: dict[str, Any]) -> bool:
+    """Permit recovery-only startup after the quarantined API owner has exited."""
+    if (
+        snapshot.get("status") != "quarantined"
+        or snapshot.get("active_operations") != 0
+        or snapshot.get("owner") != "cooperation_lab"
+        or snapshot.get("engine") != "ollama"
+    ):
+        return False
+    pid = snapshot.get("owner_pid")
+    if type(pid) is not int or pid <= 1:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except (PermissionError, OSError):
+        return False
+    return False
+
+
 class LabLifecycle:
     def __init__(self, factory: Callable[[], LabStore]) -> None:
         self.factory = factory
         self.store: LabStore | None = None
         self.state = "disabled"
         self.reason = "module_disabled"
+        self.recovery_only = False
 
     async def start(self, is_enabled: bool) -> None:
         if not is_enabled:
@@ -48,7 +71,14 @@ class LabLifecycle:
                     from .errors import LabError
 
                     raise LabError("runtime_admission_disabled", 503)
-                admission_check = admission.operation(kind="module_startup_check")
+                runtime = admission.snapshot()
+                if _quarantine_owner_is_gone(runtime):
+                    # The prior API PID is gone and no backend operation remains.
+                    # Open state for the explicit recovery action; keep the
+                    # runtime itself quarantined until Ollama is checked.
+                    self.recovery_only = True
+                else:
+                    admission_check = admission.operation(kind="module_startup_check")
             # Own the host namespace before any module DB open/restart recovery.
             # A second API process must not mark the live worker's run interrupted.
             with admission_check:

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from dataclasses import asdict
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -30,6 +32,27 @@ class LabRoute(APIRoute):
         async def handle(request: Request) -> Response:
             try:
                 return await original(request)
+            except RequestValidationError as exc:
+                fields = sorted(
+                    {
+                        error["loc"][1]
+                        for error in exc.errors()
+                        if len(error["loc"]) > 1
+                        and error["loc"][0] == "body"
+                        and error["loc"][1] in RunRequest.model_fields
+                    }
+                )
+                logging.getLogger(__name__).warning(
+                    "cooperation_lab rejected experiment parameters: fields=%s", fields
+                )
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "invalid_parameters",
+                        "reason_code": "invalid_parameters",
+                        "fields": fields,
+                    },
+                ) from exc
             except LabError as exc:
                 raise HTTPException(
                     status_code=exc.status,

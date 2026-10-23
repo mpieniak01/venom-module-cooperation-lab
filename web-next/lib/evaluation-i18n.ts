@@ -26,6 +26,7 @@ const labels = {
   stored:["Zapisane próby i serie", "Saved trials and series", "Gespeicherte Versuche und Serien"],
   retention:["Retencja (dni)", "Retention (days)", "Aufbewahrung (Tage)"],
   resume:["Wznów serię", "Resume series", "Serie fortsetzen"],
+  recoverQuiescent:["Sprawdź i zwolnij zasób", "Verify and release resource", "Ressource prüfen und freigeben"],
   check:["Sprawdź konfigurację", "Check configuration", "Konfiguration prüfen"],
   refresh:["Odśwież", "Refresh", "Aktualisieren"],
   settings:["Ustawienia serii", "Series settings", "Serieneinstellungen"],

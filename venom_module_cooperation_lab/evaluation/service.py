@@ -146,9 +146,13 @@ class EvaluationService:
             "model": model,
             "model_identity": {k: model.get(k) for k in MODEL_IDENTITY_FIELDS},
             "snapshot_restore": False,
-            "prompt_policy": "direct-game-v2"
-            if model.get("architecture") == "hrm_text"
-            else "model-template",
+            "prompt_policy": (
+                "mapped-game-v4"
+                if request.response_mode == "mapped"
+                else "direct-game-v2"
+                if model.get("architecture") == "hrm_text"
+                else "model-template"
+            ),
             "generation_planned": {
                 "temperature": 0.0
                 if request.decoding == "greedy"
@@ -351,6 +355,86 @@ class EvaluationService:
             self.jobs[eid] = job
             job.task = self._own(asyncio.create_task(self._execute(job)))
             return self.snapshot(eid)
+
+    async def recover_quiescent(self, eid: str) -> dict[str, Any]:
+        """Release a quarantined Ollama lease after operator-requested proof."""
+        from ..adapters.ollama import OllamaAdapter, backend_model_idle
+
+        async with self.lock:
+            job = self.jobs.get(eid)
+            if job is not None:
+                if job.state.get("status") != "cleanup_pending":
+                    raise LabError("runtime_recovery_unavailable", 409)
+                if (
+                    (job.task is not None and not job.task.done())
+                    or (job.work is not None and not job.work.done())
+                    or (job.closing is not None and not job.closing.done())
+                    or not isinstance(job.adapter, OllamaAdapter)
+                    or job.adapter.state().get("busy")
+                ):
+                    raise LabError("runtime_recovery_unavailable", 409)
+                runtime = self.runner.admission.snapshot()
+                if not self._matches_quarantined_evaluation(runtime, job.state):
+                    raise LabError("runtime_recovery_unavailable", 409)
+                if not await asyncio.to_thread(job.adapter.reconcile_quiescence):
+                    raise LabError("runtime_quiescence_unconfirmed", 409)
+                if not job.lease.recover(confirm_quiescent=job.adapter.is_quiescent):
+                    raise LabError("runtime_quiescence_unconfirmed", 409)
+                job.released = True
+                self._restore_outcome(job)
+                self._save(job)
+                return self.snapshot(eid)
+
+            state = self.store.get(eid)
+            if (
+                state.get("status") != "interrupted"
+                or state.get("error") != "process_restarted"
+            ):
+                raise LabError("runtime_recovery_unavailable", 409)
+            request = state.get("config", {}).get("request", {})
+            model_id = request.get("model_id")
+            model = next(
+                (
+                    item
+                    for item in self.runner.models()
+                    if item.get("model_id") == model_id
+                ),
+                None,
+            )
+            if model is None or model.get("provider") != "ollama":
+                raise LabError("runtime_recovery_unavailable", 409)
+            runtime = self.runner.admission.snapshot()
+            if not self._matches_quarantined_evaluation(runtime, state):
+                raise LabError("runtime_recovery_unavailable", 409)
+            if not await asyncio.to_thread(backend_model_idle, model["artifact"]):
+                raise LabError("runtime_quiescence_unconfirmed", 409)
+
+            def confirm() -> bool:
+                current = self.runner.admission.snapshot()
+                return self._matches_quarantined_evaluation(
+                    current, state
+                ) and backend_model_idle(model["artifact"])
+
+            if not self.runner.admission.recover(confirm_quiescent=confirm):
+                raise LabError("runtime_quiescence_unconfirmed", 409)
+            return self.snapshot(eid)
+
+    @staticmethod
+    def _matches_quarantined_evaluation(
+        runtime: dict[str, Any], state: dict[str, Any]
+    ) -> bool:
+        request = state.get("config", {}).get("request", {})
+        model = state.get("config", {}).get("model", {})
+        model_id = request.get("model_id")
+        return (
+            runtime.get("status") == "quarantined"
+            and runtime.get("active_operations") == 0
+            and runtime.get("owner") == "cooperation_lab"
+            and runtime.get("run_id") == "evaluation-" + state.get("id", "")
+            and runtime.get("engine") == "ollama"
+            and runtime.get("model") == model_id
+            and model.get("provider") == "ollama"
+        )
 
     async def cancel(self, eid: str) -> dict[str, Any]:
         job = self.jobs.get(eid)
@@ -585,6 +669,12 @@ class EvaluationService:
         applied = job.state["config"].get(
             "generation_planned", job.state["config"].get("generation_applied")
         )
+        format_only = (
+            request.response_mode == "mapped"
+            and purpose == "action"
+            and job.state["config"]["model"].get("provider") == "ollama"
+            and observation.get("game") == "tic_tac_toe"
+        )
         params = GenerationParameters(
             max_new_tokens=min(64, request.max_new_tokens)
             if purpose == "reflection"
@@ -592,6 +682,7 @@ class EvaluationService:
             max_context_tokens=request.max_context_tokens,
             temperature=applied["temperature"],
             top_p=applied["top_p"],
+            response_format="tic_tac_toe_json" if format_only else "text",
             seed=seeded(
                 request.seed,
                 item["case_id"],
@@ -620,7 +711,20 @@ class EvaluationService:
             "No markdown or additional text."
         )
         if request.response_mode == "mapped" and purpose == "action":
-            if observation.get("game") == "nim":
+            if observation.get("game") == "tic_tac_toe":
+                action_instruction = (
+                    "Return exactly one JSON object with a square property. Choose "
+                    "one legal empty square from the observation. No explanation."
+                    if format_only
+                    else "Reply only with one square, for example A3. Choose one legal "
+                    "empty square from the observation. No explanation or reasoning."
+                )
+            elif observation.get("game") == "sokoban":
+                action_instruction = (
+                    "Reply only with one legal move: up, down, left, or right. "
+                    "No explanation or reasoning."
+                )
+            elif observation.get("game") == "nim":
                 action_instruction = (
                     "Reply only: heap=H take=N. H is the zero-based heap index; "
                     "N is the positive number of stones to remove. "
@@ -632,6 +736,8 @@ class EvaluationService:
                     "indices 0-15, zero-based row-major. Give both actual indices, "
                     "not just 'match'. No explanation or reasoning."
                 )
+            if job.state["config"]["model"].get("architecture") == "qwen3":
+                action_instruction += " /no_think"
         reflection_instruction = (
             "Write a short private improvement note based only on your observed game. "
             "Do not give a step-by-step reasoning transcript."
@@ -665,23 +771,13 @@ class EvaluationService:
         if purpose == "action" and player in job.feedback:
             payload["previous_episode"] = job.feedback.pop(player)
         wire_payload = payload
-        if (
-            request.response_mode == "mapped"
-            and purpose == "action"
-            and observation.get("game") in {"nim", "memory"}
-        ):
+        if request.response_mode == "mapped" and purpose == "action":
             # Identifiers stay in the journal; all game evidence stays on the wire.
             wire_payload = {
                 key: value
                 for key, value in payload.items()
                 if key not in {"event_id", "episode_id"}
             }
-            if job.session.has_history(player):
-                wire_payload["instruction"] = (
-                    "Reply only: heap=H take=N."
-                    if observation["game"] == "nim"
-                    else "Reply only: cards=I,J."
-                )
         encoded = json.dumps(
             wire_payload,
             ensure_ascii=False,
