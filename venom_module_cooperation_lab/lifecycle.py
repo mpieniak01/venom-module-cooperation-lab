@@ -84,6 +84,9 @@ class LabLifecycle:
                     # Open state for the explicit recovery action; keep the
                     # runtime itself quarantined until Ollama is checked.
                     self.recovery_only = True
+                    admission_check = admission.recovery_startup(
+                        permitted=_quarantine_owner_is_gone
+                    )
                 else:
                     admission_check = admission.operation(kind="module_startup_check")
             # Own the host namespace before any module DB open/restart recovery.

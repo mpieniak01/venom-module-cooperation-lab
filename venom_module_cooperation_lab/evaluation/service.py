@@ -467,6 +467,12 @@ class EvaluationService:
             job = self.jobs.get(eid)
             if job is not None and not job.released:
                 raise LabError("evaluation_active", 409)
+            runtime = self.runner.admission.snapshot()
+            if (
+                runtime.get("owner") == "cooperation_lab"
+                and runtime.get("run_id") == "evaluation-" + eid
+            ):
+                raise LabError("evaluation_active", 409)
             self.store.delete(eid)
             self.jobs.pop(eid, None)
 

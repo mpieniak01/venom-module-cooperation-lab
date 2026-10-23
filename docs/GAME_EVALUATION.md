@@ -186,3 +186,10 @@ wartość i próba rozpoczyna się w tym samym działaniu. Dotyczy zwykłych pr�
 ewaluacji gier. Sprawdzenie konfiguracji pozostaje bez uruchamiania modelu i bez
 zmiany wpisu. Szczegóły polityki, zakres i dowód odbioru:
 [budżety modeli i start](MODEL_BUDGET_UNIFICATION_PLAN_20261023.md).
+
+
+Próba, do której nadal odwołuje się dzierżawa runtime, pozostaje chroniona przed
+usunięciem także po restarcie API. Najpierw potwierdź zakończenie obliczeń.
+Odrzucony START nie tworzy rekordu ani nie uruchamia rotacji historii, więc nie
+usuwa próby potrzebnej do odzyskania. Startup recovery-only otwiera magazyn pod
+wyłączną ochroną przestrzeni hosta i transakcji ledgeru, również w kwarantannie.

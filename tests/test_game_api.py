@@ -511,3 +511,51 @@ async def test_evaluation_clamps_before_generation_and_preserves_idempotency(
     again = await evaluation_client.post(BASE, json=original, headers=headers)
     assert again.status_code == 202 and not again.json()["created"]
     assert again.json()["evaluation"]["id"] == eid
+
+
+@pytest.mark.asyncio
+async def test_interrupted_evaluation_cannot_be_deleted_while_lease_references_it(
+    evaluation_client, rig
+):
+    runner, _adapters = rig
+    created = await evaluation_client.post(
+        BASE, json=payload(), headers={"Idempotency-Key": "protected-quarantine-record"}
+    )
+    eid = created.json()["evaluation"]["id"]
+    await finish(evaluation_client, eid)
+    service = evaluation_client._transport.app.state.cooperation_lab_evaluations
+    state = service.store.get(eid)
+    state.update(status="interrupted", error="process_restarted")
+    service.store.save(state)
+    service.jobs.pop(eid)
+    lease = runner.admission.acquire(
+        owner="cooperation_lab",
+        run_id="evaluation-" + eid,
+        engine="ollama",
+        model=SPEC.model_id,
+    )
+    with runner.admission._transaction() as ledger:
+        ledger.execute("UPDATE lease SET quarantine=1")
+    rejected = await evaluation_client.delete(f"{BASE}/{eid}")
+    assert (
+        rejected.status_code == 409
+        and rejected.json()["detail"]["code"] == "evaluation_active"
+    )
+    assert (await evaluation_client.get(f"{BASE}/{eid}")).status_code == 200
+    assert runner.admission.snapshot()["status"] == "quarantined"
+    runner.store.limits = replace(runner.store.limits, max_runs=1)
+    blocked = await evaluation_client.post(
+        "/api/v1/cooperation-lab/runs",
+        headers={"Idempotency-Key": "blocked-start-cannot-evict-recovery"},
+        json={
+            "model_id": SPEC.model_id,
+            "scenario_id": "split_facts",
+            "mode": "single",
+            "max_turns": 1,
+        },
+    )
+    assert blocked.status_code == 409
+    assert runner.store.history_count() == 1
+    assert (await evaluation_client.get(f"{BASE}/{eid}")).status_code == 200
+    assert lease.recover(confirm_quiescent=lambda: True)
+    assert (await evaluation_client.delete(f"{BASE}/{eid}")).status_code == 200

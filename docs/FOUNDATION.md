@@ -1,5 +1,12 @@
 # L1: optional module foundation
 
+> Current host/CI qualification (2026-10-23): `e313319f2367599794be3231bda9d22df5a3daef`,
+> ABI 1.0.0. Source of truth: [host-compatibility.json](../host-compatibility.json).
+> The L1–L5 / 2026-10-21 acceptance and deployment SHAs below are historical;
+> their measurements have not been rewritten. PR #19 contains the new recovery
+> and repeatable-start acceptance.
+
+
 This slice installs `venom-module-cooperation-lab` / `venom_module_cooperation_lab`
 without GPU imports, downloads or generated runs. It is disabled by default.
 The private repository stores source code only; SQLite, model weights and private
@@ -8,7 +15,7 @@ truthful unavailable/not-ready workspace until C0 and L2–L4 are qualified.
 
 ## Host and activation
 
-Original ABI baseline: `aa2d612434949f1149d27f64ff10e5dd05334e8e`; current
+Original ABI baseline: `aa2d612434949f1149d27f64ff10e5dd05334e8e`; historically
 qualified host/CI pin: `7401493f73db98dcdf2cb39503fca57eb2cbe421` after cleanup
 follow-up. Historical GPU/matrix revisions remain unchanged. Module API **1.0.0**,
 minimum runtime **1.6.0**, Python 3.12+, Node 24.22.0. See

@@ -382,3 +382,25 @@ test("lost evaluation START acknowledgement retains preflight and original body/
     await act(async()=>findButton(box,"Ustawienia serii").click());assert.equal(token().value,"256");
   }finally{await close();}
 });
+
+
+test("interrupted series cannot be deleted until its quarantined runtime is recovered",async()=>{
+  let released=false;let removed=false;let deletes=0;
+  const value={...saved("interrupted"),error:"process_restarted"};
+  const runtime={status:"quarantined",active_operations:0,owner:"cooperation_lab",run_id:"evaluation-series-1"};
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response({...caps,runtime:released?{status:"available",active_operations:0}:runtime});
+    if(path.endsWith("/recover")){released=true;return response({evaluation:value});}
+    if(init?.method==="DELETE"){deletes++;removed=true;return response({deleted:true});}
+    return response({evaluations:removed?[]:[value]});
+  });
+  try{
+    await choose(box,"Historia serii","series-1");
+    assert.equal(findButton(box,"Usuń serię").disabled,true);
+    await act(async()=>findButton(box,"Usuń serię").click());assert.equal(deletes,0);
+    await act(async()=>findButton(box,evaluationTexts("pl").recoverQuiescent).click());await settle();
+    assert.equal(findButton(box,"Usuń serię").disabled,false);
+    await act(async()=>findButton(box,"Usuń serię").click());await settle();assert.equal(deletes,1);
+  }finally{await close();}
+});

@@ -293,7 +293,9 @@ async def test_runtime_busy_and_actor_guards(rig):
     )
     with pytest.raises(LabError, match="runtime_busy"):
         await runner.start(request(), "busy")
-    assert runner.store.list_runs(owner=OWNER)[0]["status"] == "failed"
+    assert (
+        runner.store.list_runs(owner=OWNER) == []
+    )  # No rotation on rejected admission.
     assert external.release()
     with pytest.raises(PermissionError):
         runner.store.list_runs(owner="from-model")

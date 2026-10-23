@@ -100,6 +100,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
   const valid = validEvaluationRequest(input);
   const ready = lab.capabilities?.ready === true && !!model && (model.can_run ?? model.qualified) === true;
   const canStart = editable && valid && ready && checked?.supported === true;
+  const ownsRuntime=!!lab.selected&&lab.capabilities?.runtime?.owner==="cooperation_lab"&&lab.capabilities.runtime.run_id===`evaluation-${lab.selected.id}`;
   const counts = counters(lab.selected);
   const steps = model?.compute_steps ?? model?.num_steps ?? [];
   const patch = (value: Partial<EvaluationRequest>) => setDraft({...input,...value});
@@ -116,7 +117,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
       <button className={button} disabled={lab.pending || !lab.selected || lab.active || !(lab.selected.can_resume ?? ["cancelled","interrupted","failed"].includes(lab.selected.status))} onClick={()=>{void lab.mutate("resume");}} title={t.resumeHelp}>{t.resume}</button>
       {lab.selected && (lab.selected.status === "cleanup_pending" || (lab.selected.status === "interrupted" && lab.capabilities?.runtime?.owner === "cooperation_lab" && lab.capabilities.runtime.run_id === `evaluation-${lab.selected.id}`)) && <button className={button} disabled={lab.pending} onClick={()=>{void lab.recover();}}>{t.recoverQuiescent}</button>}
       <button className={button} aria-expanded={settings} onClick={()=>setSettings(value=>!value)}>{t.settings}</button>
-      <button className={button+" coop-danger"} disabled={lab.pending || !lab.selected || lab.active} onClick={()=>{void lab.remove();}}>{t.remove}</button>
+      <button className={button+" coop-danger"} disabled={lab.pending || !lab.selected || lab.active || ownsRuntime} onClick={()=>{void lab.remove();}}>{t.remove}</button>
       {lab.selected && ["json","jsonl","csv"].map(format=><a className={button} key={format} href={`${API}/evaluations/${encodeURIComponent(lab.selected!.id)}/export?format=${format}`} download>{t.export} {format.toUpperCase()}</a>)}
       <span className="coop-run-state">{t.status}: {lab.selected ? evaluationLabel(t, lab.selected.status) : t.draft}</span>
     </div>

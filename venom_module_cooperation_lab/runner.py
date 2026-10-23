@@ -178,12 +178,6 @@ class LabRunner:
                 else RunConfig.build(request, self._runnable_model(request.model_id))
             )
             run_id = uuid4().hex
-            row = self.store.create_run(
-                run_id, config.public(), owner=OWNER, idempotency_key=idempotency_key
-            )
-            created = row["id"] == run_id
-            if not created:
-                return row, False
             try:
                 model = config.public()["model"]
                 lease = self.admission.acquire(
@@ -193,17 +187,23 @@ class LabRunner:
                     model=request.model_id,
                 )
             except Exception as exc:
-                self.store.set_run_status(run_id, "failed", owner=OWNER)
-                self.store.append_event(
-                    run_id,
-                    "error",
-                    {
-                        "code": getattr(exc, "code", "runtime_busy"),
-                        "reason_code": getattr(exc, "code", "runtime_busy"),
-                    },
-                    owner=OWNER,
-                )
                 raise LabError(getattr(exc, "code", "runtime_busy")) from exc
+            try:
+                # Admission precedes insertion/rotation: a quarantined lease's
+                # recovery record must never be evicted by a rejected start.
+                row = self.store.create_run(
+                    run_id,
+                    config.public(),
+                    owner=OWNER,
+                    idempotency_key=idempotency_key,
+                )
+            except BaseException:
+                lease.release()
+                raise
+            created = row["id"] == run_id
+            if not created:
+                lease.release()
+                return row, False
             job = _Job(run_id, config, lease, started + config.budgets.wall_seconds)
             job.qualifying = qualification
             if config.scenario_id == "tic_tac_toe":
