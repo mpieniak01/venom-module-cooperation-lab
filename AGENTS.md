@@ -28,14 +28,12 @@ użytkownika. Po zmianie modułu używaj oficjalnego mirroru hosta; nie restartu
 API z aktywnym eksperymentem.
 
 
-## Wstrzymanie wydania laboratorium — 2026-10-23
+## Wydanie poprawek laboratorium — 2026-10-23
 
-Operator wstrzymał scalenie gałęzi `fix/single-game-runtime-recovery`.
-Nie scalać jej bez nowej zgody. Zwykłe próby /runs i ewaluacja miały rozbieżne
-limity: wpisanie 1024 po pierwszej poprawnej próbie dawało HTTP 422 przed startem
-silnika. Sam roboczy wspólny sufit 1024 nie zastępuje sprawdzonych profili modeli.
-Uproszczony przepływ zatwierdzony: limitowanie dopiero po START, aktualizacja pola
-i start gry. Plan `docs/MODEL_BUDGET_UNIFICATION_PLAN_20261023.md`;
-nie uruchamiać ponownie drogich testów maksimum ani nie nadpisywać istniejących
-profili. L7 został wcześniej wydany w PR #18 (main 515266c); dawna sekcja o
-nieopublikowanej gałęzi codex/rwkv7-g1k-2.9b jest historyczna.
+Operator wznowił zgodę na publikację, recenzję, scalenie i porządkowanie gałęzi
+`fix/single-game-runtime-recovery`. Poprzednie wstrzymanie nie jest już aktywne.
+Zakres: odtwarzanie runtime po awarii, jawne formaty odpowiedzi gier, normalizacja
+budżetu dopiero po START, aktualizacja pola i start gry. Polityka i dowody:
+`docs/MODEL_BUDGET_UNIFICATION_PLAN_20261023.md`. Bez kosztownych powtórzeń
+maksimum i bez nadpisywania zapisanych profili lub starych wyników. L7 wydano
+wcześniej w PR #18 (main 515266c); dawna sekcja lokalna L7 jest historyczna.

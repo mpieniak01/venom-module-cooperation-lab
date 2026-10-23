@@ -1,7 +1,7 @@
 # Wspólne profile budżetów modeli — analiza 2026-10-23
 
-Status: uproszczona poprawka wdrożona lokalnie 2026-10-23; scalenie laboratorium
-wstrzymane przez operatora. Roboczy 5c92b37 został uzupełniony o limity per model
+Status: uproszczona poprawka wdrożona lokalnie 2026-10-23; operator wznowił zgodę na publikację,
+recenzję i scalenie. Roboczy 5c92b37 został uzupełniony o limity per model
 i ograniczanie dopiero po START.
 
 ## Potwierdzona przyczyna zgłoszenia
@@ -61,7 +61,7 @@ wygenerowania dokładnie 1024 tokenów.
 Regresje CPU i przeglądarkowe sprawdzają wpisanie większej wartości bez zmiany,
 START, aktualizację pola, użyty budżet, mniejsze wartości oraz idempotencję.
 Jedna minimalna rzeczywista gra po wdrożeniu; bez serii kosztownych prób maksimum.
-Scalenie modułu nadal wstrzymane. Niezależny PR core dotyczy owner_pid.
+Scalenie po zielonych kontrolach i recenzji jest ponownie autoryzowane. Niezależny PR core dotyczy owner_pid.
 
 ### Wynik odbioru lokalnego 2026-10-23
 
@@ -76,5 +76,5 @@ Scalenie modułu nadal wstrzymane. Niezależny PR core dotyczy owner_pid.
   wygrał B/O; quiescent=true. To sprawdzenie startu/formatu, nie dowód strategii;
   zwykła gra używa dotychczasowego jawnego ograniczenia do legalnych pól.
 - API po zakończeniu available/0; przycisk kolejnego startu aktywny. Zapisanych
-  danych i profili nie usuwano ani nie nadpisywano. Brak publikacji tej gałęzi.
+  danych i profili nie usuwano ani nie nadpisywano. Publikacja i scalenie są autoryzowane po odebraniu poprawki.
 - Zrzut lokalny: Playwright `.playwright-cli/page-2026-10-23T07-26-51-651Z.png`.
