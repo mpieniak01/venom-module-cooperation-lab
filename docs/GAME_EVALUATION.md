@@ -193,3 +193,8 @@ usunięciem także po restarcie API. Najpierw potwierdź zakończenie obliczeń.
 Odrzucony START nie tworzy rekordu ani nie uruchamia rotacji historii, więc nie
 usuwa próby potrzebnej do odzyskania. Startup recovery-only otwiera magazyn pod
 wyłączną ochroną przestrzeni hosta i transakcji ledgeru, również w kwarantannie.
+
+Po restarcie odzyskiwanie ewaluacji używa zapisanej tożsamości wykonawcy
+(provider/artifact) oraz zgodnej dzierżawy. Nie wymaga ponownego wykrycia ani
+instalacji usuniętego tagu Ollama. Brak poprawnej zapisanej tożsamości pozostawia
+kwarantannę; nadal wymagane są trzy puste odpowiedzi `/api/ps`.

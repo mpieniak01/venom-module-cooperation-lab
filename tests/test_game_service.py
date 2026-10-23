@@ -259,7 +259,7 @@ async def test_operator_recovery_handles_persisted_run_after_api_restart(
         "error": "process_restarted",
         "config": {
             "request": {"model_id": EVAL_SPEC.model_id},
-            "model": {"provider": "ollama"},
+            "model": {"provider": "ollama", "artifact": "removed-dynamic-tag:latest"},
         },
         "episodes": [],
         "attempt_history": [],
@@ -270,24 +270,27 @@ async def test_operator_recovery_handles_persisted_run_after_api_restart(
         def get(self, _eid):
             return state
 
-    model = {
-        "model_id": EVAL_SPEC.model_id,
-        "provider": "ollama",
-        "artifact": "codestral:latest",
-    }
-    runner = type(
-        "Runner", (), {"admission": admission, "models": lambda _self: [model]}
-    )()
+    def no_catalog(_self):
+        pytest.fail("recovery must use persisted identity, not discovery")
+
+    runner = type("Runner", (), {"admission": admission, "models": no_catalog})()
     service = object.__new__(EvaluationService)
     service.runner = runner
     service.store = Store()
     service.jobs = {}
     service.lock = asyncio.Lock()
     service.closed = False
-    monkeypatch.setattr(ollama, "backend_model_idle", lambda _artifact: True)
+    probes = []
+
+    def idle(artifact):
+        probes.append(artifact)
+        return True
+
+    monkeypatch.setattr(ollama, "backend_model_idle", idle)
 
     result = await service.recover_quiescent(eid)
     assert result["status"] == "interrupted"
+    assert probes == ["removed-dynamic-tag:latest"] * 2
     assert admission.snapshot()["status"] == "available"
 
 

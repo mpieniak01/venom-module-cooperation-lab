@@ -396,29 +396,27 @@ class EvaluationService:
                 or state.get("error") != "process_restarted"
             ):
                 raise LabError("runtime_recovery_unavailable", 409)
-            request = state.get("config", {}).get("request", {})
-            model_id = request.get("model_id")
-            model = next(
-                (
-                    item
-                    for item in self.runner.models()
-                    if item.get("model_id") == model_id
-                ),
-                None,
-            )
-            if model is None or model.get("provider") != "ollama":
+            # Recovery belongs to the persisted execution identity, even when a
+            # dynamically discovered tag is absent after restart or was removed.
+            model = state.get("config", {}).get("model", {})
+            artifact = model.get("artifact")
+            if (
+                model.get("provider") != "ollama"
+                or not isinstance(artifact, str)
+                or not artifact.strip()
+            ):
                 raise LabError("runtime_recovery_unavailable", 409)
             runtime = self.runner.admission.snapshot()
             if not self._matches_quarantined_evaluation(runtime, state):
                 raise LabError("runtime_recovery_unavailable", 409)
-            if not await asyncio.to_thread(backend_model_idle, model["artifact"]):
+            if not await asyncio.to_thread(backend_model_idle, artifact):
                 raise LabError("runtime_quiescence_unconfirmed", 409)
 
             def confirm() -> bool:
                 current = self.runner.admission.snapshot()
                 return self._matches_quarantined_evaluation(
                     current, state
-                ) and backend_model_idle(model["artifact"])
+                ) and backend_model_idle(artifact)
 
             if not self.runner.admission.recover(confirm_quiescent=confirm):
                 raise LabError("runtime_quiescence_unconfirmed", 409)
