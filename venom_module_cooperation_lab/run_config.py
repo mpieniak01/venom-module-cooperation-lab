@@ -50,7 +50,7 @@ class RunRequest(BaseModel):
     max_turns: int = Field(default=8, ge=1, le=9)
     game_count: int = Field(default=1, ge=1, le=10)
     remember_games: bool = True
-    max_new_tokens: int = Field(default=128, ge=1, le=256)
+    max_new_tokens: int = Field(default=128, ge=1, le=1024)
     temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
     top_p: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
 
@@ -283,7 +283,14 @@ class RunConfig:
                 )
                 if request.scenario_id == "tic_tac_toe"
                 else Budgets(
-                    max_turns=request.max_turns, max_new_tokens=request.max_new_tokens
+                    max_turns=request.max_turns,
+                    max_new_tokens=request.max_new_tokens,
+                    total_output_tokens=max(
+                        2048, request.max_turns * request.max_new_tokens
+                    ),
+                    processing_steps=max(
+                        18432, request.max_turns * (2048 + request.max_new_tokens)
+                    ),
                 )
             ),
             seed=request.seed,

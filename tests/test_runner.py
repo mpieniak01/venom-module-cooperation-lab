@@ -68,7 +68,7 @@ def test_config_immutable_reproducible_and_private_information():
     for values in [
         {"owner": "model"},
         {"max_turns": 9},
-        {"max_new_tokens": 300},
+        {"max_new_tokens": 1025},
         {"temperature": float("nan")},
         {"seed": True},
     ]:
@@ -621,3 +621,20 @@ async def test_owned_task_cancellation_propagates_after_bounded_cleanup(
         assert runner.admission.snapshot()["status"] == "available"
     finally:
         adapter.released.set()
+
+
+@pytest.mark.asyncio
+async def test_next_ordinary_run_accepts_1024_tokens_after_completed_default_run(rig):
+    runner, adapters = rig
+    first, _ = await runner.start(request(max_turns=1), "ordinary-first")
+    assert (await finish(runner, first))["status"] == "completed"
+    second, _ = await runner.start(
+        request(max_turns=1, max_new_tokens=1024), "ordinary-more-tokens"
+    )
+    final = await finish(runner, second)
+    assert final["status"] == "completed"
+    assert final["config"]["budgets"]["max_new_tokens"] == 1024
+    assert adapters[-1].recorded[0][2].max_new_tokens == 1024
+    larger = RunConfig.build(request(max_turns=8, max_new_tokens=1024), {})
+    assert larger.budgets.total_output_tokens == 8192
+    assert larger.budgets.processing_steps == 24576

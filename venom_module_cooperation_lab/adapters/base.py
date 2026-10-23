@@ -79,7 +79,7 @@ class GenerationParameters:
             (
                 "max_new_tokens",
                 1,
-                1024 if self.session_protocol == "game-eval-v2" else 256,
+                1024,
             ),
             ("seed", 0, 2**31 - 1),
             (

@@ -8,7 +8,7 @@ from venom_module_cooperation_lab.errors import LabError
 from venom_module_cooperation_lab.evaluation.sessions import capabilities_for
 
 
-def test_v2_limits_pass_both_boundaries_without_changing_legacy_contract():
+def test_output_limits_are_shared_while_context_contracts_stay_versioned():
     for factory in (GenerationParameters, RwkvParameters):
         p = factory(
             session_protocol="game-eval-v2",
@@ -16,8 +16,9 @@ def test_v2_limits_pass_both_boundaries_without_changing_legacy_contract():
             max_new_tokens=1024,
         )
         assert p.max_new_tokens == 1024 and p.max_context_tokens == 8192
+        assert factory(max_new_tokens=1024).max_new_tokens == 1024
         with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
-            factory(max_new_tokens=512)
+            factory(max_new_tokens=1025)
         with pytest.raises((LabError, RwkvError), match="invalid_parameters"):
             factory(session_protocol="game-eval-v2", max_new_tokens=1025)
 

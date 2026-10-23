@@ -168,3 +168,11 @@ ruchu: zajęte pole nadal kończy próbę jako `illegal_action`. Parametry prób
 operatora są zachowane. W raporcie zapisuje się `response_format=tic_tac_toe_json`,
 `allowed_outputs=[]` i politykę promptu `mapped-game-v4`; stare przebiegi pozostają
 bez zmian i nie są wznawiane z inną polityką promptu.
+
+
+Zwykłe próby w zakładce **Rozmowa i serie** przyjmują teraz również od 1 do 1024
+tokenów na turę we wszystkich adapterach; limity całej próby rosną wraz z wybranym
+budżetem. Zmiana 128 → 1024 po zakończeniu poprzedniej próby nie wymaga ponownej
+kwalifikacji modelu. Budżet odpowiedzi nadal dzieli kontekst z promptem i historią;
+przekroczenie kontekstu jest raportowane oddzielnie. Odrzucony formularz pokazuje
+kod `invalid_parameters`; log zawiera tylko nazwy nieprawidłowych pól.

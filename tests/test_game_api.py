@@ -446,7 +446,7 @@ async def test_invalid_request_has_safe_parameter_error_without_prompt_contents(
         json={
             "model_id": SPEC.model_id,
             "scenario_id": "tic_tac_toe",
-            "max_new_tokens": 512,
+            "max_new_tokens": 1025,
         },
     )
     assert response.status_code == 422
@@ -454,3 +454,36 @@ async def test_invalid_request_has_safe_parameter_error_without_prompt_contents(
     assert detail["code"] == "invalid_parameters"
     assert detail["fields"] == ["max_new_tokens"]
     assert "input" not in str(detail)
+
+
+@pytest.mark.asyncio
+async def test_ordinary_runs_accept_1024_output_tokens_on_next_start(
+    evaluation_client, monkeypatch
+):
+    runner = evaluation_client._transport.app.state.cooperation_lab_runner
+    original = runner.adapter_factory
+
+    def conversation(model, lease):
+        adapter = original(model, lease)
+        adapter.responses = ["Short conversation reply"]
+        return adapter
+
+    monkeypatch.setattr(runner, "adapter_factory", conversation)
+    for key, tokens in [("ordinary-128", 128), ("ordinary-1024", 1024)]:
+        response = await evaluation_client.post(
+            "/api/v1/cooperation-lab/runs",
+            headers={"Idempotency-Key": key},
+            json={
+                "model_id": SPEC.model_id,
+                "scenario_id": "split_facts",
+                "mode": "single",
+                "max_turns": 1,
+                "max_new_tokens": tokens,
+            },
+        )
+        assert response.status_code == 202, response.text
+        row = response.json()["run"]
+        runner = evaluation_client._transport.app.state.cooperation_lab_runner
+        await asyncio.wait_for(runner.jobs[row["id"]].task, timeout=3)
+        assert runner.snapshot(row["id"])["run"]["status"] == "completed"
+        assert row["config"]["budgets"]["max_new_tokens"] == tokens

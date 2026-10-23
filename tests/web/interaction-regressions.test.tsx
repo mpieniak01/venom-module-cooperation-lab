@@ -177,3 +177,28 @@ test("delete removes the selected terminal run with one click and blocks repeats
   assert.equal(box.querySelector(".coop-history-select")!.querySelectorAll("option").length,1);
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });
+
+
+test("a completed ordinary run can start another with a restored 1024-token budget",async()=>{
+ const old=globalThis.fetch;localStorage.clear();localStorage.setItem("cooperation-lab.run","complete");Source.all=[];
+ let captured:Record<string,unknown>|undefined;
+ const complete=run("complete","completed");complete.config.budgets={max_turns:8,max_new_tokens:1024};
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(path.endsWith("/capabilities"))return response(caps);
+  if(init?.method==="POST"&&path.endsWith("/runs")){captured=JSON.parse(String(init.body));return response({run:run("next","queued"),created:true},202);}
+  if(path.endsWith("/events"))return response({events:[]});
+  if(path.endsWith("/runs/complete"))return response({run:complete});
+  return response({runs:[complete]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await flush();
+  const tokenInput=[...box.querySelectorAll("input")].find(i=>i.parentElement?.textContent?.startsWith("Tokenów na turę"))!;
+  assert.equal(tokenInput.value,"1024");assert.equal(tokenInput.max,"1024");
+  await act(async()=>button(box,"Nowa próba").click());await flush();
+  assert.equal(button(box,"Rozpocznij eksperyment").disabled,false);
+  await act(async()=>button(box,"Rozpocznij eksperyment").click());await flush();
+  assert.equal(captured?.max_new_tokens,1024);
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
+});

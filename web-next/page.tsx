@@ -67,7 +67,7 @@ function ConversationWorkspace() {
   const qualifying = lab.run?.config.scenario_id==="model_qualification";
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
-  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=256&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=1024&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const lastFailure = lab.events.findLast(event=>event.kind==="error");
@@ -164,7 +164,7 @@ function ConversationWorkspace() {
             <label><input type="checkbox" checked={rememberGames} disabled={gameCount===1} onChange={event=>setForm({...form,rememberGames:event.target.checked})}/> {t.gameMemory}</label>
             <p className="coop-message-meta">{t.gameMemoryHint}</p>
           </>}
-          <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={256} value={tokens} onChange={event=>setForm({...form,tokens:Number(event.target.value)})}/></label>
+          <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={1024} value={tokens} onChange={event=>setForm({...form,tokens:Number(event.target.value)})}/></label>
           <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
         </div>
       </fieldset>}
