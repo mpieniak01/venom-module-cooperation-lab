@@ -154,7 +154,7 @@ def test_quarantine_recovery_startup_requires_stale_module_owner(monkeypatch):
     assert not _quarantine_owner_is_gone({**base, "active_operations": 1})
     assert not _quarantine_owner_is_gone({**base, "owner": "chat"})
     assert not _quarantine_owner_is_gone({**base, "engine": "vllm"})
-    assert not _quarantine_owner_is_gone({**base, "owner_pid": 1})
+    assert not _quarantine_owner_is_gone({**base, "owner_pid": 0})
 
 
 @pytest.mark.parametrize("error", [PermissionError, OSError])
@@ -204,11 +204,12 @@ async def test_dead_owner_startup_opens_state_for_recovery_without_releasing_lea
     await lifecycle.close()
 
 
+@pytest.mark.parametrize("owner_pid", [1, os.getpid()])
 @pytest.mark.parametrize(
     "current,expected", [("same-instance", False), ("reused-pid", True), (None, False)]
 )
 def test_recovery_compares_process_lifetime_not_just_numeric_pid(
-    monkeypatch, current, expected
+    monkeypatch, current, expected, owner_pid
 ):
     from venom_module_cooperation_lab.lifecycle import _quarantine_owner_is_gone
 
@@ -221,7 +222,7 @@ def test_recovery_compares_process_lifetime_not_just_numeric_pid(
         "active_operations": 0,
         "owner": "cooperation_lab",
         "engine": "ollama",
-        "owner_pid": os.getpid(),
+        "owner_pid": owner_pid,
         "owner_process_identity": "same-instance",
     }
     assert _quarantine_owner_is_gone(snapshot) is expected

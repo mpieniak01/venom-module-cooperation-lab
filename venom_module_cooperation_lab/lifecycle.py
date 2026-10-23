@@ -35,7 +35,7 @@ def _quarantine_owner_is_gone(snapshot: dict[str, Any]) -> bool:
     ):
         return False
     pid = snapshot.get("owner_pid")
-    if type(pid) is not int or pid <= 1:
+    if type(pid) is not int or pid <= 0:
         return False
     recorded = snapshot.get("owner_process_identity")
     if isinstance(recorded, str) and recorded:
