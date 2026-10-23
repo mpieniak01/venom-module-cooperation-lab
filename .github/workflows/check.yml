@@ -24,7 +24,7 @@ jobs:
         with:
           repository: mpieniak01/Venom
           # ABI 1.0.0 plus durable runtime process-lifetime identity.
-          ref: edea99d298061166188a6b6165db9187a3c8eda8
+          ref: e313319f2367599794be3231bda9d22df5a3daef
           path: host
           persist-credentials: false
       - uses: actions/checkout@v5
