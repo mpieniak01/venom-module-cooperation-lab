@@ -14,8 +14,9 @@ from uuid import uuid4
 
 from .errors import LabError
 from .game_series import GameSeries
+from .live_game_strategy import LiveGameStrategy
 from .peer_review import review_step
-from .run_config import OPERATOR_MODES, Budgets, RunConfig, RunRequest
+from .run_config import OPERATOR_MODES, STRATEGIC_MODES, Budgets, RunConfig, RunRequest
 from .storage import TERMINAL, LabStore, _identifier
 from .tic_tac_toe import TicTacToe, parse_move
 
@@ -48,6 +49,7 @@ class _Job:
     watched_work: asyncio.Task[Any] | None = None
     game: TicTacToe | None = None
     series: GameSeries | None = None
+    coaching: LiveGameStrategy | None = None
     qualifying: bool = False
     cleanup_pending: bool = False
     late_cleanup_recorded: bool = False
@@ -208,6 +210,8 @@ class LabRunner:
             job.qualifying = qualification
             if config.scenario_id == "tic_tac_toe":
                 job.game = TicTacToe()
+                if config.mode in STRATEGIC_MODES:
+                    job.coaching = LiveGameStrategy(config.mode)
                 if config.game_count > 1:
                     job.series = GameSeries(config.game_count, config.remember_games)
             self.jobs[run_id] = job
@@ -480,6 +484,8 @@ class LabRunner:
                 if job.series
                 else ""
             )
+            if job.coaching:
+                memory += job.coaching.memory(participant)
             job.histories[participant] = [
                 ChatMessage("system", prompt + ("\n" + memory if memory else ""))
             ]
@@ -651,11 +657,16 @@ class LabRunner:
             top_p=config.top_p,
             seed=config.seed,
         )
-        if job.game is not None and config.public()["model"]["architecture"] in {
-            "rwkv7",
-            "hrm_text",
-            "huginn_raven",
-        }:
+        if (
+            job.game is not None
+            and job.coaching is None
+            and config.public()["model"]["architecture"]
+            in {
+                "rwkv7",
+                "hrm_text",
+                "huginn_raven",
+            }
+        ):
             parameters = GenerationParameters(
                 max_new_tokens=config.budgets.max_new_tokens,
                 max_context_tokens=config.budgets.max_context_tokens,
@@ -668,6 +679,10 @@ class LabRunner:
             parameters = replace(
                 parameters, profile="structured", temperature=0.0, top_p=0.0
             )
+        if job.coaching:
+            parameters = replace(
+                parameters, profile="structured", session_protocol="game-eval-v2"
+            )
         completed: set[str] = set()
         turns = 1 if config.mode == "single" else config.budgets.max_turns
         for game_index in range(config.game_count):
@@ -677,6 +692,8 @@ class LabRunner:
                 self._check(job)
                 await self._work(job, lambda: job.adapter.reset())
                 job.game = TicTacToe()
+                if job.coaching:
+                    job.coaching.begin()
                 if job.series:
                     job.series.begin(game_index + 1)
                 self._prepare_histories(job)
@@ -688,6 +705,8 @@ class LabRunner:
                 )
                 if job.game is not None:
                     if job.game.finished:
+                        if config.mode == "game_reflection":
+                            await self._reflect_game(job, parameters)
                         break
                     continue
                 if message["kind"] == "complete":
@@ -698,9 +717,77 @@ class LabRunner:
                     }:
                         break
 
+    async def _reflect_game(self, job: _Job, parameters: Any) -> None:
+        from .adapters.base import ChatMessage
+
+        assert job.coaching is not None and job.game is not None
+        for player in ("A", "B"):
+            self._check(job)
+            self._reserve_turn(job)
+            feedback = job.coaching.feedback(job.game, player)
+            instruction = (
+                "Po zakończonej partii zapisz krótką prywatną wskazówkę na kolejną "
+                "grę, korzystając z własnych błędów i lepszych ruchów od trenera. "
+                "Bez współrzędnej ruchu na teraz i bez toku rozumowania."
+                if job.config.communication_language == "pl"
+                else "After the completed game write a short private improvement note "
+                "for the next game, using your own mistakes and the coach's better "
+                "moves. Do not output a move for now or a reasoning transcript."
+            )
+            params = replace(
+                parameters,
+                max_new_tokens=min(64, parameters.max_new_tokens),
+                allowed_outputs=(),
+                response_format="text",
+            )
+            result = await self._work(
+                job,
+                partial(
+                    job.adapter.generate,
+                    player,
+                    (
+                        ChatMessage("system", instruction),
+                        ChatMessage("user", job.coaching.encode_feedback(feedback)),
+                    ),
+                    params,
+                    job.deadline,
+                ),
+            )
+            if not result.quiescent:
+                job.lease.cancel()
+                raise LabError("runtime_quiescence_unconfirmed")
+            self._emit(
+                job,
+                "usage",
+                {
+                    "purpose": "reflection",
+                    "player": player,
+                    **self._charge(job, result),
+                },
+            )
+            if not result.text.strip():
+                raise LabError("empty_model_output")
+            note = result.text.strip()[:1024]
+            job.coaching.notes[player] = note
+            self._emit(
+                job,
+                "reflection",
+                {
+                    "player": player,
+                    "content": note,
+                    "raw_content": result.raw_text or result.text,
+                    "feedback": feedback,
+                    "game_number": job.series.number if job.series else 1,
+                },
+            )
+
     @staticmethod
     def _game_state(job: _Job, board: dict[str, Any]) -> dict[str, Any]:
-        return {**board, **({"series": job.series.public()} if job.series else {})}
+        return {
+            **board,
+            **({"series": job.series.public()} if job.series else {}),
+            **({"strategy": job.coaching.public()} if job.coaching else {}),
+        }
 
     async def _operator_turns(self, job: _Job) -> None:
         from .adapters.base import GenerationParameters
@@ -770,11 +857,16 @@ class LabRunner:
                 **({"phase": phase} if phase else {}),
             },
         )
-        if job.game is not None and job.config.public()["model"]["architecture"] in {
-            "rwkv7",
-            "hrm_text",
-            "huginn_raven",
-        }:
+        if (
+            job.game is not None
+            and job.coaching is None
+            and job.config.public()["model"]["architecture"]
+            in {
+                "rwkv7",
+                "hrm_text",
+                "huginn_raven",
+            }
+        ):
             parameters = replace(
                 parameters,
                 allowed_outputs=tuple(
@@ -805,7 +897,31 @@ class LabRunner:
             raise LabError("runtime_quiescence_unconfirmed")
         usage = self._charge(job, result)
         self._emit(job, "usage", {"turn_id": turn_id, **usage})
-        message = self._message(job, participant, turn_id, result.text)
+        strategy = None
+        if job.coaching and job.game:
+            try:
+                strategy = job.coaching.choose(
+                    job.game, participant, result.text, job.config.seed + job.game.moves
+                )
+            except LabError:
+                invalid = self._message(job, participant, turn_id, "invalid")
+                invalid.update(
+                    content=result.text, raw_content=result.text, delivered_to=[]
+                )
+                self._emit(job, "message", invalid)
+                raise
+            message = self._message(
+                job, participant, turn_id, strategy["action"]["square"]
+            )
+            message.update(
+                model_move=strategy["model_action"]["square"],
+                assessment=strategy["assessment"],
+                assistance=strategy.get("assistance"),
+                execution_assessment=strategy.get("execution_assessment"),
+                raw_content=result.raw_text or result.text,
+            )
+        else:
+            message = self._message(job, participant, turn_id, result.text)
         if getattr(result, "raw_text", None) is not None:
             message["raw_content"] = result.raw_text
         board = None

@@ -153,7 +153,10 @@
     "operator_chat",
     "operator_relay",
     "operator_review",
-    "game_competitive"
+    "game_competitive",
+    "game_strategic",
+    "game_reflection",
+    "game_assisted"
   ],
   "preset": {
     "max_turns": 8,

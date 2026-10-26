@@ -114,7 +114,7 @@ export function useLab() {
         }
         stream = new EventSource(API + "/runs/" + encodeURIComponent(runId!) + "/events/stream?after=" + cursor);
         source.current = stream;
-        for (const type of ["run", "turn", "message", "organization", "usage", "game", "operator", "error", "end"]) {
+        for (const type of ["run", "turn", "message", "organization", "usage", "game", "reflection", "operator", "error", "end"]) {
           stream.addEventListener(type, receive as EventListener);
         }
         stream.onopen = () => { if (live) { failures = 0; setConnection("connected"); } };

@@ -116,7 +116,7 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   const model = record(config.model).model_id ?? config.model_id;
   if (typeof model === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(model)) result.model = model;
   if (typeof config.scenario_id === "string" && ["peer_review", "operator_conversation", "split_facts", "organization", "correction", "tic_tac_toe"].includes(config.scenario_id)) result.scenario = config.scenario_id;
-  if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged", "operator_chat", "operator_relay", "operator_review", "game_competitive"].includes(config.mode)) result.mode = config.mode;
+  if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged", "operator_chat", "operator_relay", "operator_review", "game_competitive", "game_strategic", "game_reflection", "game_assisted"].includes(config.mode)) result.mode = config.mode;
   if (config.communication_language === "pl" || config.communication_language === "en") result.communicationLanguage = config.communication_language;
   else if (config.schema_version === 1 || Array.isArray(config.prompts)) result.communicationLanguage = "en";
   if(config.scenario_id==="tic_tac_toe") {

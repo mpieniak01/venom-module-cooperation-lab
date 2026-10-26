@@ -22,6 +22,9 @@ Mode = Literal[
     "operator_relay",
     "operator_review",
     "game_competitive",
+    "game_strategic",
+    "game_reflection",
+    "game_assisted",
 ]
 MODES = (
     "single",
@@ -33,8 +36,13 @@ MODES = (
     "operator_relay",
     "operator_review",
     "game_competitive",
+    "game_strategic",
+    "game_reflection",
+    "game_assisted",
 )
 
+
+STRATEGIC_MODES = {"game_strategic", "game_reflection", "game_assisted"}
 
 OPERATOR_MODES = {"operator_chat", "operator_relay", "operator_review"}
 
@@ -64,9 +72,9 @@ class RunRequest(BaseModel):
                 self.mode = "dialog"
             if "max_turns" not in self.model_fields_set:
                 self.max_turns = 9
-            if self.mode not in {"dialog", "game_competitive"}:
+            if self.mode not in {"dialog", "game_competitive"} | STRATEGIC_MODES:
                 raise ValueError("tic_tac_toe_requires_dialog")
-        elif self.mode == "game_competitive":
+        elif self.mode in {"game_competitive"} | STRATEGIC_MODES:
             raise ValueError("competitive_mode_requires_game")
         elif self.max_turns > 8:
             raise ValueError("scenario_turn_limit_exceeded")
@@ -90,6 +98,13 @@ class RunRequest(BaseModel):
             raise ValueError("game_series_requires_game")
         if self.game_count > 1 and self.max_turns != 9:
             raise ValueError("game_series_requires_nine_moves")
+        if self.mode in STRATEGIC_MODES and self.max_turns != 9:
+            raise ValueError("game_series_requires_nine_moves")
+        if self.mode == "game_reflection":
+            if "game_count" not in self.model_fields_set:
+                self.game_count = 3
+            if self.game_count < 2 or not self.remember_games:
+                raise ValueError("game_reflection_requires_memory")
         if self.game_count == 1:
             self.remember_games = True  # No cross-game memory exists for one game.
         return self
@@ -215,7 +230,7 @@ class RunConfig:
                     "Use the current host board. Choose an empty square. "
                     "Reply only with its coordinate, e.g. B2, no JSON or commentary."
                 )
-                if request.mode == "game_competitive":
+                if request.mode in {"game_competitive"} | STRATEGIC_MODES:
                     prompts[-1] += (
                         " Twoim celem jest wygrać z przeciwnikiem. Sprawdzaj własne "
                         "możliwości natychmiastowej wygranej i zagrożenia przeciwnika. "
@@ -229,6 +244,15 @@ class RunConfig:
                         "If you cannot "
                         "win immediately, block their win. Plan ahead; when a win is "
                         "impossible, aim for a draw."
+                    )
+                if request.mode in STRATEGIC_MODES:
+                    prompts[-1] += (
+                        " Masz samodzielnie wybrać ruch; nie zakładaj, że host zapewni "
+                        "jego legalność. Wykorzystuj własne wnioski z poprzednich gier."
+                        if language == "pl"
+                        else " Choose the move yourself; do not assume the host "
+                        "ensures "
+                        "legality. Apply your own lessons from previous games."
                     )
                 continue
             if request.mode in {"single", "self_correction"}:
@@ -283,9 +307,13 @@ class RunConfig:
                 Budgets(
                     max_turns=request.max_turns,
                     max_new_tokens=request.max_new_tokens,
-                    total_input_tokens=9 * request.game_count * 2048,
-                    total_output_tokens=9 * request.game_count * request.max_new_tokens,
-                    processing_steps=9
+                    total_input_tokens=(11 if request.mode == "game_reflection" else 9)
+                    * request.game_count
+                    * 2048,
+                    total_output_tokens=(11 if request.mode == "game_reflection" else 9)
+                    * request.game_count
+                    * request.max_new_tokens,
+                    processing_steps=(11 if request.mode == "game_reflection" else 9)
                     * request.game_count
                     * (2048 + request.max_new_tokens),
                     wall_seconds=min(1800, 360 * request.game_count),
@@ -336,6 +364,11 @@ class RunConfig:
             result["schema_version"] = 4
             result["scheduler"] = "board-series-memory-v1"
             result["scenario_version"] += "-series-1"
+        if self.mode in STRATEGIC_MODES:
+            result["schema_version"] = 5
+            result["scheduler"] = "live-game-strategy-v1"
+            result["scenario_version"] += "-live-strategy-1"
+            result["strategy_version"] = "ttt-coaching-v1"
         if self.communication_language is None:
             # Preserve exact legacy v1 serialization and hashes.
             result.pop("communication_language")

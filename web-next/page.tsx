@@ -3,7 +3,7 @@ import { useState } from "react";
 import { EvaluationWorkspace } from "./lib/evaluation";
 import { evaluationTexts } from "./lib/evaluation-i18n";
 import { useLanguage } from "@/lib/i18n";
-import { messageKindLabel, modeLabel, scenarioLabel, statusLabel, texts } from "./lib/i18n";
+import { messageKindLabel, gameModeLabel, modeLabel, scenarioLabel, statusLabel, texts } from "./lib/i18n";
 import { modelId, terminal, type Json, type LabEvent } from "./lib/protocol";
 import { useLab } from "./lib/use-lab";
 import { scenarioPolicy, selectScenario, selectMode } from "./lib/experiment-settings";
@@ -12,7 +12,7 @@ import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSetting
 
 import { Conversation } from "./lib/chat";
 import { OperatorComposer } from "./lib/operator-composer";
-import { GameBoard } from "./lib/game-board";
+import { GameBoard, GameReflections } from "./lib/game-board";
 import { outputTokenLimit } from "./lib/model-limits";
 import { engineId, modelState } from "./lib/model-selection";
 
@@ -68,7 +68,8 @@ function ConversationWorkspace() {
   const qualifying = lab.run?.config.scenario_id==="model_qualification";
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
-  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=2147483647&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const strategicGame = ["game_strategic","game_reflection","game_assisted"].includes(mode);
+  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=2147483647&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9)&&(mode!=="game_reflection"||gameCount>=2&&rememberGames)&&(!strategicGame||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const lastFailure = lab.events.findLast(event=>event.kind==="error");
@@ -130,9 +131,10 @@ function ConversationWorkspace() {
           </label>
           <label className="coop-setting">{t.mode}
             <select className={field} value={mode} disabled={availableModes.length===1} onChange={event=>setForm(selectMode(form,event.target.value))}>
-              {availableModes.map(item=><option value={item} key={item}>{scenario==="tic_tac_toe"?(item==="game_competitive"?t.gameCompetitive:t.gameAlternating):modeLabel(t,item)}</option>)}
+              {availableModes.map(item=><option value={item} key={item}>{scenario==="tic_tac_toe"?gameModeLabel(t,item):modeLabel(t,item)}</option>)}
             </select>
           </label>
+          {scenario==="tic_tac_toe"&&strategicGame&&<p className="coop-settings-hint">{mode==="game_reflection"?t.liveReflectionHint:mode==="game_assisted"?t.liveAssistedHint:t.liveStrategyHint}</p>}
           {availableModes.length===1&&<p className="coop-message-meta">{t.fixedWorkflow}</p>}
           <p className="coop-settings-hint">{policy?.entry==="operator"?t.startsWithInput:t.startsAutomatic}</p>
         </div>
@@ -161,11 +163,11 @@ function ConversationWorkspace() {
         </div>
         <div className="coop-settings-group">
           <h3>{t.setupLimits}</h3>
-          <label className="coop-setting">{t.turns}<input className={field} type="number" disabled={scenario==="tic_tac_toe"&&gameCount>1} min={policy?.min??1} step={policy?.step??1} max={policy?.max??8} value={turns} onChange={event=>setForm({...form,turns:Number(event.target.value)})}/></label>
+          <label className="coop-setting">{t.turns}<input className={field} type="number" disabled={scenario==="tic_tac_toe"&&(gameCount>1||strategicGame)} min={policy?.min??1} step={policy?.step??1} max={policy?.max??8} value={turns} onChange={event=>setForm({...form,turns:Number(event.target.value)})}/></label>
           {policy&&<p className="coop-message-meta">{operatorChat?t.roundsCount+": "+Math.floor(turns/policy.step):isGame?t.gameMoves+": "+turns:""}</p>}
           {scenario==="tic_tac_toe"&&<>
-            <label className="coop-setting">{t.gameCount}<input className={field} type="number" min={1} max={10} value={gameCount} onInput={event=>setForm({...form,gameCount:Number(event.currentTarget.value),turns:9})}/></label>
-            <label><input type="checkbox" checked={rememberGames} disabled={gameCount===1} onChange={event=>setForm({...form,rememberGames:event.target.checked})}/> {t.gameMemory}</label>
+            <label className="coop-setting">{t.gameCount}<input className={field} type="number" min={mode==="game_reflection"?2:1} max={10} value={gameCount} onInput={event=>setForm({...form,gameCount:Number(event.currentTarget.value),turns:9})}/></label>
+            <label><input type="checkbox" checked={rememberGames} disabled={gameCount===1||mode==="game_reflection"} onChange={event=>setForm({...form,rememberGames:event.target.checked})}/> {t.gameMemory}</label>
             <p className="coop-message-meta">{t.gameMemoryHint}</p>
           </>}
           <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={outputTokenLimit(selected)} value={tokens} onInput={event=>setForm({...form,tokens:Number(event.currentTarget.value)})}/></label>
@@ -193,7 +195,7 @@ function ConversationWorkspace() {
               </div>;
             })}
           </fieldset>
-          {isGame && <GameBoard event={gameEvent} ended={!!lab.run && terminal(lab.run.status)} language={language} />}
+          {isGame && <><GameBoard event={gameEvent} ended={!!lab.run && terminal(lab.run.status)} language={language} /><GameReflections events={lab.events} language={language}/></>}
           <section className="coop-panel coop-dialog" aria-label={t.dialog}>
             <h2 className="mb-2 font-semibold">{qualifying?t.qualification:t.dialog}</h2>
             {!messageEvents.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}

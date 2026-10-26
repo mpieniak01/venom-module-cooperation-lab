@@ -84,3 +84,10 @@ test("game series settings restore bounded count and explicit memory policy",()=
  assert.equal(savedSettings({scenario_id:"tic_tac_toe",game_count:99}).gameCount,1);
  assert.equal(savedSettings({scenario_id:"tic_tac_toe"}).rememberGames,true);
 });
+
+
+test("live game modes restore from conversation history",()=>{
+ for(const mode of ["game_strategic","game_reflection","game_assisted"]){
+  assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode}).mode,mode);
+ }
+});

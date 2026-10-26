@@ -95,6 +95,21 @@ const translations = {
   polish: ["Polski", "Polish", "Polnisch"],
   english: ["Angielski", "English", "Englisch"],
   scenarioTicTacToe: ["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],
+  gameStrategic:["Samodzielna strategia", "Independent strategy", "Eigenständige Strategie"],
+  gameReflection:["Strategia z refleksją", "Strategy with reflection", "Strategie mit Reflexion"],
+  gameAssisted:["Strategia ze wsparciem solvera", "Solver-assisted strategy", "Strategie mit Solver-Unterstützung"],
+  liveStrategyHint:["Model sam wybiera ruchy bez wymuszania legalnej współrzędnej. Plansza i oceny aktualizują się podczas gry.", "The model chooses moves without forced legal coordinates. The board and scores update during play.", "Das Modell wählt Züge ohne erzwungene legale Koordinaten. Brett und Bewertungen aktualisieren sich im Spiel."],
+  liveReflectionHint:["Po każdej partii A i B zapisują własne wnioski z błędów. Notatki trafiają do następnej gry. Wagi pozostają zamrożone.", "After each game A and B write private notes based on their mistakes. Notes carry to the next game. Weights remain frozen.", "Nach jedem Spiel schreiben A und B eigene Fehlernotizen für das nächste Spiel. Die Gewichte bleiben unverändert."],
+  liveAssistedHint:["Solver poprawia legalne ruchy pogarszające pozycję. W przebiegu widać propozycję modelu i wykonany ruch. Wynik jest wspomagany.", "The solver corrects legal moves that worsen the position. The timeline shows proposed and executed moves. Results are assisted.", "Der Solver korrigiert legale Züge, die die Stellung verschlechtern. Verlauf zeigt Vorschlag und ausgeführten Zug. Ergebnisse sind unterstützt."],
+  gameModelProposal:["Propozycja modelu", "Model proposal", "Modellvorschlag"],
+  gameExecutedMove:["Wykonany ruch", "Executed move", "Ausgeführter Zug"],
+  gameSolverIntervention:["Interwencja solvera", "Solver intervention", "Solver-Eingriff"],
+  gameModelMoves:["Ruchy modelu", "Model moves", "Modellzüge"],
+  gameWorseMoves:["Pogorszenia pozycji", "Worsening moves", "Stellungsverschlechterungen"],
+  gameMissedWins:["Pominięte wygrane", "Missed wins", "Verpasste Siege"],
+  gameAssistedResult:["Wynik wspomagany solverem", "Solver-assisted result", "Ergebnis mit Solver-Unterstützung"],
+  gameReflections:["Wnioski po partii", "Post-game notes", "Notizen nach dem Spiel"],
+  gameBetterMove:["Lepszy ruch", "Better move", "Besserer Zug"],
   gameCompetitive: ["Gra, aby wygrać", "Play to win", "Spielen, um zu gewinnen"],
   gameAlternating: ["Gra naprzemienna", "Alternating play", "Abwechselndes Spiel"],
   gameCount: ["Liczba gier", "Number of games", "Anzahl der Spiele"],
@@ -306,4 +321,8 @@ export function messageKindLabel(t: ReturnType<typeof texts>, kind: string) {
 
 export function phaseLabel(t: ReturnType<typeof texts>, phase:string) {
   return ({draft:t.phaseDraft,critique:t.phaseCritique,revision:t.phaseRevision} as Record<string,string>)[phase] ?? "";
+}
+
+export function gameModeLabel(t:ReturnType<typeof texts>,mode:string) {
+  return ({dialog:t.gameAlternating,game_competitive:t.gameCompetitive,game_strategic:t.gameStrategic,game_reflection:t.gameReflection,game_assisted:t.gameAssisted} as Record<string,string>)[mode]??modeLabel(t,mode);
 }

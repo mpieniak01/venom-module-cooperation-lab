@@ -233,3 +233,35 @@ Nowe warianty dotyczą wyłącznie przypadków TTT. Ustawienia dekodowania,
 kontekstu, tokenów i kroków Huginn są jawne i nie są zmieniane przez wybór
 wariantu. Korzystają ze ścieżki ewaluacji v2, bez historycznego wymuszania
 legalnych współrzędnych ze zwykłych serii v1. Nie uruchamiają treningu wag.
+
+
+## Podgląd na żywo w „Rozmowa i serie” — 2026-10-26
+
+Dla pojedynczej gry lub krótkiej obserwowanej serii użyj **Rozmowa i serie →
+Scenariusz: Kółko i krzyżyk → Wariant**. Nowe pozycje:
+**Samodzielna strategia**, **Strategia z refleksją** oraz
+**Strategia ze wsparciem solvera**. Start odbywa się zwykłym przyciskiem
+**Rozpocznij eksperyment**, bez osobnego preflight.
+
+Plansza pokazuje faktycznie wykonane ruchy i liczniki propozycji modelu,
+pogorszeń pozycji, pominiętych wygranych oraz interwencji. W wiadomościach
+widnieją osobno propozycja modelu i wykonany ruch. Wariant wspomagany jest
+wyraźnie oznaczony; interwencja CPU nie generuje kolejnej odpowiedzi LLM.
+Nielegalna propozycja lub niejednoznaczny format nadal kończą próbę błędem.
+
+Refleksja ustawia trzy gry i pamięć, wymaga minimum dwóch pełnych partii.
+Po każdej partii każdy gracz osobno dostaje wynik i maksymalnie trzy własne
+błędy wraz z lepszymi ruchami. Generuje krótką prywatną notatkę widoczną pod
+planszą. Do następnej gry trafia wyłącznie własna notatka danego gracza;
+wynik i ruchy poprzednich gier są publiczne. Generacje notatek są rozliczane,
+podlegają STOP, wspólnej dzierżawie oraz budżetom. Nie są treningiem wag.
+
+Nowe warianty używają rzeczywistych ustawień temperatury/top-p i nie maskują
+listy legalnych współrzędnych. Krótka odpowiedź jest mapowana do pojedynczego
+ruchu bez zgadywania. Historyczne „Gra naprzemienna” i „Gra, aby wygrać”
+zachowują dotychczasowy protokół oraz sposób dekodowania. Nowe konfiguracje
+mają schema_version=5 i scheduler=live-game-strategy-v1. Historia/eksport
+zawierają zdarzenia planszy, propozycje, oceny, interwencje i refleksje.
+
+Zakładka **Gry i strategie** pozostaje osobną ścieżką ewaluacji hurtowej.
+Ten etap dotyczy podglądu i wariantów w **Rozmowa i serie**.

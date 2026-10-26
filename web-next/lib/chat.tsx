@@ -37,6 +37,7 @@ export function Conversation({ events, language }: { events:LabEvent[]; language
           <span>#{event.seq} · {messageKindLabel(t, kind)}</span>
           {time ? <time dateTime={time.iso} title={t.recordedAt + ": " + time.iso}>{time.display}</time> : <span>{t.unknownTime}</span>}
         </div>
+        {typeof event.payload.model_move==="string"&&<p className="coop-message-meta">{t.gameModelProposal}: {text(event,"model_move")} · {t.gameExecutedMove}: {text(event,"game_move")}{event.payload.assistance&&typeof event.payload.assistance==="object"&&!Array.isArray(event.payload.assistance)&&event.payload.assistance.applied===true?` · ${t.gameSolverIntervention}`:""}</p>}
         <p className="coop-message-content">{text(event, "content")}</p>
         <p className="coop-message-meta">{delivery}</p>
         {replyId && (reply
