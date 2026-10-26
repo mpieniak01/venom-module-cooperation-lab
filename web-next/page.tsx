@@ -12,7 +12,7 @@ import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSetting
 
 import { Conversation } from "./lib/chat";
 import { OperatorComposer } from "./lib/operator-composer";
-import { GameBoard, GameReflections } from "./lib/game-board";
+import { GameBoard, GameSeriesResults, eventsForGame } from "./lib/game-board";
 import { outputTokenLimit } from "./lib/model-limits";
 import { engineId, modelState } from "./lib/model-selection";
 
@@ -84,6 +84,9 @@ function ConversationWorkspace() {
   const organizations = lab.events.filter((event) => event.kind === "organization");
   const isGame = !qualifying && resultScenario === "tic_tac_toe";
   const gameEvent = lab.events.findLast(event => event.kind === "game");
+  const gameSeries=gameEvent?.payload.series;
+  const currentGame=gameSeries&&typeof gameSeries==="object"&&!Array.isArray(gameSeries)&&typeof gameSeries.number==="number"?gameSeries.number:1;
+  const currentMessages=isGame?eventsForGame(lab.events,currentGame).filter(event=>event.kind==="message"&&gameEvent?.payload.finished!==true):messageEvents;
   const isReview = resultMode === "operator_review";
   const operatorChat = !qualifying && (resultMode === "operator_chat" || resultMode === "operator_relay" || isReview);
   const operatorEvent = lab.events.findLast(event=>event.kind==="operator"||event.kind==="message"&&event.payload.sender==="operator");
@@ -95,6 +98,16 @@ function ConversationWorkspace() {
     if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;}
      setSettings(false); void lab.start(input);
   };
+  const historyControl = (<div className="coop-history">
+        <label className="coop-history-picker">{t.history}
+          <select className={field + " coop-history-select"} disabled={lab.active || lab.starting || lab.pending} value={lab.run?.id ?? ""} onChange={(event) => { const found = lab.runs.find((r) => r.id === event.target.value); if (found) { lab.select(found); } }}>
+            <option value="">{t.select}</option>
+            {lab.runs.map((r) => <option key={r.id} value={r.id}>{new Date(r.created * 1000).toLocaleString(language)} · {statusLabel(t, r.id === lab.run?.id ? lab.run.status : r.status)}</option>)}
+          </select>
+        </label>
+        {lab.run && <><button type="button" className={button} disabled={lab.pending} onClick={() => { void lab.exportRun(); }}>{t.export}</button>
+          <button type="button" className={button} disabled={lab.active || lab.pending} onClick={() => { void lab.remove(); }}>{t.remove}</button></>}
+      </div>);
   return <section aria-labelledby="cooperation-lab-title" className="coop-workspace" data-operator={operatorChat} ref={viewport}>
     <style>{workspaceStyles}</style>
     <header className="coop-header">
@@ -174,32 +187,23 @@ function ConversationWorkspace() {
           <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
         </div>
       </fieldset>}
-      <div className="coop-history">
-        <label className="coop-history-picker">{t.history}
-          <select className={field + " coop-history-select"} disabled={lab.active || lab.starting || lab.pending} value={lab.run?.id ?? ""} onChange={(event) => { const found = lab.runs.find((r) => r.id === event.target.value); if (found) { lab.select(found); } }}>
-            <option value="">{t.select}</option>
-            {lab.runs.map((r) => <option key={r.id} value={r.id}>{new Date(r.created * 1000).toLocaleString(language)} · {statusLabel(t, r.id === lab.run?.id ? lab.run.status : r.status)}</option>)}
-          </select>
-        </label>
-        {lab.run && <><button type="button" className={button} disabled={lab.pending} onClick={() => { void lab.exportRun(); }}>{t.export}</button>
-          <button type="button" className={button} disabled={lab.active || lab.pending} onClick={() => { void lab.remove(); }}>{t.remove}</button></>}
-      </div>
+      {!isGame&&historyControl}
       <div className="coop-main">
         <div className="coop-column">
           <fieldset className="coop-participants" aria-label={t.participants}>
             {(operatorChat ? ["A", "B", "operator"] : ["A", "B"]).map((participant) => {
-              const last = messageEvents.findLast((event) => value(event, "sender") === participant);
+              const last = currentMessages.findLast((event) => value(event, "sender") === participant);
               return <div key={participant} className="coop-panel">
                 <strong className="text-lg">{participant === "operator" ? t.operator : participant}</strong><span className="ml-2 text-xs text-slate-400">{participant === "operator" ? "" : t.local}</span>
                 <p className="mt-1 truncate text-xs">{last ? messageKindLabel(t, value(last, "kind")) : t.waiting}</p>
               </div>;
             })}
           </fieldset>
-          {isGame && <><GameBoard event={gameEvent} ended={!!lab.run && terminal(lab.run.status)} language={language} /><GameReflections events={lab.events} language={language}/></>}
+          {isGame && <GameBoard event={gameEvent} ended={!!lab.run && terminal(lab.run.status)} language={language} />}
           <section className="coop-panel coop-dialog" aria-label={t.dialog}>
             <h2 className="mb-2 font-semibold">{qualifying?t.qualification:t.dialog}</h2>
-            {!messageEvents.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}
-            <Conversation events={messageEvents} language={language} />
+            {!currentMessages.length && <p className="text-sm text-slate-400">{isGame&&gameEvent?.payload.finished===true?t.gameFinishedSeeResults:lab.run ? t.noMessages : t.noRuns}</p>}
+            <Conversation events={currentMessages} language={language} />
             {operatorChat ? <OperatorComposer key={runId ?? "draft"} runId={runId} active={lab.active} waiting={operatorWaiting&&lab.connection==="connected"} sending={lab.sending} relay={resultMode==="operator_relay"} review={isReview} language={language} onSend={lab.sendMessage} /> : <p className="coop-message-meta">{t.operatorSetup}</p>}
           </section>
         </div>
@@ -209,6 +213,7 @@ function ConversationWorkspace() {
             {!organizations.length && <p className="text-sm text-slate-400">{t.noProposals}</p>}
             {organizations.map((event) => <p key={event.seq} className="mb-2 whitespace-pre-wrap break-words text-sm"><strong>{value(event, "sender")}</strong> · {value(event, "content")}</p>)}
           </section>
+          {isGame&&<>{historyControl}<GameSeriesResults event={gameEvent} events={lab.events} language={language}/></>}
           <section className="coop-panel" aria-label={t.usage}><h2 className="font-semibold">{t.usage}</h2>
             <dl className="coop-usage">
               <dt>{t.input}</dt><dd>{usage ? value(usage, "input_tokens") || t.unknown : t.unknown}</dd>

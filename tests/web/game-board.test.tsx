@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {renderToStaticMarkup} from "react-dom/server";
 import {JSDOM} from "jsdom";
-import {GameBoard} from "../../web-next/lib/game-board";
+import {GameBoard,GameSeriesResults} from "../../web-next/lib/game-board";
 import type {LabEvent} from "../../web-next/lib/protocol";
 const render=(event?:LabEvent,ended=false)=>new JSDOM(renderToStaticMarkup(<GameBoard event={event} ended={ended} language="pl"/>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
 const event:LabEvent={run_id:"game",seq:4,kind:"game",timestamp:1,payload:{board:["X","X","X","O","O","","","",""],winner:"A",finished:true,draw:false,next_player:null}};
@@ -20,9 +20,11 @@ test("game board shows nine labelled squares and only referee-confirmed outcomes
 
 
 test("series board shows actual progress and per-game results",()=>{
- const doc=render({...event,payload:{...event.payload,series:{number:2,total:3,remember_games:true,results:[{number:1,winner:null,draw:true,moves:["A:A1"]},{number:2,winner:"A",draw:false,moves:["A:B2"]}]}}});
+ const seriesEvent={...event,payload:{...event.payload,series:{number:2,total:3,remember_games:true,results:[{number:1,winner:null,draw:true,moves:["A:A1"]},{number:2,winner:"A",draw:false,moves:["A:B2"]}]}}};
+ const doc=new JSDOM(renderToStaticMarkup(<><GameBoard event={seriesEvent} ended={false} language="pl"/><GameSeriesResults event={seriesEvent} events={[]} language="pl"/></>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
  assert.match(doc.body.textContent??"",/Partia 2 \/ 3/);
  const results=doc.querySelector('[aria-label="Wyniki serii"]')!;
  assert.match(results.textContent??"",/A: 1 · B: 0 · Remis: 1/);
- assert.equal(results.querySelectorAll("li").length,2);
+ assert.equal(results.querySelectorAll(":scope > details").length,2);
+ assert.equal(doc.querySelector('[aria-label="Kółko i krzyżyk"] [aria-label="Wyniki serii"]'),null);
 });

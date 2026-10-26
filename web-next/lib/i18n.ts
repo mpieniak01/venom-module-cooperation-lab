@@ -96,6 +96,8 @@ const translations = {
   english: ["Angielski", "English", "Englisch"],
   scenarioTicTacToe: ["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],
   liveReflectionMemory:["Pamięć jest wymagana w tym wariancie. Każdy gracz korzysta z własnej notatki oraz publicznych wyników poprzednich partii.", "Memory is required for this variant. Each player uses its own note and public results from previous games.", "Gedächtnis ist für diese Variante erforderlich. Jeder Spieler nutzt seine eigene Notiz und öffentliche Ergebnisse früherer Spiele."],
+  gameFinishedSeeResults:["Zakończona partia i jej przebieg są w wynikach po prawej stronie.", "The completed game and its timeline are in the results on the right.", "Das abgeschlossene Spiel und sein Verlauf stehen rechts in den Ergebnissen."],
+  gameNoResults:["Brak zakończonych partii.", "No completed games yet.", "Noch keine abgeschlossenen Spiele."],
   gameStrategic:["Samodzielna strategia", "Independent strategy", "Eigenständige Strategie"],
   gameReflection:["Strategia z refleksją", "Strategy with reflection", "Strategie mit Reflexion"],
   gameAssisted:["Strategia ze wsparciem solvera", "Solver-assisted strategy", "Strategie mit Solver-Unterstützung"],
