@@ -517,3 +517,24 @@ test("failed automatic preflight can be retried without creating or hiding a ser
     assert.equal(checks,2);assert.equal(starts,1);
   }finally{await close();}
 });
+
+
+test("refresh invalidates a temporarily rejected preflight and START retries the same configuration",async()=>{
+ let checks=0;let starts=0;
+ const {box,close}=await setup(async(url,init)=>{
+  const path=String(url);
+  if(path.endsWith("/capabilities"))return response(caps);
+  if(path.endsWith("/preflight")){checks++;return response(checks===1?{...preflight,supported:false,reason_codes:["runtime_busy"]}:preflight);}
+  if(init?.method==="POST"){starts++;return response({evaluation:saved("completed")},202);}
+  return response({evaluations:[]});
+ });
+ try{
+  await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+  assert.equal(checks,1);assert.equal(starts,0);
+  assert.equal(findButton(box,"Rozpocznij serię").disabled,true);
+  await act(async()=>findButton(box,"Odśwież").click());await settle();
+  assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
+  await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+  assert.equal(checks,2);assert.equal(starts,1);
+ }finally{await close();}
+});

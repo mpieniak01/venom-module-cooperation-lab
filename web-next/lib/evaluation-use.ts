@@ -31,7 +31,7 @@ export function useEvaluations() {
     setEvaluations(previous => [snapshot, ...previous.filter(item => item.id !== snapshot.id)]);
   }, []);
   const refresh = useCallback(async () => {
-    setRefreshing(true);
+    setRefreshing(true); setChecked(null);
     const epoch = selectionEpoch.current;
     try {
       const [caps, listing] = await Promise.all([get<unknown>("/evaluations/capabilities"), get<{evaluations:unknown[]}>("/evaluations")]);
