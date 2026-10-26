@@ -328,6 +328,8 @@ test("conversation reflection variant starts from the existing form and streams 
   assert.equal(count.value,"3");assert.equal(count.min,"2");
   const memory=[...box.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].find(n=>n.parentElement?.textContent?.includes("Pamięć poprzednich gier"))!;
   assert.equal(memory.checked,true);assert.equal(memory.disabled,true);assert.equal(posted,null);
+  assert.match(box.textContent??"",/Pamięć jest wymagana w tym wariancie/);
+  assert.doesNotMatch(box.textContent??"",/Wyłącz, aby porównać/);
   await act(async()=>findButton(box,"Rozpocznij eksperyment").click());await settle();
   assert.equal((posted as unknown as Record<string,unknown>).mode,"game_reflection");
   assert.equal((posted as unknown as Record<string,unknown>).game_count,3);
