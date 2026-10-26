@@ -257,7 +257,7 @@ test("tic-tac-toe selects dialog and nine moves and live game events update the 
   assert.equal(variants.value,"dialog_encouraged");
   await act(async()=>{selector.value="tic_tac_toe";selector.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
   const mode=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Wariant"))!;
-  assert.equal(mode.value,"dialog");assert.equal(mode.options.length,2);assert.equal(mode.options[0].textContent,"Gra naprzemienna");
+  assert.equal(mode.value,"dialog");assert.equal(mode.options.length,5);assert.equal(mode.options[0].textContent,"Gra naprzemienna");
   assert.equal(mode.options[1].textContent,"Gra, aby wygrać");
   await act(async()=>{mode.value="game_competitive";mode.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
   const turns=box.querySelector<HTMLInputElement>('input[type="number"]')!;
@@ -301,5 +301,70 @@ test("game series controls submit count and memory policy without changing other
   await act(async()=>memory.click());
   await act(async()=>findButton(box,"Rozpocznij eksperyment").click());await settle();
   assert.equal(body?.["game_count"],2);assert.equal(body?.["remember_games"],false);
+ }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
+});
+
+
+test("conversation reflection variant starts from the existing form and streams notes beside the board",async()=>{
+ const old=globalThis.fetch;localStorage.clear();Stream.instances=[];
+ let posted:Record<string,unknown>|null=null;
+ const game:Run={...aRun(),config:{scenario_id:"tic_tac_toe",mode:"game_reflection",game_count:3,remember_games:true,communication_language:"pl",budgets:{max_turns:9,max_new_tokens:128}}};
+ globalThis.fetch=async(url,init)=>{
+  const path=new URL(String(url),"http://localhost").pathname;
+  if(path.endsWith("/capabilities"))return response(caps);
+  if(init?.method==="POST"&&path.endsWith("/runs")){posted=JSON.parse(String(init.body));return response({run:game,created:true},202);}
+  if(path.endsWith("/events"))return response({events:[],last_seq:0});
+  if(path.endsWith("/runs/r1"))return response({run:game});
+  return response({runs:[]});
+ };
+ const box=document.createElement("div");document.body.append(box);const root=createRoot(box);
+ const pick=(label:string)=>[...box.querySelectorAll("select")].find(n=>n.parentElement?.textContent?.startsWith(label))!;
+ try{
+  await act(async()=>root.render(<CooperationLabPage/>));await settle();
+  await act(async()=>{const n=pick("Scenariusz");n.value="tic_tac_toe";n.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  assert.deepEqual([...pick("Wariant").options].slice(2).map(o=>o.textContent),["Samodzielna strategia","Strategia z refleksją","Strategia ze wsparciem solvera"]);
+  for(const mode of ["game_strategic","game_assisted"]){
+    await act(async()=>{const n=pick("Wariant");n.value=mode;n.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+    assert.match(box.textContent??"",/Pamięć obejmuje tylko wyniki poprzednich partii/);
+    assert.doesNotMatch(box.textContent??"",/Pamięć: ruchy i wyniki/);
+  }
+  await act(async()=>{const n=pick("Wariant");n.value="game_reflection";n.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+  const count=[...box.querySelectorAll<HTMLInputElement>('input[type="number"]')].find(n=>n.parentElement?.textContent?.startsWith("Liczba gier"))!;
+  assert.equal(count.value,"3");assert.equal(count.min,"2");
+  const memory=[...box.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].find(n=>n.parentElement?.textContent?.includes("Pamięć poprzednich gier"))!;
+  assert.equal(memory.checked,true);assert.equal(memory.disabled,true);assert.equal(posted,null);
+  assert.match(box.textContent??"",/Pamięć jest wymagana w tym wariancie/);
+  assert.doesNotMatch(box.textContent??"",/Wyłącz, aby porównać/);
+  await act(async()=>findButton(box,"Rozpocznij eksperyment").click());await settle();
+  assert.equal((posted as unknown as Record<string,unknown>).mode,"game_reflection");
+  assert.equal((posted as unknown as Record<string,unknown>).game_count,3);
+  assert.equal((posted as unknown as Record<string,unknown>).reflection_max_new_tokens,128);
+  const stream=Stream.instances[0];assert.ok(stream.listeners.has("reflection"));
+  await act(async()=>stream.emit({run_id:"r1",seq:1,kind:"game",timestamp:1,payload:{board:["X","","","","O","","","",""],moves:2,next_player:"A",strategy:{model_moves:2,worse_moves:1,missed_wins:0,solver_interventions:0,result_scope:"model"}}}));
+  await act(async()=>stream.emit({run_id:"r1",seq:2,kind:"reflection",timestamp:2,payload:{player:"B",content:"Następnym razem zablokuję wygraną.",game_number:1,feedback:{lessons:[{model_action:{square:"B3"},better_action:{square:"A3"}}]}}}));
+  await act(async()=>stream.emit({run_id:"r1",seq:3,kind:"message",timestamp:3,payload:{sender:"A",recipient:"B",kind:"message",content:"OLD-GAME-ONLY",game_number:1,delivered_to:["B"]}}));
+  await act(async()=>stream.emit({run_id:"r1",seq:4,kind:"game",timestamp:4,payload:{board:["X","","","","","","","",""],moves:1,next_player:"B",series:{number:2,total:3,remember_games:true,results:[{number:1,winner:"A",draw:false,moves:["A:A1","B:B1","A:A2","B:B2","A:A3"]}]},strategy:{model_moves:6,worse_moves:1,missed_wins:0,solver_interventions:0,result_scope:"model"}}}));
+  await act(async()=>stream.emit({run_id:"r1",seq:5,kind:"message",timestamp:5,payload:{sender:"A",recipient:"B",kind:"message",content:"CURRENT-GAME-ONLY",delivered_to:["B"]}}));
+  const left=box.querySelector(".coop-main > .coop-column")!;
+  const right=box.querySelector(".coop-main > aside")!;
+  assert.match(left.textContent??"",/CURRENT-GAME-ONLY/);
+  assert.doesNotMatch(left.textContent??"",/OLD-GAME-ONLY|Następnym razem zablokuję/);
+  assert.doesNotMatch(right.textContent??"",/OLD-GAME-ONLY/);
+  assert.doesNotMatch(left.textContent??"",/Pogorszenia pozycji/);
+  assert.equal(right.querySelector(".coop-game-metrics tr:nth-child(2) td")?.textContent,"1");
+  assert.doesNotMatch(right.textContent??"",/CURRENT-GAME-ONLY/);
+  assert.ok(right.querySelector(".coop-history"));
+  assert.equal(left.querySelector('[aria-label="Wyniki serii"]'),null);
+  assert.ok(right.querySelector('[aria-label="Propozycje organizacji"]')!.compareDocumentPosition(right.querySelector('[aria-label="Wyniki serii"]')!)&dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+  await act(async()=>stream.emit({run_id:"r1",seq:6,kind:"reflection",timestamp:6,payload:{player:"B",content:"CURRENT-NOTE",game_number:2,feedback:{lessons:[{model_action:{square:"B3"},better_action:{square:"A3"}}]}}}));
+  await act(async()=>stream.emit({run_id:"r1",seq:7,kind:"game",timestamp:7,payload:{board:["X","X","X","O","O","","","",""],finished:true,winner:"A",draw:false,moves:5,series:{number:2,total:3,remember_games:true,results:[{number:1,winner:"A",draw:false,moves:["A:A1"]},{number:2,winner:"A",draw:false,moves:["A:A1","B:B1","A:A2","B:B2","A:A3"]}]}}}));
+  assert.match(left.textContent??"",/CURRENT-GAME-ONLY/);
+  assert.match(left.textContent??"",/CURRENT-NOTE/);
+  assert.match(left.textContent??"",/Lepszy ruch: A3/);
+  assert.doesNotMatch(right.textContent??"",/CURRENT-GAME-ONLY|CURRENT-NOTE/);
+  assert.equal(right.querySelectorAll(".coop-game-results-table tbody tr").length,2);
+  assert.equal(right.querySelector(".coop-messages"),null);
+  assert.equal(right.querySelector(".coop-game-results details"),null);
+  assert.equal(box.querySelector('[aria-label="A1"]')?.textContent,"X");
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });

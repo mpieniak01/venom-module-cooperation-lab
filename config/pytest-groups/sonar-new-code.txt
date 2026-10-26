@@ -27,10 +27,14 @@ tests/test_history_rotation.py
 tests/test_host_contract.py
 tests/test_lifecycle_api.py
 tests/test_lifecycle_namespace.py
+tests/test_live_game_optimization.py
+tests/test_live_game_strategy.py
 tests/test_model_budgets.py
 tests/test_operator_chat.py
 tests/test_peer_review.py
 tests/test_quality_gates.py
+tests/test_reflection.py
+tests/test_rule_reflection.py
 tests/test_runner.py
 tests/test_storage.py
 tests/test_tic_tac_toe.py

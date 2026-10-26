@@ -54,6 +54,19 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
             {
                 "game": game,
                 "episodes": len(episodes),
+                "ttt_variant": snapshot.get("config", {}).get(
+                    "ttt_variant", "standard"
+                ),
+                "result_scope": "assisted"
+                if snapshot.get("config", {}).get("ttt_variant") == "assisted"
+                else "model",
+                "solver_interventions": sum(
+                    bool(d.get("assistance", {}).get("applied")) for d in decisions
+                ),
+                "model_action_samples": sum(
+                    d.get("purpose", "action") == "action" and bool(d.get("valid"))
+                    for d in decisions
+                ),
                 "wins": sum(
                     (r.get("result") or {}).get("winner") == r["player"]
                     for r in finished
@@ -203,6 +216,9 @@ def export(snapshot: dict[str, Any], format: str) -> tuple[str, str]:
             "winner",
             "actions",
             "result",
+            "ttt_variant",
+            "result_scope",
+            "solver_interventions",
         ]
     )
     for archived, row in _export_rows(snapshot):
@@ -222,6 +238,14 @@ def export(snapshot: dict[str, Any], format: str) -> tuple[str, str]:
                 result.get("winner"),
                 len(row["decisions"]),
                 json.dumps(result, ensure_ascii=False),
+                snapshot.get("config", {}).get("ttt_variant", "standard"),
+                "assisted"
+                if snapshot.get("config", {}).get("ttt_variant") == "assisted"
+                else "model",
+                sum(
+                    bool(d.get("assistance", {}).get("applied"))
+                    for d in row["decisions"]
+                ),
             ]
         )
     return stream.getvalue(), "text/csv"

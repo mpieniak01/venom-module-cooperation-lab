@@ -373,6 +373,32 @@
       ],
       "domain": "cooperation_lab",
       "intent": "regression",
+      "path": "tests/test_live_game_optimization.py",
+      "primary_lane": "new-code",
+      "rationale": "Module CPU regression and changed-code coverage.",
+      "test_type": "unit"
+    },
+    {
+      "allowed_lanes": [
+        "new-code",
+        "ci-lite",
+        "release"
+      ],
+      "domain": "cooperation_lab",
+      "intent": "regression",
+      "path": "tests/test_live_game_strategy.py",
+      "primary_lane": "new-code",
+      "rationale": "Module CPU regression and changed-code coverage.",
+      "test_type": "unit"
+    },
+    {
+      "allowed_lanes": [
+        "new-code",
+        "ci-lite",
+        "release"
+      ],
+      "domain": "cooperation_lab",
+      "intent": "regression",
       "path": "tests/test_model_budgets.py",
       "primary_lane": "new-code",
       "rationale": "Module CPU regression and changed-code coverage.",
@@ -413,6 +439,32 @@
       "domain": "cooperation_lab",
       "intent": "regression",
       "path": "tests/test_quality_gates.py",
+      "primary_lane": "new-code",
+      "rationale": "Module CPU regression and changed-code coverage.",
+      "test_type": "unit"
+    },
+    {
+      "allowed_lanes": [
+        "new-code",
+        "ci-lite",
+        "release"
+      ],
+      "domain": "cooperation_lab",
+      "intent": "regression",
+      "path": "tests/test_reflection.py",
+      "primary_lane": "new-code",
+      "rationale": "Module CPU regression and changed-code coverage.",
+      "test_type": "unit"
+    },
+    {
+      "allowed_lanes": [
+        "new-code",
+        "ci-lite",
+        "release"
+      ],
+      "domain": "cooperation_lab",
+      "intent": "regression",
+      "path": "tests/test_rule_reflection.py",
       "primary_lane": "new-code",
       "rationale": "Module CPU regression and changed-code coverage.",
       "test_type": "unit"

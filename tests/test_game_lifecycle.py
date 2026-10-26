@@ -217,6 +217,8 @@ async def test_late_close_cleanup_retains_ownership_until_unload_finishes(
     monkeypatch.setattr(asyncio, "wait", short_wait)
     adapter.block_close = True
     assert not await service._cleanup(job)
+    # The 10 ms cleanup deadline does not guarantee OS thread scheduling.
+    await entered(adapter.close_entered)
     assert adapter.close_entered.is_set() and not job.released
     assert admission.snapshot()["status"] != "available"
     adapter.close_released.set()

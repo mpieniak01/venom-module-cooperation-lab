@@ -125,6 +125,15 @@ class EvaluationService:
             reasons.append("unsupported_compute_steps")
         if request.reflection != "off" and request.episode_memory != "carry":
             reasons.append("reflection_requires_carry")
+        if request.ttt_variant != "standard":
+            if any(item["game"] != "tic_tac_toe" for item in items):
+                reasons.append("ttt_variant_requires_ttt")
+            if request.ttt_variant == "reflection" and (
+                request.episode_memory != "carry"
+                or request.reflection != "episode_note"
+                or request.repetitions < 2
+            ):
+                reasons.append("ttt_reflection_requires_series")
         for item in items:
             if request.opponent == "model" and item["game"] in {"memory", "sokoban"}:
                 reasons.append("solo_game_has_no_opponent")
@@ -170,6 +179,10 @@ class EvaluationService:
             "terminal_feedback": "public-final-state-and-outcome-once-v1",
             "rng_policy": "sha256(seed,case,repeat,player,decision,purpose)-v1",
         }
+        if request.ttt_variant != "standard":
+            from .strategies import STRATEGY_VERSION
+
+            configuration["strategy_version"] = STRATEGY_VERSION
         return {
             "supported": not reasons,
             "reason_codes": sorted(set(reasons)),
@@ -320,6 +333,8 @@ class EvaluationService:
                     else "model-template",
                 )
                 != check["configuration"]["prompt_policy"]
+                or previous["config"].get("strategy_version")
+                != check["configuration"].get("strategy_version")
             ):
                 raise LabError("evaluation_identity_changed", 409)
             state = copy.deepcopy(previous)
@@ -756,7 +771,31 @@ class EvaluationService:
             "Write a short private improvement note based only on your observed game. "
             "Do not give a step-by-step reasoning transcript."
         )
+        if request.ttt_variant == "reflection":
+            reflection_instruction = (
+                "Use your observed game and the post-game coaching to write a short "
+                "private improvement note for the next game. State one actionable "
+                "rule. Do not give a step-by-step reasoning transcript."
+            )
         observation = copy.deepcopy(observation)
+        if purpose == "action" and request.ttt_variant == "assisted":
+            observation["support_policy"] = (
+                "A minimax coach replaces legal proposals that worsen the position. "
+                "Your original proposal is scored separately."
+            )
+            previous = next(
+                (
+                    d
+                    for d in reversed(item["decisions"])
+                    if d.get("assistance", {}).get("applied") and d["player"] == player
+                ),
+                None,
+            )
+            if previous:
+                observation["last_support"] = {
+                    "proposed": previous["model_action"],
+                    "executed": previous["action"],
+                }
         if purpose == "action":
             if job.session.has_history(player):
                 observation.pop("rules", None)
@@ -943,6 +982,19 @@ class EvaluationService:
                 record["action"] = action
                 try:
                     assessment = assess(env, player, action)
+                    if is_model and request.ttt_variant != "standard":
+                        from .strategies import strategy_action
+
+                        action = strategy_action(
+                            env,
+                            player,
+                            action,
+                            assessment,
+                            record,
+                            request.ttt_variant,
+                            seeded(request.seed, item["index"], action_index, "coach"),
+                        )
+                        record["action"] = action
                     env.step(player, action)
                 except LabError as exc:
                     code = (
@@ -979,6 +1031,13 @@ class EvaluationService:
                 }
                 if request.episode_memory == "carry":
                     job.feedback = {p: copy.deepcopy(feedback) for p in participants}
+                if request.ttt_variant == "reflection":
+                    from .strategies import lessons_for
+
+                    for participant in participants:
+                        job.feedback[participant]["coaching"] = lessons_for(
+                            item, participant
+                        )
                 if request.reflection == "episode_note":
                     for player in participants:
                         try:
@@ -986,7 +1045,7 @@ class EvaluationService:
                                 job,
                                 item,
                                 player,
-                                feedback,
+                                job.feedback.get(player, feedback),
                                 request,
                                 "reflection",
                             )

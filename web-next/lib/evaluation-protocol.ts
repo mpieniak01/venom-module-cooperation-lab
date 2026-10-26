@@ -7,6 +7,7 @@ export type EvaluationRequest = {
   observation_mode: "history_replay" | "native_incremental";
   episode_memory: "fresh" | "carry";
   reflection: "off" | "episode_note";
+  ttt_variant: "standard" | "reflection" | "assisted";
   decoding: "greedy" | "sampled";
   response_mode: "strict_json" | "mapped";
   temperature: number;
@@ -56,6 +57,10 @@ export type EvaluationDecision = {
   usage?: Record<string, Json>;
   assessment?: Record<string, Json>;
   response_mapping?: Record<string, Json>;
+  model_action?: Json;
+  assistance?: Record<string, Json>;
+  execution_assessment?: Record<string, Json>;
+  lesson?: Json;
 };
 export type EvaluationEpisode = {
   case_id: string;
@@ -96,12 +101,13 @@ export function isEvaluationSnapshot(value: unknown): value is EvaluationSnapsho
     Array.isArray(value.episodes) && value.episodes.every(episode => object(episode) && typeof episode.case_id === "string" && typeof episode.status === "string" && Array.isArray(episode.decisions)) && object(value.summary);
 }
 export function evaluationDefaults(): EvaluationRequest {
-  return { model_id:"", case_ids:[], repetitions:1, observation_mode:"history_replay", episode_memory:"fresh", reflection:"off", decoding:"greedy", response_mode:"mapped", temperature:0.8, top_p:0.9, seed:17, num_steps:8, legal_moves:"listed", opponent:"optimal", swap_sides:true, max_new_tokens:64, decision_timeout_s:30, max_context_tokens:2048 };
+  return { model_id:"", case_ids:[], repetitions:1, observation_mode:"history_replay", episode_memory:"fresh", reflection:"off", ttt_variant:"standard", decoding:"greedy", response_mode:"mapped", temperature:0.8, top_p:0.9, seed:17, num_steps:8, legal_moves:"listed", opponent:"optimal", swap_sides:true, max_new_tokens:64, decision_timeout_s:30, max_context_tokens:2048 };
 }
 export function validEvaluationRequest(input: EvaluationRequest): boolean {
   return typeof input.model_id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(input.model_id) &&
     Array.isArray(input.case_ids) && input.case_ids.length > 0 && input.case_ids.length <= 32 && input.case_ids.every(id=>typeof id === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(id)) && new Set(input.case_ids).size === input.case_ids.length &&
     ["history_replay", "native_incremental"].includes(input.observation_mode) && ["fresh", "carry"].includes(input.episode_memory) && ["off", "episode_note"].includes(input.reflection) &&
+    ["standard", "reflection", "assisted"].includes(input.ttt_variant) &&
     ["strict_json", "mapped"].includes(input.response_mode) && ["greedy", "sampled"].includes(input.decoding) && [8,16,32,64].includes(input.num_steps) && ["hidden", "listed"].includes(input.legal_moves) &&
     ["optimal", "random", "remembering", "model"].includes(input.opponent) && typeof input.swap_sides === "boolean" && Number.isInteger(input.repetitions) && input.repetitions >= 1 && input.repetitions <= 10 &&
     Number.isInteger(input.max_context_tokens) && input.max_context_tokens >= 128 && input.max_context_tokens <= 16384 && Number.isInteger(input.seed) && input.seed >= 0 && input.seed <= 2147483647 && Number.isInteger(input.max_new_tokens) && input.max_new_tokens >= 8 && input.max_new_tokens <= 2147483647 &&

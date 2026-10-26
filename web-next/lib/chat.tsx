@@ -37,6 +37,8 @@ export function Conversation({ events, language }: { events:LabEvent[]; language
           <span>#{event.seq} · {messageKindLabel(t, kind)}</span>
           {time ? <time dateTime={time.iso} title={t.recordedAt + ": " + time.iso}>{time.display}</time> : <span>{t.unknownTime}</span>}
         </div>
+        {event.payload.rule_application&&typeof event.payload.rule_application==="object"&&!Array.isArray(event.payload.rule_application)&&event.payload.rule_application.applicable===true&&<p className="coop-message-meta" data-rule-use={event.payload.rule_application.followed===true?"followed":"ignored"}>{event.payload.rule_application.followed===true?t.gameRuleFollowed:t.gameRuleIgnored}: {String(event.payload.rule_application.rule_id)}</p>}
+        {typeof event.payload.model_move==="string"&&<p className="coop-message-meta">{t.gameModelProposal}: {text(event,"model_move")} · {t.gameExecutedMove}: {text(event,"game_move")}{event.payload.assistance&&typeof event.payload.assistance==="object"&&!Array.isArray(event.payload.assistance)&&event.payload.assistance.applied===true?` · ${t.gameSolverIntervention}`:""}</p>}
         <p className="coop-message-content">{text(event, "content")}</p>
         <p className="coop-message-meta">{delivery}</p>
         {replyId && (reply

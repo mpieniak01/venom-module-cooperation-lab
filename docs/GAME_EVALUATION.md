@@ -8,9 +8,11 @@ pozostaje dostępna. Nowy protokół `game-eval-v2` nie zmienia starych wyników
 
 1. Otwórz `/cooperation-lab` i wybierz **Ewaluacja gier**.
 2. Wybierz model oraz przypadki TTT, Nim, Memory lub Sokoban.
-3. Ustaw powtórzenia, pamięć, generację i limity. **Sprawdź konfigurację**
-   pokazuje plan i przyczynę ewentualnej blokady. Każda zmiana wymaga nowego sprawdzenia.
-4. **Rozpocznij serię** uruchamia jeden model przez wspólną blokadę zasobów Venoma.
+3. Wybierz model, grę, wariant i powtórzenia. Pozostałe parametry oraz opcjonalny
+   podgląd planu znajdują się w **Ustawieniach zaawansowanych**.
+4. **Rozpocznij serię** automatycznie sprawdza aktualne ustawienia i uruchamia jeden
+   model przez wspólną blokadę zasobów Venoma. Osobne sprawdzenie nie jest wymagane.
+   Błąd pozostawia formularz otwarty i pokazuje przyczynę przy przycisku START.
    **Zatrzymaj serię** przerywa własne obliczenia; zwolnienie zasobu czeka na unload.
 5. Wyniki, surowe odpowiedzi i decyzje są w historii. Eksport JSON/JSONL/CSV
    zapisuje również stare podejścia bloków. **Usuń serię** usuwa zakończony zapis
@@ -198,3 +200,122 @@ Po restarcie odzyskiwanie ewaluacji używa zapisanej tożsamości wykonawcy
 (provider/artifact) oraz zgodnej dzierżawy. Nie wymaga ponownego wykrycia ani
 instalacji usuniętego tagu Ollama. Brak poprawnej zapisanej tożsamości pozostawia
 kwarantannę; nadal wymagane są trzy puste odpowiedzi `/api/ps`.
+
+
+## Warianty kółka i krzyżyka — 2026-10-26
+
+W zakładce ewaluacji wybierz **Kółko i krzyżyk**, a następnie pole
+**Wariant kółka i krzyżyka**. Sam wybór nie uruchamia modelu.
+
+- **Samodzielna** (`standard`, również domyślny wariant starszych zapisów):
+  model sam wybiera ruchy; dotychczasowe ustawienia pozostają dostępne.
+- **Z refleksją po partii** (`reflection`): formularz ustawia carry, notatkę
+  po partii i co najmniej trzy powtórzenia. API wymaga co najmniej dwóch.
+  Po zakończeniu partii model dostaje maksymalnie trzy własne ruchy obniżające
+  ocenę minimaksu: planszę, propozycję, ocenę i lepszy ruch. Następnie zapisuje
+  prywatną notatkę do historii swojego bloku. Podpowiedzi nie trafiają do decyzji
+  przed zakończeniem partii. Wagi pozostają zamrożone; to coaching w kontekście,
+  bez treningu ze wzmocnieniem i bez gwarancji poprawy.
+- **Ze wsparciem solvera** (`assisted`): minimaks zastępuje tylko legalny ruch
+  obniżający wartość pozycji. Ruch optymalny pozostaje bez zmian; zły format lub
+  nielegalna akcja nadal kończą epizod błędem. Nie ma ponownej generacji LLM.
+  Model otrzymuje informację o swojej poprzedniej interwencji w kolejnej turze.
+
+W dzienniku `model_action` oznacza propozycję, `action` ruch wykonany,
+`assessment` ocenę pierwotnej propozycji, a `execution_assessment` ocenę ruchu
+po wsparciu. `assistance.applied` i podsumowanie `solver_interventions`
+wskazują interwencje. Wynik partii wspomaganej ma `result_scope=assisted`;
+metryki błędów nadal dotyczą modelu. Nie porównuj takiego wyniku bezpośrednio
+z samodzielną grą. JSON/JSONL zachowują pełny ślad, a replay używa wykonanych
+ruchów. Wersja strategii jest zapisana i sprawdzana przy wznowieniu serii.
+
+Nowe warianty dotyczą wyłącznie przypadków TTT. Ustawienia dekodowania,
+kontekstu, tokenów i kroków Huginn są jawne i nie są zmieniane przez wybór
+wariantu. Korzystają ze ścieżki ewaluacji v2, bez historycznego wymuszania
+legalnych współrzędnych ze zwykłych serii v1. Nie uruchamiają treningu wag.
+
+
+## Podgląd na żywo w „Rozmowa i serie”
+
+Wybierz **Rozmowa i serie → Scenariusz: Kółko i krzyżyk → Wariant**:
+**Samodzielna strategia**, **Strategia z refleksją** lub
+**Strategia ze wsparciem solvera**. Start odbywa się przyciskiem
+**Rozpocznij eksperyment**, bez osobnego preflight. Zakładka **Gry i strategie**
+pozostaje osobną ścieżką ewaluacji hurtowej.
+
+Lewa kolumna pokazuje planszę, wiadomości i refleksje aktualnej partii, również
+po jej zakończeniu. Rozpoczęcie następnej partii przełącza przebieg po lewej.
+Po prawej, pod „Propozycje organizacji”, są historia prób i „Wyniki serii”:
+statystyki strategii, bilans A/B/remis oraz tabela partii z liczbą ruchów.
+Wyniki nie zawierają kopii rozmów.
+
+W wiadomościach propozycja modelu i wykonany ruch są zapisane osobno.
+Nielegalna propozycja lub niejednoznaczny format kończą próbę błędem.
+W refleksji i samodzielnej strategii ruch nie jest zmieniany przez hosta.
+Wariant wspomagany jawnie oznacza interwencje CPU i `result_scope=assisted`;
+wyników wspomaganych nie należy przypisywać samemu modelowi.
+
+### Aktywny kontrakt live v4
+
+Nowe warianty mają `schema_version=8`, `scheduler=live-game-strategy-v4`
+i `strategy_version=ttt-coaching-v4`. Używają faktycznych ustawień
+temperatury/top-p, bez wymuszania legalnej współrzędnej i bez ukrytych ponowień.
+Historyczne „Gra naprzemienna” i „Gra, aby wygrać” zachowują swój protokół
+oraz sposób dekodowania. Stare konfiguracje, wyniki i parsery batch nie są
+retrospektywnie zmieniane.
+
+HRM i Huginn otrzymują jawny profil angielski. `model_language` opisuje język
+zadania, a `communication_language` zachowuje wejście operatora. HRM otrzymuje
+dwa przykłady formatu pojedynczego ruchu. Dla Huginn w sekcji modelu można
+wybrać 8/16/32/64 kroki; API sprawdza obsługiwaną architekturę, a `usage`
+zapisuje faktyczną wartość. Historyczna próba bez `num_steps` przywraca 8 kroków.
+
+RWKV i Huginn mają `observation_profile=explicit-cells-v1`: stan dziewięciu
+komórek jest jawny (`A1=empty/X/O`). Huginn otrzymuje aktualny stan bez
+redundantnego dawnego przekazu, przy zachowaniu pełnego dziennika dostarczeń.
+RWKV nadal dopisuje kontekst rekurencyjny. W porównaniu kompresja pogorszyła
+taktykę HRM, dlatego zachowuje on `board-and-peer-with-reminder-v1`:
+dotychczasową planszę i ostatni przekaz przeciwnika. W każdym profilu własna
+przyjęta reguła jest dodatkowo przypominana przy decyzji.
+
+### Sprawdzanie refleksji i jej wykorzystania
+
+Refleksja domyślnie ustawia trzy gry i pamięć; wymaga minimum dwóch pełnych
+partii. Generacja notatek odbywa się **wyłącznie między partiami**. Po ostatniej
+nie ma wywołań notatek. Rezerwa obejmuje maksymalnie `2 * (liczba_partii - 1)`
+generacji. **Tokenów na notatkę** ma osobny limit 128 (zakres 32–256), niezależny
+od limitu ruchu. Generacje podlegają STOP, admission i wspólnym budżetom.
+
+Model wybiera regułę `win_now` lub `block_win` z jawnego katalogu hosta.
+Host sprawdza jej politykę na rzeczywistym własnym błędzie gracza oraz ośmiu
+obrotach/odbiciach planszy. Bezpośrednia wygrana ma pierwszeństwo przed blokiem.
+Reguła bloku wymaga braku własnej wygranej i pojedynczego bezpośredniego zagrożenia.
+Pominięta natychmiastowa wygrana może być lekcją także bez spadku minimax,
+jeśli model zachował możliwość wymuszonej późniejszej wygranej.
+
+Katalog nie obejmuje wszystkich błędów pozycyjnych i forków. Bez wspierającej
+lekcji notatka jest jawnie pominięta, bez generacji i bez liczenia jej jako
+odrzuconej. Błędny format lub niepoparta reguła nie nadpisują poprzedniej pamięci.
+Do następnej partii trafia tylko własna przyjęta reguła i maksymalnie trzy same
+wyniki wcześniejszych gier, bez ich współrzędnych i surowych transkryptów.
+
+`note_source=model_selected_host_catalog_rule` oznacza, że model wybrał regułę,
+a jej opis pochodzi z katalogu. `validation.future_model_behavior_verified=false`
+wyklucza traktowanie tej kontroli jako dowodu nauczenia się jej przez model.
+UI odróżnia to od historycznej kontroli samego formatu notatki.
+
+`rule-choice-map-v1` przyjmuje obiekt z jednym polem `rule_id`, pojedynczy jawny
+identyfikator albo string JSON z identyfikatorem. Nie wybiera za model, nie
+wyciąga fragmentów z prozy lub listy i nadal wymaga dowodu taktycznego.
+`response_mapping` zapisuje normalizację, `raw_content` zachowuje oryginał.
+
+`rule_application` ocenia wyłącznie pierwotną legalną propozycję modelu.
+`rule_opportunities`, `rule_followed` i `rule_ignored` liczą decyzje, dla których
+własna aktywna reguła ma zastosowanie. Brak okazji nie jest zaliczany jako sukces.
+Ocena jest widoczna przy ruchu i w tabeli wyników; nie zmienia wykonanej akcji.
+
+Wagi są utrzymywane przez całą serię, a prywatne stany resetowane między partiami.
+Łączenie partii amortyzuje ładowanie bez obchodzenia admission. Nie jest to
+trening wag ani dowód trwałego uczenia. Odbiór i ograniczenia małego pilota:
+[LIVE_STRATEGY_RELEASE.md](LIVE_STRATEGY_RELEASE.md). Próba Huginn v4 przerwana
+podczas przygotowania przez utratę odpowiedzi WSL nie jest wynikiem jakości.

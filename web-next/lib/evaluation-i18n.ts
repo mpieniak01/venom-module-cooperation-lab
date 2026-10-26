@@ -1,4 +1,19 @@
 const labels = {
+  advancedSettings:["Ustawienia zaawansowane", "Advanced settings", "Erweiterte Einstellungen"],
+  startReady:["Wybierz model, grę i wariant, potem rozpocznij serię. Ustawienia sprawdzimy automatycznie.", "Choose a model, game and variant, then start the series. Settings will be checked automatically.", "Modell, Spiel und Variante wählen, dann die Serie starten. Einstellungen werden automatisch geprüft."],
+  tttVariant:["Wariant kółka i krzyżyka", "Tic-tac-toe variant", "Tic-Tac-Toe-Variante"],
+  variant_standard:["Samodzielna", "Independent", "Eigenständig"],
+  variant_reflection:["Z refleksją po partii", "Post-game reflection", "Reflexion nach dem Spiel"],
+  variant_assisted:["Ze wsparciem solvera", "Solver assisted", "Mit Solver-Unterstützung"],
+  variantHelp_standard:["Model sam wybiera ruchy. Ustawienia pamięci, losowości i budżetu pozostają dostępne.", "The model chooses its own moves. Memory, sampling and budget settings remain available.", "Das Modell wählt seine Züge. Gedächtnis, Sampling und Budget bleiben einstellbar."],
+  variantHelp_reflection:["Co najmniej dwie partie. Po grze model otrzymuje do trzech własnych błędów i lepsze ruchy, a następnie zapisuje notatkę do kolejnych partii. Wagi nie są trenowane.", "At least two games. After each game the model receives up to three of its own mistakes and better moves, then writes a note for subsequent games. Weights are not trained.", "Mindestens zwei Spiele. Danach erhält das Modell bis zu drei eigene Fehler und bessere Züge und schreibt eine Notiz für weitere Spiele. Gewichte werden nicht trainiert."],
+  variantHelp_assisted:["Solver zastępuje legalny ruch pogarszający pozycję. Dziennik zachowuje propozycję modelu, wykonany ruch i ocenę obu. Błędy formatu i ruchy nielegalne nadal kończą próbę.", "The solver replaces legal moves that worsen the position. The journal preserves the model proposal, executed move and both scores. Format errors and illegal moves still end the episode.", "Der Solver ersetzt legale Züge, die die Stellung verschlechtern. Das Protokoll bewahrt Vorschlag, ausgeführten Zug und beide Bewertungen. Formatfehler und illegale Züge beenden die Episode."],
+  solverInterventions:["Interwencje solvera", "Solver interventions", "Solver-Eingriffe"],
+  modelProposal:["Propozycja modelu", "Model proposal", "Modellvorschlag"],
+  assistedResults:["Wynik gry wspomaganej. Metryki błędów oceniają pierwotne propozycje modelu.", "Assisted game result. Error metrics score the original model proposals.", "Ergebnis mit Unterstützung. Fehlermetriken bewerten ursprüngliche Modellvorschläge."],
+  ttt_variant_requires_ttt:["Ten wariant wymaga wyłącznie kółka i krzyżyka.", "This variant requires tic-tac-toe cases only.", "Diese Variante erfordert ausschließlich Tic-Tac-Toe-Fälle."],
+  ttt_reflection_requires_series:["Refleksja wymaga co najmniej dwóch powtórzeń, pamięci w bloku i notatki po partii.", "Reflection requires at least two repetitions, carry memory and post-game notes.", "Reflexion erfordert mindestens zwei Wiederholungen, Gedächtnis im Block und Notizen nach dem Spiel."],
+
   saveBudgets:["Zapisz limity modelu", "Save model limits", "Modelllimits speichern"],
   savedBudgets:["Limity zapisane dla tego modelu w Venomie.", "Limits saved for this model in Venom.", "Limits für dieses Modell in Venom gespeichert."],
   budgetsHelp:["Zapisz limity osobno dla modelu. Większa odpowiedź potrzebuje czasu i mieści się razem z wejściem w kontekście.", "Save limits per model. Longer output needs time and shares the context with input.", "Limits je Modell speichern. Längere Ausgabe braucht Zeit und teilt den Kontext mit der Eingabe."],
@@ -14,7 +29,7 @@ const labels = {
   mappingHelp:["Mapuje jednoznaczny ruch; nie wybiera go za model. Oryginalna odpowiedź pozostaje w raporcie.", "Maps an explicit move without choosing for the model. Original answers remain in the report.", "Ordnet einen eindeutigen Zug zu, ohne ihn zu wählen. Originalantworten bleiben im Bericht."],
 
   conversationTab:["Rozmowa i serie", "Conversation and series", "Gespräch und Serien"],
-  evaluationTab:["Gry — Nim, Memory, Sokoban", "Games — Nim, Memory, Sokoban", "Spiele — Nim, Memory, Sokoban"],
+  evaluationTab:["Gry i strategie", "Games and strategies", "Spiele und Strategien"],
   gameSelection:["Wybierz grę", "Choose game", "Spiel auswählen"],
   multipleGames:["Wiele gier / wybór przypadków", "Multiple games / case selection", "Mehrere Spiele / Fallauswahl"],
   ticTacToe:["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],

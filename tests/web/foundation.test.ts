@@ -84,3 +84,27 @@ test("game series settings restore bounded count and explicit memory policy",()=
  assert.equal(savedSettings({scenario_id:"tic_tac_toe",game_count:99}).gameCount,1);
  assert.equal(savedSettings({scenario_id:"tic_tac_toe"}).rememberGames,true);
 });
+
+
+test("live game modes restore from conversation history",()=>{
+ for(const mode of ["game_strategic","game_reflection","game_assisted"]){
+  assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode}).mode,mode);
+ }
+});
+
+
+test("independent reflection budget restores explicit settings and historical 64-token limits",()=>{
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode:"game_reflection",reflection_max_new_tokens:192}).reflectionTokens,192);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode:"game_reflection"}).reflectionTokens,64);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode:"dialog"}).reflectionTokens,undefined);
+});
+
+
+test("restoring a historical Huginn game resets stale compute steps to the effective default",()=>{
+ const previous={numSteps:64};
+ const restored={...previous,...savedSettings({scenario_id:"tic_tac_toe",model:{model_id:"huginn-0125",architecture:"huginn_raven"}})};
+ assert.equal(restored.numSteps,8);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",model:{model_id:"huginn-0125"},num_steps:32}).numSteps,32);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",model:{model_id:"huginn-0125"},num_steps:99}).numSteps,8);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",model:{model_id:"rwkv7-g1k-2.9b"}}).numSteps,undefined);
+});

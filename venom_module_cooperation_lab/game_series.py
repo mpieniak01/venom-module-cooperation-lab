@@ -57,3 +57,23 @@ class GameSeries:
                 f"#{row['number']}: " + " ".join(row["moves"]) + f"; result={outcome}"
             )
         return heading + "\n" + "\n".join(lines)
+
+    def outcome_memory(self, participant: str, language: str | None) -> str:
+        """Keep results, never coordinates that could be mistaken for this board."""
+        if not self.remember or not self.results:
+            return ""
+        heading = (
+            f"Jesteś {participant}. Wyniki poprzednich partii; "
+            "nie opisują aktualnej planszy."
+            if language == "pl"
+            else f"You are {participant}. Previous outcomes; "
+            "these are not the current board."
+        )
+        return (
+            heading
+            + "\n"
+            + "\n".join(
+                f"#{row['number']}: result={row['winner'] or 'draw'}"
+                for row in self.results[-3:]
+            )
+        )

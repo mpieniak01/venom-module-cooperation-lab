@@ -34,6 +34,15 @@ export const workspaceStyles = `
 .coop-workspace .coop-column { display:flex; flex-direction:column; gap:12px; min-width:0; }
 .coop-workspace .coop-participants { min-width:0; margin:0; padding:0; border:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .coop-workspace .coop-panel { min-width:0; border:1px solid #ffffff1a; border-radius:12px; padding:12px; }
+.coop-workspace .coop-game-results table { width:100%; border-collapse:collapse; margin:12px 0 0; font-size:12px; }
+.coop-workspace .coop-game-results th, .coop-workspace .coop-game-results td { padding:8px 6px; border-bottom:1px solid #ffffff16; text-align:left; }
+.coop-workspace .coop-game-results th { color:#94a3b8; font-weight:500; }
+.coop-workspace .coop-game-results td { font-variant-numeric:tabular-nums; }
+.coop-workspace .coop-game-results .coop-game-metrics td, .coop-workspace .coop-game-results-table tr > :last-child { text-align:right; }
+.coop-workspace .coop-game-results .coop-game-balance { background:#0f172a; border-radius:8px; }
+.coop-workspace .coop-game-results .coop-game-balance th, .coop-workspace .coop-game-results .coop-game-balance td { text-align:center; }
+.coop-workspace .coop-game-results .coop-game-balance td { font-size:18px; font-weight:600; }
+.coop-workspace .coop-game-results-table tbody tr:nth-child(even) { background:#ffffff04; }
 .coop-workspace .coop-panel h2 { margin:0 0 8px; font-size:16px; font-weight:600; }
 .coop-workspace .coop-messages { display:flex; flex-direction:column; gap:12px; list-style:none; margin:0; padding:4px; max-height:min(20rem, 50dvh); overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; overscroll-behavior:contain; }
 .coop-workspace .coop-messages:focus-visible { outline:2px solid #2dd4bf; outline-offset:2px; }
@@ -107,7 +116,7 @@ export function useWorkspaceViewport() {
   return ref;
 }
 
-export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean };
+export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean; reflectionTokens?:number; numSteps?:number };
 function record(value: Json | undefined): Record<string, Json> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -116,12 +125,15 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   const model = record(config.model).model_id ?? config.model_id;
   if (typeof model === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(model)) result.model = model;
   if (typeof config.scenario_id === "string" && ["peer_review", "operator_conversation", "split_facts", "organization", "correction", "tic_tac_toe"].includes(config.scenario_id)) result.scenario = config.scenario_id;
-  if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged", "operator_chat", "operator_relay", "operator_review", "game_competitive"].includes(config.mode)) result.mode = config.mode;
+  if (typeof config.mode === "string" && ["single", "self_correction", "no_contact", "dialog", "dialog_encouraged", "operator_chat", "operator_relay", "operator_review", "game_competitive", "game_strategic", "game_reflection", "game_assisted"].includes(config.mode)) result.mode = config.mode;
   if (config.communication_language === "pl" || config.communication_language === "en") result.communicationLanguage = config.communication_language;
   else if (config.schema_version === 1 || Array.isArray(config.prompts)) result.communicationLanguage = "en";
   if(config.scenario_id==="tic_tac_toe") {
   result.gameCount = typeof config.game_count === "number" && Number.isInteger(config.game_count) && config.game_count >= 1 && config.game_count <= 10 ? config.game_count : 1;
   result.rememberGames = config.remember_games !== false;
+  if(typeof config.num_steps==="number"&&[8,16,32,64].includes(config.num_steps))result.numSteps=config.num_steps;
+  else if(record(config.model).architecture==="huginn_raven"||model==="huginn-0125")result.numSteps=8;
+  if(config.mode==="game_reflection")result.reflectionTokens=typeof config.reflection_max_new_tokens==="number"&&config.reflection_max_new_tokens>=32&&config.reflection_max_new_tokens<=256?config.reflection_max_new_tokens:64;
   }
   const budgets = record(config.budgets);
   const pairs = [["turns", budgets.max_turns, config.mode === "operator_review" ? 3 : 1, config.mode === "operator_review" ? 6 : config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 1024], ["seed", config.seed, 0, 2147483647]] as const;

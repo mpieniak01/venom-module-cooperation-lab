@@ -154,3 +154,41 @@ class TicTacToe:
                 "occupied square, including your own mark."
             )
         return instructions + "\n" + "\n".join(rows) + "\n" + constraints
+
+    def compact_prompt(
+        self, participant: str, language: str | None, reminder: str = ""
+    ) -> str:
+        """Live v4: one explicit state, no diagram or stale peer transcript."""
+        labels = ["ABC"[i // 3] + str(i % 3 + 1) for i in range(9)]
+        cells = ", ".join(
+            label + "=" + (mark or "empty")
+            for label, mark in zip(labels, self.board, strict=True)
+        )
+        allowed = ", ".join(
+            label for label, mark in zip(labels, self.board, strict=True) if not mark
+        )
+        mark = "X" if participant == "A" else "O"
+        lines = [
+            f"Aktualny stan. Twój znak: {mark}."
+            if language == "pl"
+            else f"Current state. Your mark: {mark}.",
+            "Cells: " + cells,
+        ]
+        if reminder:
+            lines.append(
+                ("Twoja reguła: " if language == "pl" else "Your rule: ") + reminder
+            )
+        lines.append(
+            (
+                "Wybierz jedno wolne pole: "
+                if language == "pl"
+                else "Choose ONE empty cell: "
+            )
+            + allowed
+        )
+        lines.append(
+            "Odpowiedz tylko współrzędną:"
+            if language == "pl"
+            else "Answer with its coordinate only:"
+        )
+        return "\n".join(lines)
