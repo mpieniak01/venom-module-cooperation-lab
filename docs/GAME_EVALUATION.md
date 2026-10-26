@@ -273,3 +273,32 @@ przebieg po lewej przełącza się na nią. Po prawej, pod „Propozycje organiz
 znajdują się historia prób oraz panel „Wyniki serii”: tabela statystyk strategii,
 bilans A/B/remis i tabela partii z wynikiem oraz liczbą ruchów. Panel wyników
 nie zawiera kopii rozmów. Zapisane dane i eksporty pozostają bez zmian.
+
+
+### Poprawa refleksji po rzeczywistym porównaniu — strategia v2
+
+Nowe próby w „Rozmowa i serie” mają `schema_version=6`,
+`strategy_version=ttt-coaching-v2` i jawną politykę pamięci
+`outcomes-and-validated-private-rule-v2`. Starsze konfiguracje i wyniki pozostają
+bez zmian. Zamiast współrzędnych z poprzednich gier nowe warianty przenoszą
+maksymalnie trzy same wyniki i ostatnią poprawną prywatną zasadę gracza.
+
+Pole **Tokenów na notatkę** ma osobny domyślny limit 128 (zakres 32–256).
+Nie dziedziczy limitu ruchu. Rezerwacje, raport usage oraz budżety całej próby
+uwzględniają oba rodzaje generacji. Model otrzymuje jeden własny błąd,
+preferując pominiętą natychmiastową wygraną, i prośbę o krótką ogólną zasadę.
+
+Notatka musi zawierać zakończony obiekt JSON `{"rule":"..."}` lub pojedynczą
+zakończoną linię RULE/ZASADA. Parser odrzuca puste lub nadmiernie długie wyniki,
+kopie instrukcji, niedokończone znaczniki rozumowania, brak końcowej zasady
+oraz współrzędne starej planszy. Nie wyciąga notatki z niedokończonego tekstu.
+Nie jest to semantyczny dowód poprawnej strategii ani uczenia modelu.
+
+Zdarzenie reflection zachowuje surową odpowiedź, `accepted`, `reason_code`
+i zastosowany limit. Tylko przyjęta reguła trafia do pamięci własnego gracza.
+Odrzucona odpowiedź nie kasuje poprzedniej poprawnej reguły i nie zatrzymuje
+kolejnej gry. Błędy runtime, brak quiescence i STOP nadal podlegają polityce
+zasobów. Nie ma automatycznego ponawiania generacji ani podstawiania notatki
+napisanej przez hosta. W panelu widać powód odrzucenia oraz liczniki
+przyjętych i odrzuconych notatek. Historyczne notatki bez flagi accepted
+nie są retrospektywnie oznaczane jako zweryfikowane.

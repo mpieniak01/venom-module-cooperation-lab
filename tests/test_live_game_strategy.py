@@ -19,9 +19,9 @@ def test_live_variants_have_versioned_identity_and_require_game(mode):
         RunRequest(model_id="fixture", scenario_id="split_facts", mode=mode)
     req = RunRequest(model_id="fixture", scenario_id="tic_tac_toe", mode=mode)
     cfg = RunConfig.build(req, {}).public()
-    assert cfg["schema_version"] == 5
-    assert cfg["scheduler"] == "live-game-strategy-v1"
-    assert cfg["strategy_version"] == "ttt-coaching-v1"
+    assert cfg["schema_version"] == 6
+    assert cfg["scheduler"] == "live-game-strategy-v2"
+    assert cfg["strategy_version"] == "ttt-coaching-v2"
     assert "Plan ahead" in cfg["prompts"][0]
     if mode == "game_reflection":
         assert cfg["game_count"] == 3 and cfg["remember_games"]
@@ -64,10 +64,14 @@ async def test_live_reflection_is_charged_published_and_carried_only_to_own_play
     runner, adapters = rig
     factory = runner.adapter_factory
     moves = ["A1", "B1", "A2", "B2", "A3"]
+    note_a = "Take an immediate winning move before considering a defensive block."
+    note_b = "Block the opponent winning line when I cannot win this turn."
 
     def configured(model, lease):
         adapter = factory(model, lease)
-        adapter.responses = (moves + ["A-private-note", "B-private-note"]) * 2
+        adapter.responses = (
+            moves + ['{"rule":"' + note_a + '"}', '{"rule":"' + note_b + '"}']
+        ) * 2
         return adapter
 
     runner.adapter_factory = configured
@@ -90,10 +94,12 @@ async def test_live_reflection_is_charged_published_and_carried_only_to_own_play
     assert all(n["feedback"]["player"] == n["player"] for n in notes)
     calls = adapters[0].recorded
     assert len(calls) == 14
-    assert "A-private-note" in calls[7][1][0].content
-    assert "B-private-note" not in calls[7][1][0].content
-    assert "B-private-note" in calls[8][1][0].content
-    assert "A-private-note" not in calls[8][1][0].content
+    assert note_a in calls[7][1][0].content
+    assert note_b not in calls[7][1][0].content
+    assert note_b in calls[8][1][0].content
+    assert note_a not in calls[8][1][0].content
+    assert "A:A1 B:B1" not in calls[7][1][0].content
+    assert all(n["accepted"] for n in notes)
     assert calls[0][2].temperature == 0.8
     assert calls[0][2].allowed_outputs == ()
     assert calls[0][2].session_protocol == "game-eval-v2"
@@ -180,13 +186,13 @@ async def test_live_variant_errors_are_durable_and_never_retried(rig, response):
 
 
 @pytest.mark.asyncio
-async def test_empty_post_game_note_fails_visibly_before_next_game(rig):
+async def test_invalid_notes_are_journalled_but_not_replayed_or_fatal(rig):
     runner, adapters = rig
     factory = runner.adapter_factory
 
     def configured(model, lease):
         adapter = factory(model, lease)
-        adapter.responses = ["A1", "B1", "A2", "B2", "A3", ""]
+        adapter.responses = ["A1", "B1", "A2", "B2", "A3", "", "<think>unfinished"] * 2
         return adapter
 
     runner.adapter_factory = configured
@@ -197,16 +203,19 @@ async def test_empty_post_game_note_fails_visibly_before_next_game(rig):
             mode="game_reflection",
             game_count=2,
         ),
-        "empty-reflection",
+        "invalid-reflection",
     )
     await asyncio.wait_for(runner.jobs[row["id"]].task, 5)
-    assert runner.snapshot(row["id"])["run"]["status"] == "failed"
+    assert runner.snapshot(row["id"])["run"]["status"] == "completed"
     events = runner.store.events(row["id"], owner=OWNER, limit=100)
-    assert not [e for e in events if e["kind"] == "reflection"]
-    assert len(adapters[0].recorded) == 6
-    games = [e["payload"] for e in events if e["kind"] == "game"]
-    assert games[-1]["finished"] and games[-1]["series"]["number"] == 1
-    assert any(
-        e["kind"] == "error" and e["payload"]["code"] == "empty_model_output"
-        for e in events
+    notes = [e["payload"] for e in events if e["kind"] == "reflection"]
+    assert len(notes) == 4 and all(
+        n["accepted"] is False and not n["content"] for n in notes
     )
+    assert {n["reason_code"] for n in notes} == {"empty_note", "unfinished_note"}
+    assert len(adapters[0].recorded) == 14
+    assert "<think>unfinished" not in adapters[0].recorded[8][1][0].content
+    final = [e["payload"] for e in events if e["kind"] == "game"][-1]
+    assert final["series"]["number"] == 2 and final["finished"]
+    assert final["strategy"]["accepted_notes"] == 0
+    assert final["strategy"]["rejected_notes"] == 4

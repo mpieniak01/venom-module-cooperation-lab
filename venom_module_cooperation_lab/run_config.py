@@ -60,6 +60,7 @@ class RunRequest(BaseModel):
     game_count: int = Field(default=1, ge=1, le=10)
     remember_games: bool = True
     max_new_tokens: int = Field(default=128, ge=1, le=MAX_REQUESTED_TOKENS)
+    reflection_max_new_tokens: int = Field(default=128, ge=32, le=256)
     temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
     top_p: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
 
@@ -140,6 +141,7 @@ class RunConfig:
     game_count: int = 1
     remember_games: bool = True
     requested_max_new_tokens: int | None = None
+    reflection_max_new_tokens: int | None = None
 
     @classmethod
     def build(cls, request: RunRequest, model: dict[str, Any]) -> RunConfig:
@@ -293,6 +295,9 @@ class RunConfig:
             requested_max_new_tokens=requested_tokens
             if requested_tokens != request.max_new_tokens
             else None,
+            reflection_max_new_tokens=request.reflection_max_new_tokens
+            if request.mode == "game_reflection"
+            else None,
             model_json=json.dumps(model, sort_keys=True, ensure_ascii=False),
             scenario_id=scenario.scenario_id,
             scenario_version=(
@@ -310,12 +315,24 @@ class RunConfig:
                     total_input_tokens=(11 if request.mode == "game_reflection" else 9)
                     * request.game_count
                     * 2048,
-                    total_output_tokens=(11 if request.mode == "game_reflection" else 9)
-                    * request.game_count
-                    * request.max_new_tokens,
-                    processing_steps=(11 if request.mode == "game_reflection" else 9)
-                    * request.game_count
-                    * (2048 + request.max_new_tokens),
+                    total_output_tokens=request.game_count
+                    * (
+                        9 * request.max_new_tokens
+                        + (
+                            2 * request.reflection_max_new_tokens
+                            if request.mode == "game_reflection"
+                            else 0
+                        )
+                    ),
+                    processing_steps=request.game_count
+                    * (
+                        9 * (2048 + request.max_new_tokens)
+                        + (
+                            2 * (2048 + request.reflection_max_new_tokens)
+                            if request.mode == "game_reflection"
+                            else 0
+                        )
+                    ),
                     wall_seconds=min(1800, 360 * request.game_count),
                 )
                 if request.scenario_id == "tic_tac_toe"
@@ -355,6 +372,8 @@ class RunConfig:
 
     def public(self) -> dict[str, Any]:
         result = asdict(self)
+        if self.reflection_max_new_tokens is None:
+            result.pop("reflection_max_new_tokens")
         if self.requested_max_new_tokens is None:
             result.pop("requested_max_new_tokens")
         if self.game_count == 1:
@@ -365,10 +384,11 @@ class RunConfig:
             result["scheduler"] = "board-series-memory-v1"
             result["scenario_version"] += "-series-1"
         if self.mode in STRATEGIC_MODES:
-            result["schema_version"] = 5
-            result["scheduler"] = "live-game-strategy-v1"
-            result["scenario_version"] += "-live-strategy-1"
-            result["strategy_version"] = "ttt-coaching-v1"
+            result["schema_version"] = 6
+            result["scheduler"] = "live-game-strategy-v2"
+            result["scenario_version"] += "-live-strategy-2"
+            result["strategy_version"] = "ttt-coaching-v2"
+            result["memory_policy"] = "outcomes-and-validated-private-rule-v2"
         if self.communication_language is None:
             # Preserve exact legacy v1 serialization and hashes.
             result.pop("communication_language")

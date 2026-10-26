@@ -1,5 +1,5 @@
 import type { LabEvent, Json } from "./protocol";
-import { texts } from "./i18n";
+import { texts, noteReasonLabel } from "./i18n";
 
 export function GameBoard({event, ended, language}: {event?:LabEvent; ended:boolean; language:string}) {
   const t=texts(language);
@@ -40,7 +40,10 @@ export function GameReflections({events,language}:{events:LabEvent[];language:st
       const lessons=feedback&&typeof feedback==="object"&&!Array.isArray(feedback)&&Array.isArray(feedback.lessons)?feedback.lessons:[];
       return <details key={event.seq} open={index>=notes.length-2}>
         <summary>{t.gameRound} {String(event.payload.game_number)} · {String(event.payload.player)}</summary>
-        <p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.content==="string"?event.payload.content:t.unknown}</p>
+        {event.payload.accepted===false?<>
+          <p role="status">{t.gameNoteRejected}: {noteReasonLabel(t,event.payload.reason_code)}</p>
+          <details><summary>{t.gameNoteRaw}</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.raw_content==="string"?event.payload.raw_content:t.unknown}</pre></details>
+        </>:<><p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.content==="string"?event.payload.content:t.unknown}</p>{event.payload.accepted===true&&<p className="coop-message-meta">{t.gameNoteAccepted}</p>}</>}
         {lessons.map((lesson,i)=>{
           if(!lesson||typeof lesson!=="object"||Array.isArray(lesson))return null;
           const proposed=lesson.model_action;const better=lesson.better_action;
@@ -61,6 +64,7 @@ export function GameSeriesResults({event,events,language}:{event?:LabEvent;event
   const results=candidates.filter((row):row is Record<string,import("./protocol").Json>=>!!row&&typeof row==="object"&&!Array.isArray(row)&&Number.isInteger(row.number)&&(row.winner==="A"||row.winner==="B"||row.draw===true));
   const strategy=state?.strategy&&typeof state.strategy==="object"&&!Array.isArray(state.strategy)?state.strategy:null;
   const metrics=strategy?[[t.gameModelMoves,strategy.model_moves],[t.gameWorseMoves,strategy.worse_moves],[t.gameMissedWins,strategy.missed_wins],[t.gameSolverIntervention,strategy.solver_interventions]]:[];
+  if(strategy?.mode==="game_reflection")metrics.push([t.gameAcceptedNotes,strategy.accepted_notes??0],[t.gameRejectedNotes,strategy.rejected_notes??0]);
   return <section className="coop-panel coop-game-results" aria-label={t.gameResults}>
     <h2>{t.gameResults}</h2>
     {!!metrics.length&&<table className="coop-game-metrics" aria-label={t.gameStrategyMetrics}><tbody>

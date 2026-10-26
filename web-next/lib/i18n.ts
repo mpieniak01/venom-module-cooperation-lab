@@ -95,7 +95,18 @@ const translations = {
   polish: ["Polski", "Polish", "Polnisch"],
   english: ["Angielski", "English", "Englisch"],
   scenarioTicTacToe: ["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],
-  liveReflectionMemory:["Pamięć jest wymagana w tym wariancie. Każdy gracz korzysta z własnej notatki oraz publicznych wyników poprzednich partii.", "Memory is required for this variant. Each player uses its own note and public results from previous games.", "Gedächtnis ist für diese Variante erforderlich. Jeder Spieler nutzt seine eigene Notiz und öffentliche Ergebnisse früherer Spiele."],
+  gameReflectionTokens:["Tokenów na notatkę", "Tokens per note", "Token pro Notiz"],
+  gameNoteAccepted:["Zapisano do pamięci", "Saved to memory", "Im Gedächtnis gespeichert"],
+  gameNoteRejected:["Nie zapisano do pamięci", "Not saved to memory", "Nicht im Gedächtnis gespeichert"],
+  gameAcceptedNotes:["Przyjęte notatki", "Accepted notes", "Angenommene Notizen"],
+  gameRejectedNotes:["Odrzucone notatki", "Rejected notes", "Verworfene Notizen"],
+  gameNoteRaw:["Oryginalna odpowiedź", "Original response", "Ursprüngliche Antwort"],
+  note_empty_note:["Pusta odpowiedź.", "Empty response.", "Leere Antwort."],
+  note_unfinished_note:["Brak ukończonej notatki.", "No completed final note.", "Keine abgeschlossene Notiz."],
+  note_instruction_echo:["Model skopiował instrukcję.", "The model copied the instruction.", "Das Modell hat die Anweisung kopiert."],
+  note_invalid_note_format:["Odpowiedź nie zawiera jednej krótkiej zasady.", "The response does not contain one short rule.", "Die Antwort enthält keine kurze Regel."],
+  note_position_specific_note:["Notatka powtarza współrzędne poprzedniej planszy.", "The note repeats coordinates from the previous board.", "Die Notiz wiederholt Koordinaten des vorherigen Bretts."],
+  liveReflectionMemory:["Pamięć jest wymagana w tym wariancie. Każdy gracz korzysta wyłącznie ze sprawdzonej własnej notatki i skrótu wyników. Surowe dawne ruchy nie trafiają do kontekstu.", "Memory is required for this variant. Each player uses only its validated private note and an outcome summary, without old move transcripts.", "Gedächtnis ist für diese Variante erforderlich. Jeder Spieler nutzt nur seine geprüfte eigene Notiz und eine Ergebnisübersicht, ohne alte Zugprotokolle."],
   gameFinishedSeeResults:["Zakończona partia i jej przebieg są w wynikach po prawej stronie.", "The completed game and its timeline are in the results on the right.", "Das abgeschlossene Spiel und sein Verlauf stehen rechts in den Ergebnissen."],
   gameNoResults:["Brak zakończonych partii.", "No completed games yet.", "Noch keine abgeschlossenen Spiele."],
   gameStrategic:["Samodzielna strategia", "Independent strategy", "Eigenständige Strategie"],
@@ -332,4 +343,9 @@ export function phaseLabel(t: ReturnType<typeof texts>, phase:string) {
 
 export function gameModeLabel(t:ReturnType<typeof texts>,mode:string) {
   return ({dialog:t.gameAlternating,game_competitive:t.gameCompetitive,game_strategic:t.gameStrategic,game_reflection:t.gameReflection,game_assisted:t.gameAssisted} as Record<string,string>)[mode]??modeLabel(t,mode);
+}
+
+export function noteReasonLabel(t:ReturnType<typeof texts>,reason:unknown) {
+  const labels:Record<string,string>={empty_note:t.note_empty_note,unfinished_note:t.note_unfinished_note,instruction_echo:t.note_instruction_echo,invalid_note_format:t.note_invalid_note_format,position_specific_note:t.note_position_specific_note};
+  return typeof reason==="string"&&Object.hasOwn(labels,reason)?labels[reason]:t.note_invalid_note_format;
 }

@@ -116,7 +116,7 @@ export function useWorkspaceViewport() {
   return ref;
 }
 
-export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean };
+export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean; reflectionTokens?:number };
 function record(value: Json | undefined): Record<string, Json> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -131,6 +131,7 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   if(config.scenario_id==="tic_tac_toe") {
   result.gameCount = typeof config.game_count === "number" && Number.isInteger(config.game_count) && config.game_count >= 1 && config.game_count <= 10 ? config.game_count : 1;
   result.rememberGames = config.remember_games !== false;
+  if(config.mode==="game_reflection")result.reflectionTokens=typeof config.reflection_max_new_tokens==="number"&&config.reflection_max_new_tokens>=32&&config.reflection_max_new_tokens<=256?config.reflection_max_new_tokens:64;
   }
   const budgets = record(config.budgets);
   const pairs = [["turns", budgets.max_turns, config.mode === "operator_review" ? 3 : 1, config.mode === "operator_review" ? 6 : config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 1024], ["seed", config.seed, 0, 2147483647]] as const;

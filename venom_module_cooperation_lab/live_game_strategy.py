@@ -24,6 +24,8 @@ class LiveGameStrategy:
     model_moves: int = 0
     worse_moves: int = 0
     missed_wins: int = 0
+    accepted_notes: int = 0
+    rejected_notes: int = 0
 
     def choose(
         self, game: TicTacToe, player: str, text: str, seed: int
@@ -58,6 +60,8 @@ class LiveGameStrategy:
     def public(self) -> dict[str, Any]:
         return {
             "mode": self.mode,
+            "accepted_notes": self.accepted_notes,
+            "rejected_notes": self.rejected_notes,
             "model_moves": self.model_moves,
             "worse_moves": self.worse_moves,
             "missed_wins": self.missed_wins,
@@ -76,10 +80,17 @@ class LiveGameStrategy:
             ][-3:],
         }
 
-    def memory(self, player: str) -> str:
+    def memory(self, player: str, language: str | None = None) -> str:
         note = self.notes.get(player)
         return (
-            ("\nYour private improvement note from the previous game:\n" + note)
+            (
+                (
+                    "\nTwoja sprawdzona notatka z poprzedniej partii:\n"
+                    if language == "pl"
+                    else "\nYour validated private rule from a previous game:\n"
+                )
+                + note
+            )
             if note
             else ""
         )
@@ -89,4 +100,14 @@ class LiveGameStrategy:
 
     @staticmethod
     def encode_feedback(feedback: dict[str, Any]) -> str:
-        return json.dumps(feedback, ensure_ascii=False)
+        lessons = feedback["lessons"]
+        selected = next(
+            (lesson for lesson in lessons if lesson["assessment"].get("missed_win")),
+            lessons[0] if lessons else None,
+        )
+        compact = {
+            "player": feedback["player"],
+            "winner": feedback["final_state"]["winner"],
+            "mistake": selected,
+        }
+        return json.dumps(compact, ensure_ascii=False, separators=(",", ":"))

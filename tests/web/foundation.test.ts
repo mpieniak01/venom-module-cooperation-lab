@@ -91,3 +91,10 @@ test("live game modes restore from conversation history",()=>{
   assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode}).mode,mode);
  }
 });
+
+
+test("independent reflection budget restores explicit settings and historical 64-token limits",()=>{
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode:"game_reflection",reflection_max_new_tokens:192}).reflectionTokens,192);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode:"game_reflection"}).reflectionTokens,64);
+ assert.equal(savedSettings({scenario_id:"tic_tac_toe",mode:"dialog"}).reflectionTokens,undefined);
+});

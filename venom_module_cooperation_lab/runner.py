@@ -264,6 +264,7 @@ class LabRunner:
         }
         stored.update(
             model_id=model_id,
+            reflection_max_new_tokens=config.get("reflection_max_new_tokens", 128),
             game_count=config.get("game_count", 1),
             remember_games=config.get("remember_games", True),
             max_turns=config["budgets"]["max_turns"],
@@ -480,12 +481,22 @@ class LabRunner:
 
         for participant, prompt in zip(("A", "B"), job.config.prompts, strict=True):
             memory = (
-                job.series.memory(participant, job.config.communication_language)
+                (
+                    job.series.outcome_memory(
+                        participant, job.config.communication_language
+                    )
+                    if job.coaching
+                    else job.series.memory(
+                        participant, job.config.communication_language
+                    )
+                )
                 if job.series
                 else ""
             )
             if job.coaching:
-                memory += job.coaching.memory(participant)
+                memory += job.coaching.memory(
+                    participant, job.config.communication_language
+                )
             job.histories[participant] = [
                 ChatMessage("system", prompt + ("\n" + memory if memory else ""))
             ]
@@ -494,27 +505,23 @@ class LabRunner:
                     ChatMessage("user", job.config.scenario_goal)
                 )
 
-    def _charge(self, job: _Job, result: Any) -> dict[str, Any]:
+    def _charge(
+        self, job: _Job, result: Any, *, output_limit: int | None = None
+    ) -> dict[str, Any]:
         budgets = job.config.budgets
+        limit = budgets.max_new_tokens if output_limit is None else output_limit
         input_charge = (
             budgets.max_context_tokens
             if result.input_tokens is None
             else result.input_tokens
         )
-        output_charge = (
-            budgets.max_new_tokens
-            if result.output_tokens is None
-            else result.output_tokens
-        )
+        output_charge = limit if result.output_tokens is None else result.output_tokens
         if any(
             type(value) is not int or value < 0
             for value in (input_charge, output_charge)
         ):
             raise LabError("invalid_usage")
-        if (
-            input_charge > budgets.max_context_tokens
-            or output_charge > budgets.max_new_tokens
-        ):
+        if input_charge > budgets.max_context_tokens or output_charge > limit:
             raise LabError("generation_budget_exceeded")
         job.input_tokens += input_charge
         job.output_tokens += output_charge
@@ -535,12 +542,13 @@ class LabRunner:
             "effective_parameters": dict(result.effective_parameters),
         }
 
-    def _reserve_turn(self, job: _Job) -> None:
+    def _reserve_turn(self, job: _Job, *, output_limit: int | None = None) -> None:
         budget = job.config.budgets
+        limit = budget.max_new_tokens if output_limit is None else output_limit
         if (
             job.input_tokens + budget.max_context_tokens > budget.total_input_tokens
-            or job.output_tokens + budget.max_new_tokens > budget.total_output_tokens
-            or job.processing_steps + budget.max_context_tokens + budget.max_new_tokens
+            or job.output_tokens + limit > budget.total_output_tokens
+            or job.processing_steps + budget.max_context_tokens + limit
             > budget.processing_steps
         ):
             raise LabError("run_budget_exhausted")
@@ -721,24 +729,38 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         assert job.coaching is not None and job.game is not None
+        from .reflection import validate_note
+
+        note_tokens = job.config.reflection_max_new_tokens or 128
         for player in ("A", "B"):
             self._check(job)
-            self._reserve_turn(job)
+            self._reserve_turn(job, output_limit=note_tokens)
             feedback = job.coaching.feedback(job.game, player)
             instruction = (
-                "Po zakończonej partii zapisz krótką prywatną wskazówkę na kolejną "
-                "grę, korzystając z własnych błędów i lepszych ruchów od trenera. "
-                "Bez współrzędnej ruchu na teraz i bez toku rozumowania."
+                'Zwróć wyłącznie JSON z jednym polem "rule". Napisz jedną krótką '
+                "ogólną zasadę na następną partię na podstawie własnego błędu. "
+                "Bez konkretnych współrzędnych, kopiowania polecenia i rozumowania."
                 if job.config.communication_language == "pl"
-                else "After the completed game write a short private improvement note "
-                "for the next game, using your own mistakes and the coach's better "
-                "moves. Do not output a move for now or a reasoning transcript."
+                else 'Return only JSON with one field "rule". Write one short general '
+                "rule for the next game based on your own mistake. "
+                "No square coordinates, instruction copies or reasoning."
             )
             params = replace(
                 parameters,
-                max_new_tokens=min(64, parameters.max_new_tokens),
+                max_new_tokens=note_tokens,
                 allowed_outputs=(),
                 response_format="text",
+            )
+            turn_id = f"reflection-{job.series.number if job.series else 1}-{player}"
+            self._emit(
+                job,
+                "turn",
+                {
+                    "turn_id": turn_id,
+                    "participant_id": player,
+                    "purpose": "reflection",
+                    "status": "generating",
+                },
             )
             result = await self._work(
                 job,
@@ -761,25 +783,42 @@ class LabRunner:
                 "usage",
                 {
                     "purpose": "reflection",
+                    "turn_id": turn_id,
                     "player": player,
-                    **self._charge(job, result),
+                    **self._charge(job, result, output_limit=note_tokens),
                 },
             )
-            if not result.text.strip():
-                raise LabError("empty_model_output")
-            note = result.text.strip()[:1024]
-            job.coaching.notes[player] = note
+            note = validate_note(result.text, instruction)
+            if note.accepted:
+                job.coaching.notes[player] = note.rule
+                job.coaching.accepted_notes += 1
+            else:
+                job.coaching.rejected_notes += 1
             self._emit(
                 job,
                 "reflection",
                 {
                     "player": player,
-                    "content": note,
+                    "content": note.rule,
+                    "accepted": note.accepted,
+                    "reason_code": note.reason,
                     "raw_content": result.raw_text or result.text,
                     "feedback": feedback,
+                    "max_new_tokens": note_tokens,
                     "game_number": job.series.number if job.series else 1,
                 },
             )
+            self._emit(
+                job,
+                "turn",
+                {
+                    "turn_id": turn_id,
+                    "participant_id": player,
+                    "purpose": "reflection",
+                    "status": "completed",
+                },
+            )
+        self._emit(job, "game", self._game_state(job, job.game.public()))
 
     @staticmethod
     def _game_state(job: _Job, board: dict[str, Any]) -> dict[str, Any]:

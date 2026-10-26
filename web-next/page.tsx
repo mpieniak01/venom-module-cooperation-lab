@@ -43,7 +43,7 @@ function ConversationWorkspace() {
   const viewport = useWorkspaceViewport();
   const [settings, setSettings] = useState(true);
   const [form, setForm] = useState<SavedSettings & { runId: string | null }>({
-    model:"", scenario:"split_facts", mode:"dialog_encouraged", turns:8, tokens:128, seed:0, gameCount:1, rememberGames:true, communicationLanguage:language === "pl" ? "pl" : "en", runId:null,
+    model:"", scenario:"split_facts", mode:"dialog_encouraged", turns:8, tokens:128, seed:0, reflectionTokens:128, gameCount:1, rememberGames:true, communicationLanguage:language === "pl" ? "pl" : "en", runId:null,
   });
   const runId = lab.run?.id ?? null;
   // Adjust the draft when selection changes, before committing a render. An
@@ -53,7 +53,7 @@ function ConversationWorkspace() {
     const qualification = lab.run?.config.scenario_id==="model_qualification";
     setForm({ ...form, ...(qualification ? {model:restored.model??form.model} : lab.run ? { communicationLanguage:"en" as const, ...restored } : {}), runId });
   }
-  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage, gameCount=1, rememberGames=true } = form;
+  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage, gameCount=1, rememberGames=true, reflectionTokens=128 } = form;
   const [engineFilter, setEngineFilter] = useState<{runId:string|null; engine:string}|null>(null);
   const models = lab.capabilities?.models ?? [];
   const fallback = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
@@ -69,7 +69,7 @@ function ConversationWorkspace() {
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
   const strategicGame = ["game_strategic","game_reflection","game_assisted"].includes(mode);
-  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=2147483647&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9)&&(mode!=="game_reflection"||gameCount>=2&&rememberGames)&&(!strategicGame||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=2147483647&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9)&&(mode!=="game_reflection"||gameCount>=2&&rememberGames&&Number.isInteger(reflectionTokens)&&reflectionTokens>=32&&reflectionTokens<=256)&&(!strategicGame||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const lastFailure = lab.events.findLast(event=>event.kind==="error");
@@ -96,7 +96,7 @@ function ConversationWorkspace() {
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
-    if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;}
+    if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;if(mode==="game_reflection")input.reflection_max_new_tokens=reflectionTokens;}
      setSettings(false); void lab.start(input);
   };
   const historyControl = (<div className="coop-history">
@@ -185,6 +185,7 @@ function ConversationWorkspace() {
             <p className="coop-message-meta">{mode==="game_reflection"?t.liveReflectionMemory:t.gameMemoryHint}</p>
           </>}
           <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={outputTokenLimit(selected)} value={tokens} onInput={event=>setForm({...form,tokens:Number(event.currentTarget.value)})}/></label>
+          {scenario==="tic_tac_toe"&&mode==="game_reflection"&&<label className="coop-setting">{t.gameReflectionTokens}<input className={field} type="number" min={32} max={256} value={reflectionTokens} onInput={event=>setForm({...form,reflectionTokens:Number(event.currentTarget.value)})}/></label>}
           <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
         </div>
       </fieldset>}

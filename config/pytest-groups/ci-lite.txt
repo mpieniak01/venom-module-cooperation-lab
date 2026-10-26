@@ -32,6 +32,7 @@ tests/test_model_budgets.py
 tests/test_operator_chat.py
 tests/test_peer_review.py
 tests/test_quality_gates.py
+tests/test_reflection.py
 tests/test_runner.py
 tests/test_storage.py
 tests/test_tic_tac_toe.py

@@ -333,6 +333,7 @@ test("conversation reflection variant starts from the existing form and streams 
   await act(async()=>findButton(box,"Rozpocznij eksperyment").click());await settle();
   assert.equal((posted as unknown as Record<string,unknown>).mode,"game_reflection");
   assert.equal((posted as unknown as Record<string,unknown>).game_count,3);
+  assert.equal((posted as unknown as Record<string,unknown>).reflection_max_new_tokens,128);
   const stream=Stream.instances[0];assert.ok(stream.listeners.has("reflection"));
   await act(async()=>stream.emit({run_id:"r1",seq:1,kind:"game",timestamp:1,payload:{board:["X","","","","O","","","",""],moves:2,next_player:"A",strategy:{model_moves:2,worse_moves:1,missed_wins:0,solver_interventions:0,result_scope:"model"}}}));
   await act(async()=>stream.emit({run_id:"r1",seq:2,kind:"reflection",timestamp:2,payload:{player:"B",content:"Następnym razem zablokuję wygraną.",game_number:1,feedback:{lessons:[{model_action:{square:"B3"},better_action:{square:"A3"}}]}}}));
