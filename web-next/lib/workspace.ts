@@ -116,7 +116,7 @@ export function useWorkspaceViewport() {
   return ref;
 }
 
-export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean; reflectionTokens?:number };
+export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean; reflectionTokens?:number; numSteps?:number };
 function record(value: Json | undefined): Record<string, Json> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -131,6 +131,8 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   if(config.scenario_id==="tic_tac_toe") {
   result.gameCount = typeof config.game_count === "number" && Number.isInteger(config.game_count) && config.game_count >= 1 && config.game_count <= 10 ? config.game_count : 1;
   result.rememberGames = config.remember_games !== false;
+  if(typeof config.num_steps==="number"&&[8,16,32,64].includes(config.num_steps))result.numSteps=config.num_steps;
+  else if(record(config.model).architecture==="huginn_raven"||model==="huginn-0125")result.numSteps=8;
   if(config.mode==="game_reflection")result.reflectionTokens=typeof config.reflection_max_new_tokens==="number"&&config.reflection_max_new_tokens>=32&&config.reflection_max_new_tokens<=256?config.reflection_max_new_tokens:64;
   }
   const budgets = record(config.budgets);

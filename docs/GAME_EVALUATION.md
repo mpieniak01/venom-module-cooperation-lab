@@ -235,70 +235,87 @@ wariantu. Korzystają ze ścieżki ewaluacji v2, bez historycznego wymuszania
 legalnych współrzędnych ze zwykłych serii v1. Nie uruchamiają treningu wag.
 
 
-## Podgląd na żywo w „Rozmowa i serie” — 2026-10-26
+## Podgląd na żywo w „Rozmowa i serie”
 
-Dla pojedynczej gry lub krótkiej obserwowanej serii użyj **Rozmowa i serie →
-Scenariusz: Kółko i krzyżyk → Wariant**. Nowe pozycje:
-**Samodzielna strategia**, **Strategia z refleksją** oraz
-**Strategia ze wsparciem solvera**. Start odbywa się zwykłym przyciskiem
-**Rozpocznij eksperyment**, bez osobnego preflight.
+Wybierz **Rozmowa i serie → Scenariusz: Kółko i krzyżyk → Wariant**:
+**Samodzielna strategia**, **Strategia z refleksją** lub
+**Strategia ze wsparciem solvera**. Start odbywa się przyciskiem
+**Rozpocznij eksperyment**, bez osobnego preflight. Zakładka **Gry i strategie**
+pozostaje osobną ścieżką ewaluacji hurtowej.
 
-Plansza pokazuje faktycznie wykonane ruchy i liczniki propozycji modelu,
-pogorszeń pozycji, pominiętych wygranych oraz interwencji. W wiadomościach
-widnieją osobno propozycja modelu i wykonany ruch. Wariant wspomagany jest
-wyraźnie oznaczony; interwencja CPU nie generuje kolejnej odpowiedzi LLM.
-Nielegalna propozycja lub niejednoznaczny format nadal kończą próbę błędem.
+Lewa kolumna pokazuje planszę, wiadomości i refleksje aktualnej partii, również
+po jej zakończeniu. Rozpoczęcie następnej partii przełącza przebieg po lewej.
+Po prawej, pod „Propozycje organizacji”, są historia prób i „Wyniki serii”:
+statystyki strategii, bilans A/B/remis oraz tabela partii z liczbą ruchów.
+Wyniki nie zawierają kopii rozmów.
 
-Refleksja ustawia trzy gry i pamięć, wymaga minimum dwóch pełnych partii.
-Po każdej partii każdy gracz osobno dostaje wynik i maksymalnie trzy własne
-błędy wraz z lepszymi ruchami. Generuje krótką prywatną notatkę widoczną przy przebiegu bieżącej partii
-po lewej stronie. Do następnej gry trafia wyłącznie własna notatka danego gracza;
-wynik i ruchy poprzednich gier są publiczne. Generacje notatek są rozliczane,
-podlegają STOP, wspólnej dzierżawie oraz budżetom. Nie są treningiem wag.
+W wiadomościach propozycja modelu i wykonany ruch są zapisane osobno.
+Nielegalna propozycja lub niejednoznaczny format kończą próbę błędem.
+W refleksji i samodzielnej strategii ruch nie jest zmieniany przez hosta.
+Wariant wspomagany jawnie oznacza interwencje CPU i `result_scope=assisted`;
+wyników wspomaganych nie należy przypisywać samemu modelowi.
 
-Nowe warianty używają rzeczywistych ustawień temperatury/top-p i nie maskują
-listy legalnych współrzędnych. Krótka odpowiedź jest mapowana do pojedynczego
-ruchu bez zgadywania. Historyczne „Gra naprzemienna” i „Gra, aby wygrać”
-zachowują dotychczasowy protokół oraz sposób dekodowania. Nowe konfiguracje
-mają schema_version=5 i scheduler=live-game-strategy-v1. Historia/eksport
-zawierają zdarzenia planszy, propozycje, oceny, interwencje i refleksje.
+### Aktywny kontrakt live v4
 
-Zakładka **Gry i strategie** pozostaje osobną ścieżką ewaluacji hurtowej.
-Ten etap dotyczy podglądu i wariantów w **Rozmowa i serie**.
+Nowe warianty mają `schema_version=8`, `scheduler=live-game-strategy-v4`
+i `strategy_version=ttt-coaching-v4`. Używają faktycznych ustawień
+temperatury/top-p, bez wymuszania legalnej współrzędnej i bez ukrytych ponowień.
+Historyczne „Gra naprzemienna” i „Gra, aby wygrać” zachowują swój protokół
+oraz sposób dekodowania. Stare konfiguracje, wyniki i parsery batch nie są
+retrospektywnie zmieniane.
 
+HRM i Huginn otrzymują jawny profil angielski. `model_language` opisuje język
+zadania, a `communication_language` zachowuje wejście operatora. HRM otrzymuje
+dwa przykłady formatu pojedynczego ruchu. Dla Huginn w sekcji modelu można
+wybrać 8/16/32/64 kroki; API sprawdza obsługiwaną architekturę, a `usage`
+zapisuje faktyczną wartość. Historyczna próba bez `num_steps` przywraca 8 kroków.
 
-W „Rozmowa i serie” lewa kolumna pokazuje planszę, wiadomości i notatki
-aktualnej partii, także po jej zakończeniu. Po rozpoczęciu następnej partii
-przebieg po lewej przełącza się na nią. Po prawej, pod „Propozycje organizacji”,
-znajdują się historia prób oraz panel „Wyniki serii”: tabela statystyk strategii,
-bilans A/B/remis i tabela partii z wynikiem oraz liczbą ruchów. Panel wyników
-nie zawiera kopii rozmów. Zapisane dane i eksporty pozostają bez zmian.
+RWKV i Huginn mają `observation_profile=explicit-cells-v1`: stan dziewięciu
+komórek jest jawny (`A1=empty/X/O`). Huginn otrzymuje aktualny stan bez
+redundantnego dawnego przekazu, przy zachowaniu pełnego dziennika dostarczeń.
+RWKV nadal dopisuje kontekst rekurencyjny. W porównaniu kompresja pogorszyła
+taktykę HRM, dlatego zachowuje on `board-and-peer-with-reminder-v1`:
+dotychczasową planszę i ostatni przekaz przeciwnika. W każdym profilu własna
+przyjęta reguła jest dodatkowo przypominana przy decyzji.
 
+### Sprawdzanie refleksji i jej wykorzystania
 
-### Poprawa refleksji po rzeczywistym porównaniu — strategia v2
+Refleksja domyślnie ustawia trzy gry i pamięć; wymaga minimum dwóch pełnych
+partii. Generacja notatek odbywa się **wyłącznie między partiami**. Po ostatniej
+nie ma wywołań notatek. Rezerwa obejmuje maksymalnie `2 * (liczba_partii - 1)`
+generacji. **Tokenów na notatkę** ma osobny limit 128 (zakres 32–256), niezależny
+od limitu ruchu. Generacje podlegają STOP, admission i wspólnym budżetom.
 
-Nowe próby w „Rozmowa i serie” mają `schema_version=6`,
-`strategy_version=ttt-coaching-v2` i jawną politykę pamięci
-`outcomes-and-validated-private-rule-v2`. Starsze konfiguracje i wyniki pozostają
-bez zmian. Zamiast współrzędnych z poprzednich gier nowe warianty przenoszą
-maksymalnie trzy same wyniki i ostatnią poprawną prywatną zasadę gracza.
+Model wybiera regułę `win_now` lub `block_win` z jawnego katalogu hosta.
+Host sprawdza jej politykę na rzeczywistym własnym błędzie gracza oraz ośmiu
+obrotach/odbiciach planszy. Bezpośrednia wygrana ma pierwszeństwo przed blokiem.
+Reguła bloku wymaga braku własnej wygranej i pojedynczego bezpośredniego zagrożenia.
+Pominięta natychmiastowa wygrana może być lekcją także bez spadku minimax,
+jeśli model zachował możliwość wymuszonej późniejszej wygranej.
 
-Pole **Tokenów na notatkę** ma osobny domyślny limit 128 (zakres 32–256).
-Nie dziedziczy limitu ruchu. Rezerwacje, raport usage oraz budżety całej próby
-uwzględniają oba rodzaje generacji. Model otrzymuje jeden własny błąd,
-preferując pominiętą natychmiastową wygraną, i prośbę o krótką ogólną zasadę.
+Katalog nie obejmuje wszystkich błędów pozycyjnych i forków. Bez wspierającej
+lekcji notatka jest jawnie pominięta, bez generacji i bez liczenia jej jako
+odrzuconej. Błędny format lub niepoparta reguła nie nadpisują poprzedniej pamięci.
+Do następnej partii trafia tylko własna przyjęta reguła i maksymalnie trzy same
+wyniki wcześniejszych gier, bez ich współrzędnych i surowych transkryptów.
 
-Notatka musi zawierać zakończony obiekt JSON `{"rule":"..."}` lub pojedynczą
-zakończoną linię RULE/ZASADA. Parser odrzuca puste lub nadmiernie długie wyniki,
-kopie instrukcji, niedokończone znaczniki rozumowania, brak końcowej zasady
-oraz współrzędne starej planszy. Nie wyciąga notatki z niedokończonego tekstu.
-Nie jest to semantyczny dowód poprawnej strategii ani uczenia modelu.
+`note_source=model_selected_host_catalog_rule` oznacza, że model wybrał regułę,
+a jej opis pochodzi z katalogu. `validation.future_model_behavior_verified=false`
+wyklucza traktowanie tej kontroli jako dowodu nauczenia się jej przez model.
+UI odróżnia to od historycznej kontroli samego formatu notatki.
 
-Zdarzenie reflection zachowuje surową odpowiedź, `accepted`, `reason_code`
-i zastosowany limit. Tylko przyjęta reguła trafia do pamięci własnego gracza.
-Odrzucona odpowiedź nie kasuje poprzedniej poprawnej reguły i nie zatrzymuje
-kolejnej gry. Błędy runtime, brak quiescence i STOP nadal podlegają polityce
-zasobów. Nie ma automatycznego ponawiania generacji ani podstawiania notatki
-napisanej przez hosta. W panelu widać powód odrzucenia oraz liczniki
-przyjętych i odrzuconych notatek. Historyczne notatki bez flagi accepted
-nie są retrospektywnie oznaczane jako zweryfikowane.
+`rule-choice-map-v1` przyjmuje obiekt z jednym polem `rule_id`, pojedynczy jawny
+identyfikator albo string JSON z identyfikatorem. Nie wybiera za model, nie
+wyciąga fragmentów z prozy lub listy i nadal wymaga dowodu taktycznego.
+`response_mapping` zapisuje normalizację, `raw_content` zachowuje oryginał.
+
+`rule_application` ocenia wyłącznie pierwotną legalną propozycję modelu.
+`rule_opportunities`, `rule_followed` i `rule_ignored` liczą decyzje, dla których
+własna aktywna reguła ma zastosowanie. Brak okazji nie jest zaliczany jako sukces.
+Ocena jest widoczna przy ruchu i w tabeli wyników; nie zmienia wykonanej akcji.
+
+Wagi są utrzymywane przez całą serię, a prywatne stany resetowane między partiami.
+Łączenie partii amortyzuje ładowanie bez obchodzenia admission. Nie jest to
+trening wag ani dowód trwałego uczenia. Odbiór i ograniczenia małego pilota:
+[LIVE_STRATEGY_RELEASE.md](LIVE_STRATEGY_RELEASE.md). Próba Huginn v4 przerwana
+podczas przygotowania przez utratę odpowiedzi WSL nie jest wynikiem jakości.

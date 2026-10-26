@@ -19,13 +19,13 @@ def test_live_variants_have_versioned_identity_and_require_game(mode):
         RunRequest(model_id="fixture", scenario_id="split_facts", mode=mode)
     req = RunRequest(model_id="fixture", scenario_id="tic_tac_toe", mode=mode)
     cfg = RunConfig.build(req, {}).public()
-    assert cfg["schema_version"] == 6
-    assert cfg["scheduler"] == "live-game-strategy-v2"
-    assert cfg["strategy_version"] == "ttt-coaching-v2"
+    assert cfg["schema_version"] == 8
+    assert cfg["scheduler"] == "live-game-strategy-v4"
+    assert cfg["strategy_version"] == "ttt-coaching-v4"
     assert "Plan ahead" in cfg["prompts"][0]
     if mode == "game_reflection":
         assert cfg["game_count"] == 3 and cfg["remember_games"]
-        assert cfg["budgets"]["total_input_tokens"] == 33 * 2048
+        assert cfg["budgets"]["total_input_tokens"] == 31 * 2048
 
 
 @pytest.mark.parametrize(
@@ -63,14 +63,16 @@ def test_live_solver_preserves_proposal_and_unassisted_game_keeps_mistakes():
 async def test_live_reflection_is_charged_published_and_carried_only_to_own_player(rig):
     runner, adapters = rig
     factory = runner.adapter_factory
-    moves = ["A1", "B1", "A2", "B2", "A3"]
-    note_a = "Take an immediate winning move before considering a defensive block."
-    note_b = "Block the opponent winning line when I cannot win this turn."
+    moves = ["A1", "A2", "A3", "B2", "B1", "B3", "C1"]
+    note_a = (
+        "If you cannot win immediately, block the opponent's immediate winning move."
+    )
+    note_b = "Take an immediate winning move before blocking an opponent threat."
 
     def configured(model, lease):
         adapter = factory(model, lease)
         adapter.responses = (
-            moves + ['{"rule":"' + note_a + '"}', '{"rule":"' + note_b + '"}']
+            moves + ['{"rule_id":"block_win"}', '{"rule_id":"win_now"}']
         ) * 2
         return adapter
 
@@ -89,22 +91,22 @@ async def test_live_reflection_is_charged_published_and_carried_only_to_own_play
     assert runner.snapshot(row["id"])["run"]["status"] == "completed"
     events = runner.store.events(row["id"], owner=OWNER, limit=100)
     notes = [e["payload"] for e in events if e["kind"] == "reflection"]
-    assert len(notes) == 4 and [n["player"] for n in notes] == ["A", "B", "A", "B"]
+    assert len(notes) == 2 and [n["player"] for n in notes] == ["A", "B"]
     assert notes[1]["feedback"]["lessons"]
     assert all(n["feedback"]["player"] == n["player"] for n in notes)
     calls = adapters[0].recorded
-    assert len(calls) == 14
-    assert note_a in calls[7][1][0].content
-    assert note_b not in calls[7][1][0].content
-    assert note_b in calls[8][1][0].content
-    assert note_a not in calls[8][1][0].content
-    assert "A:A1 B:B1" not in calls[7][1][0].content
+    assert len(calls) == 16
+    assert note_a in calls[9][1][0].content
+    assert note_b not in calls[9][1][0].content
+    assert note_b in calls[10][1][0].content
+    assert note_a not in calls[10][1][0].content
+    assert "A:A1 B:B1" not in calls[9][1][0].content
     assert all(n["accepted"] for n in notes)
     assert calls[0][2].temperature == 0.8
     assert calls[0][2].allowed_outputs == ()
     assert calls[0][2].session_protocol == "game-eval-v2"
-    assert sum(e["kind"] == "usage" for e in events) == 14
-    assert sum(e["kind"] == "message" for e in events) == 10
+    assert sum(e["kind"] == "usage" for e in events) == 16
+    assert sum(e["kind"] == "message" for e in events) == 14
     assert runner.admission.snapshot()["status"] == "available"
 
 
@@ -192,7 +194,17 @@ async def test_invalid_notes_are_journalled_but_not_replayed_or_fatal(rig):
 
     def configured(model, lease):
         adapter = factory(model, lease)
-        adapter.responses = ["A1", "B1", "A2", "B2", "A3", "", "<think>unfinished"] * 2
+        adapter.responses = [
+            "A1",
+            "A2",
+            "A3",
+            "B2",
+            "B1",
+            "B3",
+            "C1",
+            "",
+            "<think>unfinished",
+        ] * 2
         return adapter
 
     runner.adapter_factory = configured
@@ -209,13 +221,13 @@ async def test_invalid_notes_are_journalled_but_not_replayed_or_fatal(rig):
     assert runner.snapshot(row["id"])["run"]["status"] == "completed"
     events = runner.store.events(row["id"], owner=OWNER, limit=100)
     notes = [e["payload"] for e in events if e["kind"] == "reflection"]
-    assert len(notes) == 4 and all(
+    assert len(notes) == 2 and all(
         n["accepted"] is False and not n["content"] for n in notes
     )
     assert {n["reason_code"] for n in notes} == {"empty_note", "unfinished_note"}
-    assert len(adapters[0].recorded) == 14
-    assert "<think>unfinished" not in adapters[0].recorded[8][1][0].content
+    assert len(adapters[0].recorded) == 16
+    assert "<think>unfinished" not in adapters[0].recorded[9][1][0].content
     final = [e["payload"] for e in events if e["kind"] == "game"][-1]
     assert final["series"]["number"] == 2 and final["finished"]
     assert final["strategy"]["accepted_notes"] == 0
-    assert final["strategy"]["rejected_notes"] == 4
+    assert final["strategy"]["rejected_notes"] == 2

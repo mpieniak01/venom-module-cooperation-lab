@@ -91,7 +91,7 @@ def test_reflection_budget_is_independent_and_does_not_change_legacy_serializati
     )
     assert cfg.budgets.max_new_tokens == 8
     assert cfg.reflection_max_new_tokens == 128
-    assert cfg.budgets.total_output_tokens == 2 * (9 * 8 + 2 * 128)
+    assert cfg.budgets.total_output_tokens == 2 * 9 * 8 + 2 * 128
     assert (
         cfg.budgets.processing_steps
         == cfg.budgets.total_input_tokens + cfg.budgets.total_output_tokens
@@ -113,12 +113,14 @@ async def test_notes_can_exceed_move_budget_without_hiding_cost_or_breaking_idem
         adapter = factory(model, lease)
         adapter.responses = [
             "A1",
-            "B1",
             "A2",
-            "B2",
             "A3",
-            json.dumps({"rule": RULE}),
-            json.dumps({"rule": RULE}),
+            "B2",
+            "B1",
+            "B3",
+            "C1",
+            json.dumps({"rule_id": "block_win"}),
+            json.dumps({"rule_id": "win_now"}),
         ] * 2
         original = adapter.generate
 
@@ -147,15 +149,15 @@ async def test_notes_can_exceed_move_budget_without_hiding_cost_or_breaking_idem
     assert runner.snapshot(row["id"])["run"]["status"] == "completed"
     retry, created = await runner.start(request, "budget-notes")
     assert retry["id"] == row["id"] and not created
-    assert runner.jobs[row["id"]].output_tokens == 10 * 8 + 4 * 16
+    assert runner.jobs[row["id"]].output_tokens == 14 * 8 + 2 * 16
     usage = [
         e["payload"]
         for e in runner.store.events(row["id"], owner=OWNER, limit=100)
         if e["kind"] == "usage" and e["payload"].get("purpose") == "reflection"
     ]
-    assert len(usage) == 4 and all(u["charged_output_tokens"] == 16 for u in usage)
+    assert len(usage) == 2 and all(u["charged_output_tokens"] == 16 for u in usage)
     assert all(
         c[2].max_new_tokens == 128
         for c in adapters[0].recorded
-        if '"mistake"' in c[1][-1].content
+        if '"supported_rules"' in c[1][-1].content
     )

@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .errors import LabError
 from .model_limits import MAX_REQUESTED_TOKENS, applied_output_tokens
 from .scenarios import DialogueLanguage, get_dialogue_scenario, get_scenario
 
@@ -60,6 +61,7 @@ class RunRequest(BaseModel):
     game_count: int = Field(default=1, ge=1, le=10)
     remember_games: bool = True
     max_new_tokens: int = Field(default=128, ge=1, le=MAX_REQUESTED_TOKENS)
+    num_steps: Literal[8, 16, 32, 64] = 8
     reflection_max_new_tokens: int = Field(default=128, ge=32, le=256)
     temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
     top_p: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
@@ -142,6 +144,17 @@ class RunConfig:
     remember_games: bool = True
     requested_max_new_tokens: int | None = None
     reflection_max_new_tokens: int | None = None
+    num_steps: int | None = None
+
+    @property
+    def game_language(self) -> DialogueLanguage | None:
+        architecture = json.loads(self.model_json).get("architecture")
+        return (
+            "en"
+            if self.mode in STRATEGIC_MODES
+            and architecture in {"hrm_text", "huginn_raven"}
+            else self.communication_language
+        )
 
     @classmethod
     def build(cls, request: RunRequest, model: dict[str, Any]) -> RunConfig:
@@ -150,6 +163,16 @@ class RunConfig:
             update={"max_new_tokens": applied_output_tokens(requested_tokens, model)}
         )
         language = request.communication_language
+        if request.num_steps != 8 and (
+            request.mode not in STRATEGIC_MODES
+            or model.get("architecture") != "huginn_raven"
+        ):
+            raise LabError("unsupported_compute_steps", 422)
+        if request.mode in STRATEGIC_MODES and model.get("architecture") in {
+            "hrm_text",
+            "huginn_raven",
+        }:
+            language = "en"
         scenario = (
             get_scenario(request.scenario_id)
             if language is None
@@ -256,6 +279,17 @@ class RunConfig:
                         "ensures "
                         "legality. Apply your own lessons from previous games."
                     )
+                if (
+                    request.mode in STRATEGIC_MODES
+                    and model.get("architecture") == "hrm_text"
+                ):
+                    prompts[-1] += (
+                        "\nExamples of the single-coordinate answer format "
+                        "(not the current position):"
+                        "\nTask: Select one of A1, B2. Answer: A1"
+                        "\nTask: Select one of B1, C3. Answer: C3"
+                        "\nNow solve only the current host board. Answer:"
+                    )
                 continue
             if request.mode in {"single", "self_correction"}:
                 private = scenario.private_a + " " + scenario.private_b
@@ -291,9 +325,16 @@ class RunConfig:
                 + private_label
                 + private
             )
+        note_calls = (
+            2 * (request.game_count - 1) if request.mode == "game_reflection" else 0
+        )
         return cls(
             requested_max_new_tokens=requested_tokens
             if requested_tokens != request.max_new_tokens
+            else None,
+            num_steps=request.num_steps
+            if request.mode in STRATEGIC_MODES
+            and model.get("architecture") == "huginn_raven"
             else None,
             reflection_max_new_tokens=request.reflection_max_new_tokens
             if request.mode == "game_reflection"
@@ -312,27 +353,13 @@ class RunConfig:
                 Budgets(
                     max_turns=request.max_turns,
                     max_new_tokens=request.max_new_tokens,
-                    total_input_tokens=(11 if request.mode == "game_reflection" else 9)
+                    total_input_tokens=(9 * request.game_count + note_calls) * 2048,
+                    total_output_tokens=9 * request.game_count * request.max_new_tokens
+                    + note_calls * request.reflection_max_new_tokens,
+                    processing_steps=9
                     * request.game_count
-                    * 2048,
-                    total_output_tokens=request.game_count
-                    * (
-                        9 * request.max_new_tokens
-                        + (
-                            2 * request.reflection_max_new_tokens
-                            if request.mode == "game_reflection"
-                            else 0
-                        )
-                    ),
-                    processing_steps=request.game_count
-                    * (
-                        9 * (2048 + request.max_new_tokens)
-                        + (
-                            2 * (2048 + request.reflection_max_new_tokens)
-                            if request.mode == "game_reflection"
-                            else 0
-                        )
-                    ),
+                    * (2048 + request.max_new_tokens)
+                    + note_calls * (2048 + request.reflection_max_new_tokens),
                     wall_seconds=min(1800, 360 * request.game_count),
                 )
                 if request.scenario_id == "tic_tac_toe"
@@ -350,7 +377,7 @@ class RunConfig:
             seed=request.seed,
             temperature=request.temperature,
             top_p=request.top_p,
-            communication_language=language,
+            communication_language=request.communication_language,
             game_count=request.game_count,
             remember_games=request.remember_games,
             schema_version=3
@@ -372,6 +399,16 @@ class RunConfig:
 
     def public(self) -> dict[str, Any]:
         result = asdict(self)
+        if self.num_steps is None:
+            result.pop("num_steps")
+        if self.mode in STRATEGIC_MODES:
+            result["model_language"] = self.game_language
+            result["model_task_profile"] = "live-task-v4"
+            result["observation_profile"] = (
+                "board-and-peer-with-reminder-v1"
+                if json.loads(self.model_json).get("architecture") == "hrm_text"
+                else "explicit-cells-v1"
+            )
         if self.reflection_max_new_tokens is None:
             result.pop("reflection_max_new_tokens")
         if self.requested_max_new_tokens is None:
@@ -384,11 +421,15 @@ class RunConfig:
             result["scheduler"] = "board-series-memory-v1"
             result["scenario_version"] += "-series-1"
         if self.mode in STRATEGIC_MODES:
-            result["schema_version"] = 6
-            result["scheduler"] = "live-game-strategy-v2"
-            result["scenario_version"] += "-live-strategy-2"
-            result["strategy_version"] = "ttt-coaching-v2"
-            result["memory_policy"] = "outcomes-and-validated-private-rule-v2"
+            result["schema_version"] = 8
+            result["scheduler"] = "live-game-strategy-v4"
+            result["scenario_version"] += "-live-strategy-4"
+            result["strategy_version"] = "ttt-coaching-v4"
+            result["memory_policy"] = "outcomes-and-decision-reminder-v4"
+            if self.mode == "game_reflection":
+                result["reflection_contract"] = "model-selects-host-tactical-catalog-v1"
+                result["reflection_mapping"] = "rule-choice-map-v1"
+                result["reflection_schedule"] = "between-games-only"
         if self.communication_language is None:
             # Preserve exact legacy v1 serialization and hashes.
             result.pop("communication_language")

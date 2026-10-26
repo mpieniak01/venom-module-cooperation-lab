@@ -36,3 +36,12 @@ test("chat never invents delivery or timestamps and translates message labels", 
  const unknown=new JSDOM(renderToStaticMarkup(<Conversation events={[{...first,payload:{content:"Hi"}}]} language="en"/>), {url:"http://localhost:3300/cooperation-lab"}).window.document;
  assert.match(unknown.body.textContent??"",/Delivery unconfirmed/);
 });
+
+
+test("chat labels actual use of an applicable private rule without inventing it for old moves",()=>{
+ const events:LabEvent[]=[first,{...second,payload:{...second.payload,rule_application:{rule_id:"win_now",applicable:true,followed:false}}},{...second,seq:9,payload:{...second.payload,rule_application:{rule_id:"block_win",applicable:true,followed:true}}}];
+ const doc=new JSDOM(renderToStaticMarkup(<Conversation events={events} language="pl"/>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
+ assert.equal(doc.querySelectorAll("[data-rule-use]").length,2);
+ assert.equal(doc.querySelector('[data-rule-use="ignored"]')?.textContent,"Reguła zignorowana: win_now");
+ assert.equal(doc.querySelector('[data-rule-use="followed"]')?.textContent,"Reguła zastosowana: block_win");
+});

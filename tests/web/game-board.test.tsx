@@ -44,3 +44,19 @@ test("rejected reflections are labelled and raw output is separate from accepted
  assert.match(doc.body.textContent??"",/Zapisano do pamięci/);
  assert.match(doc.body.textContent??"",/Take an immediate winning move/);
 });
+
+
+test("evidence checks, historical format-only notes and skipped notes have different labels",()=>{
+ const notes:LabEvent[]=[
+  {run_id:"game",seq:1,kind:"reflection",timestamp:1,payload:{player:"A",game_number:1,accepted:false,skipped:true,reason_code:"no_supported_mistake",content:""}},
+  {run_id:"game",seq:2,kind:"reflection",timestamp:2,payload:{player:"B",game_number:1,accepted:true,content:"Block an immediate threat.",note_source:"model_selected_host_catalog_rule",raw_content:"block_win",validation:{orientations_checked:8}}},
+  {run_id:"game",seq:3,kind:"reflection",timestamp:3,payload:{player:"A",game_number:2,accepted:true,content:"An old unverified rule."}},
+ ];
+ const doc=new JSDOM(renderToStaticMarkup(<GameReflections events={notes} language="pl"/>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
+ const text=doc.body.textContent??"";
+ assert.match(text,/Pominięte notatki: Brak własnego błędu/);
+ assert.match(text,/Reguła potwierdzona na błędzie i 8 orientacjach/);
+ assert.match(text,/Historyczna kontrola formatu/);
+ assert.equal(doc.querySelector("pre")?.textContent,"block_win");
+ assert.match(text,/Model wybrał regułę z podanych możliwości/);
+});

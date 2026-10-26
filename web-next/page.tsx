@@ -53,7 +53,7 @@ function ConversationWorkspace() {
     const qualification = lab.run?.config.scenario_id==="model_qualification";
     setForm({ ...form, ...(qualification ? {model:restored.model??form.model} : lab.run ? { communicationLanguage:"en" as const, ...restored } : {}), runId });
   }
-  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage, gameCount=1, rememberGames=true, reflectionTokens=128 } = form;
+  const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage, gameCount=1, rememberGames=true, reflectionTokens=128, numSteps=8 } = form;
   const [engineFilter, setEngineFilter] = useState<{runId:string|null; engine:string}|null>(null);
   const models = lab.capabilities?.models ?? [];
   const fallback = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
@@ -69,7 +69,9 @@ function ConversationWorkspace() {
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
   const strategicGame = ["game_strategic","game_reflection","game_assisted"].includes(mode);
-  const validSettings = Number.isInteger(tokens)&&tokens>=1&&tokens<=2147483647&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9)&&(mode!=="game_reflection"||gameCount>=2&&rememberGames&&Number.isInteger(reflectionTokens)&&reflectionTokens>=32&&reflectionTokens<=256)&&(!strategicGame||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const englishTask = strategicGame&&["hrm_text","huginn_raven"].includes(String(selected?.architecture));
+  const huginnTask = strategicGame&&selected?.architecture==="huginn_raven";
+  const validSettings = (!huginnTask||[8,16,32,64].includes(numSteps))&& Number.isInteger(tokens)&&tokens>=1&&tokens<=2147483647&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9)&&(mode!=="game_reflection"||gameCount>=2&&rememberGames&&Number.isInteger(reflectionTokens)&&reflectionTokens>=32&&reflectionTokens<=256)&&(!strategicGame||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
   const messageEvents = lab.events.filter((event) => event.kind === "message");
   const lastFailure = lab.events.findLast(event=>event.kind==="error");
@@ -95,8 +97,9 @@ function ConversationWorkspace() {
   const computation = computationLabel(t, lab.capabilities, lab.run, lab.stopQueued, operatorWaiting);
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
-    const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:communicationLanguage };
+    const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:englishTask?"en":communicationLanguage };
     if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;if(mode==="game_reflection")input.reflection_max_new_tokens=reflectionTokens;}
+    if(huginnTask)input.num_steps=numSteps;
      setSettings(false); void lab.start(input);
   };
   const historyControl = (<div className="coop-history">
@@ -169,10 +172,12 @@ function ConversationWorkspace() {
           {selected&&<p className="coop-message-meta" role="status">{modelState(selected,t)}</p>}
           {selected?.can_qualify&&<><button type="button" className={button} onClick={()=>{setSettings(true);void lab.qualify(chosen);}}>{t.qualify}</button><p className="coop-message-meta">{t.qualificationHint}</p></>}
           <label className="coop-setting">{t.communicationLanguage}
-            <select className={field} value={communicationLanguage} onChange={event=>setForm({...form,communicationLanguage:event.target.value==="pl"?"pl":"en"})}>
+            <select className={field} disabled={englishTask} value={englishTask?"en":communicationLanguage} onChange={event=>setForm({...form,communicationLanguage:event.target.value==="pl"?"pl":"en"})}>
               <option value="pl">{t.polish}</option><option value="en">{t.english}</option>
             </select>
           </label>
+          {englishTask&&<p className="coop-message-meta" role="status">{t.gameEnglishTask}</p>}
+          {huginnTask&&<label className="coop-setting">{t.gameComputeSteps}<select className={field} value={numSteps} onChange={event=>setForm({...form,numSteps:Number(event.target.value)})}>{[8,16,32,64].map(step=><option key={step} value={step}>{step}</option>)}</select></label>}
           <p className="coop-message-meta">{t.sameWeights}</p>
         </div>
         <div className="coop-settings-group">

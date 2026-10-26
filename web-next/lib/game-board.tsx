@@ -40,10 +40,11 @@ export function GameReflections({events,language}:{events:LabEvent[];language:st
       const lessons=feedback&&typeof feedback==="object"&&!Array.isArray(feedback)&&Array.isArray(feedback.lessons)?feedback.lessons:[];
       return <details key={event.seq} open={index>=notes.length-2}>
         <summary>{t.gameRound} {String(event.payload.game_number)} · {String(event.payload.player)}</summary>
-        {event.payload.accepted===false?<>
+        {event.payload.skipped===true?<p role="status">{t.gameNoteSkipped}: {noteReasonLabel(t,event.payload.reason_code)}</p>:event.payload.accepted===false?<>
           <p role="status">{t.gameNoteRejected}: {noteReasonLabel(t,event.payload.reason_code)}</p>
           <details><summary>{t.gameNoteRaw}</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.raw_content==="string"?event.payload.raw_content:t.unknown}</pre></details>
-        </>:<><p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.content==="string"?event.payload.content:t.unknown}</p>{event.payload.accepted===true&&<p className="coop-message-meta">{t.gameNoteAccepted}</p>}</>}
+        </>:<><p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.content==="string"?event.payload.content:t.unknown}</p>{event.payload.accepted===true&&<p className="coop-message-meta">{t.gameNoteAccepted} · {event.payload.validation?t.gameNoteEvidence:t.gameNoteFormat}</p>}</>}
+        {event.payload.note_source==="model_selected_host_catalog_rule"&&event.payload.accepted===true&&<><p className="coop-message-meta">{t.gameNoteCatalog}</p><details><summary>{t.gameNoteRaw}</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.raw_content==="string"?event.payload.raw_content:t.unknown}</pre></details></>}
         {lessons.map((lesson,i)=>{
           if(!lesson||typeof lesson!=="object"||Array.isArray(lesson))return null;
           const proposed=lesson.model_action;const better=lesson.better_action;
@@ -65,6 +66,8 @@ export function GameSeriesResults({event,events,language}:{event?:LabEvent;event
   const strategy=state?.strategy&&typeof state.strategy==="object"&&!Array.isArray(state.strategy)?state.strategy:null;
   const metrics=strategy?[[t.gameModelMoves,strategy.model_moves],[t.gameWorseMoves,strategy.worse_moves],[t.gameMissedWins,strategy.missed_wins],[t.gameSolverIntervention,strategy.solver_interventions]]:[];
   if(strategy?.mode==="game_reflection")metrics.push([t.gameAcceptedNotes,strategy.accepted_notes??0],[t.gameRejectedNotes,strategy.rejected_notes??0]);
+  if(strategy?.mode==="game_reflection"&&typeof strategy.rule_opportunities==="number")metrics.push([t.gameRuleOpportunities,strategy.rule_opportunities],[t.gameRuleFollowed,strategy.rule_followed??0],[t.gameRuleIgnored,strategy.rule_ignored??0]);
+  if(typeof strategy?.skipped_notes==="number")metrics.push([t.gameNoteSkipped,strategy.skipped_notes]);
   return <section className="coop-panel coop-game-results" aria-label={t.gameResults}>
     <h2>{t.gameResults}</h2>
     {!!metrics.length&&<table className="coop-game-metrics" aria-label={t.gameStrategyMetrics}><tbody>

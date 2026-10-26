@@ -264,6 +264,7 @@ class LabRunner:
         }
         stored.update(
             model_id=model_id,
+            num_steps=config.get("num_steps", 8),
             reflection_max_new_tokens=config.get("reflection_max_new_tokens", 128),
             game_count=config.get("game_count", 1),
             remember_games=config.get("remember_games", True),
@@ -366,7 +367,7 @@ class LabRunner:
         for participant in recipients:
             prefix = (
                 "Wiadomość operatora: "
-                if job.config.communication_language == "pl"
+                if job.config.game_language == "pl"
                 else "Operator message: "
             )
             job.histories[participant].append(ChatMessage("user", prefix + content))
@@ -482,21 +483,15 @@ class LabRunner:
         for participant, prompt in zip(("A", "B"), job.config.prompts, strict=True):
             memory = (
                 (
-                    job.series.outcome_memory(
-                        participant, job.config.communication_language
-                    )
+                    job.series.outcome_memory(participant, job.config.game_language)
                     if job.coaching
-                    else job.series.memory(
-                        participant, job.config.communication_language
-                    )
+                    else job.series.memory(participant, job.config.game_language)
                 )
                 if job.series
                 else ""
             )
             if job.coaching:
-                memory += job.coaching.memory(
-                    participant, job.config.communication_language
-                )
+                memory += job.coaching.memory(participant, job.config.game_language)
             job.histories[participant] = [
                 ChatMessage("system", prompt + ("\n" + memory if memory else ""))
             ]
@@ -598,12 +593,59 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         history = job.histories[participant]
+        if job.game is not None and job.coaching is not None:
+            architecture = job.config.public()["model"].get("architecture")
+            reminder = job.coaching.notes.get(participant, "")
+            if architecture == "hrm_text":
+                # Matched live tests showed a tactical regression with the
+                # explicit-cell compression in HRM. Retain its qualified board.
+                observation = job.game.prompt(participant, job.config.game_language)
+                if reminder:
+                    observation += (
+                        "\nYour rule: " + reminder + "\nReturn one coordinate only:"
+                    )
+            else:
+                observation = job.game.compact_prompt(
+                    participant,
+                    job.config.game_language,
+                    reminder,
+                )
+            if job.config.public()["model"].get("architecture") == "rwkv7":
+                # Preserve efficient recurrent append; the latest explicit state
+                # and private rule are always nearest to the generation point.
+                if history[-1].role == "user":
+                    history[-1] = ChatMessage(
+                        "user", history[-1].content + "\n" + observation
+                    )
+                else:
+                    history.append(ChatMessage("user", observation))
+                return history
+            # Every accepted peer move is already reflected in this state;
+            # the complete delivery trace stays in the journal, not this prompt.
+            compact = [history[0]]
+            if architecture == "hrm_text":
+                last_id = job.last_delivered[participant]
+                incoming = next(
+                    (
+                        message
+                        for message in reversed(history)
+                        if last_id
+                        and message.role == "user"
+                        and last_id in message.content
+                    ),
+                    None,
+                )
+                if incoming is not None:
+                    compact.append(incoming)
+            compact.append(ChatMessage("user", observation))
+            job.histories[participant] = compact
+            return compact
         if (
             job.game is not None
             and job.config.public()["model"]["architecture"] == "rwkv7"
         ):
             observation = job.game.recurrent_prompt(
-                participant, job.config.communication_language
+                participant, job.config.game_language
             )
             if history[-1].role == "user":
                 history[-1] = ChatMessage(
@@ -631,7 +673,7 @@ class LabRunner:
             compact.append(
                 ChatMessage(
                     "user",
-                    job.game.prompt(participant, job.config.communication_language),
+                    job.game.prompt(participant, job.config.game_language),
                 )
             )
             job.histories[participant] = compact
@@ -642,7 +684,7 @@ class LabRunner:
                 if job.config.mode == "self_correction"
                 else "Continue using only the information in your own context."
             )
-            if job.config.communication_language == "pl":
+            if job.config.game_language == "pl":
                 followup = (
                     "Sprawdź swoją poprzednią odpowiedź."
                     if job.config.mode == "self_correction"
@@ -689,7 +731,10 @@ class LabRunner:
             )
         if job.coaching:
             parameters = replace(
-                parameters, profile="structured", session_protocol="game-eval-v2"
+                parameters,
+                profile="structured",
+                session_protocol="game-eval-v2",
+                num_steps=config.num_steps or 8,
             )
         completed: set[str] = set()
         turns = 1 if config.mode == "single" else config.budgets.max_turns
@@ -713,7 +758,10 @@ class LabRunner:
                 )
                 if job.game is not None:
                     if job.game.finished:
-                        if config.mode == "game_reflection":
+                        if (
+                            config.mode == "game_reflection"
+                            and game_index + 1 < config.game_count
+                        ):
                             await self._reflect_game(job, parameters)
                         break
                     continue
@@ -729,21 +777,50 @@ class LabRunner:
         from .adapters.base import ChatMessage
 
         assert job.coaching is not None and job.game is not None
-        from .reflection import validate_note
+        from .rule_reflection import (
+            instruction,
+            parse_choice,
+            rule_text,
+            supported_rules,
+        )
 
         note_tokens = job.config.reflection_max_new_tokens or 128
         for player in ("A", "B"):
             self._check(job)
-            self._reserve_turn(job, output_limit=note_tokens)
             feedback = job.coaching.feedback(job.game, player)
-            instruction = (
-                'Zwróć wyłącznie JSON z jednym polem "rule". Napisz jedną krótką '
-                "ogólną zasadę na następną partię na podstawie własnego błędu. "
-                "Bez konkretnych współrzędnych, kopiowania polecenia i rozumowania."
-                if job.config.communication_language == "pl"
-                else 'Return only JSON with one field "rule". Write one short general '
-                "rule for the next game based on your own mistake. "
-                "No square coordinates, instruction copies or reasoning."
+            supported = supported_rules(feedback)
+            if not supported:
+                job.coaching.skipped_notes += 1
+                self._emit(
+                    job,
+                    "reflection",
+                    {
+                        "player": player,
+                        "content": "",
+                        "accepted": False,
+                        "skipped": True,
+                        "reason_code": "no_supported_mistake",
+                        "feedback": feedback,
+                        "game_number": job.series.number if job.series else 1,
+                    },
+                )
+                continue
+            self._reserve_turn(job, output_limit=note_tokens)
+            note_instruction = instruction(job.config.game_language)
+            note_input = json.dumps(
+                {
+                    "player": player,
+                    "winner": feedback["final_state"]["winner"],
+                    "supported_rules": {
+                        key: {
+                            "board": evidence["source_board"],
+                            "mistaken_move": evidence["source_action"],
+                        }
+                        for key, evidence in supported.items()
+                    },
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
             )
             params = replace(
                 parameters,
@@ -768,8 +845,8 @@ class LabRunner:
                     job.adapter.generate,
                     player,
                     (
-                        ChatMessage("system", instruction),
-                        ChatMessage("user", job.coaching.encode_feedback(feedback)),
+                        ChatMessage("system", note_instruction),
+                        ChatMessage("user", note_input),
                     ),
                     params,
                     job.deadline,
@@ -788,9 +865,13 @@ class LabRunner:
                     **self._charge(job, result, output_limit=note_tokens),
                 },
             )
-            note = validate_note(result.text, instruction)
-            if note.accepted:
-                job.coaching.notes[player] = note.rule
+            rule_id, reason = parse_choice(result.text, supported)
+            accepted = rule_id is not None
+            content = rule_text(rule_id, job.config.game_language) if rule_id else ""
+            if accepted:
+                job.coaching.notes[player] = content
+                assert rule_id is not None
+                job.coaching.note_ids[player] = rule_id
                 job.coaching.accepted_notes += 1
             else:
                 job.coaching.rejected_notes += 1
@@ -799,9 +880,16 @@ class LabRunner:
                 "reflection",
                 {
                     "player": player,
-                    "content": note.rule,
-                    "accepted": note.accepted,
-                    "reason_code": note.reason,
+                    "content": content,
+                    "accepted": accepted,
+                    "reason_code": reason,
+                    "rule_id": rule_id,
+                    "validation": supported.get(rule_id) if rule_id else None,
+                    "note_source": "model_selected_host_catalog_rule",
+                    "response_mapping": {
+                        "version": "rule-choice-map-v1",
+                        "mapped": reason == "evidence_checked_mapped",
+                    },
                     "raw_content": result.raw_text or result.text,
                     "feedback": feedback,
                     "max_new_tokens": note_tokens,
@@ -883,7 +971,7 @@ class LabRunner:
         if job.config.mode == "operator_review":
             from .adapters.base import ChatMessage
 
-            step = review_step(index, job.config.communication_language)
+            step = review_step(index, job.config.game_language)
             phase = step.phase
             history = [*history, ChatMessage("user", step.instruction)]
         self._emit(
@@ -945,7 +1033,9 @@ class LabRunner:
             except LabError:
                 invalid = self._message(job, participant, turn_id, "invalid")
                 invalid.update(
-                    content=result.text, raw_content=result.text, delivered_to=[]
+                    content=result.text,
+                    raw_content=result.raw_text or result.text,
+                    delivered_to=[],
                 )
                 self._emit(job, "message", invalid)
                 raise
@@ -955,6 +1045,7 @@ class LabRunner:
             message.update(
                 model_move=strategy["model_action"]["square"],
                 assessment=strategy["assessment"],
+                rule_application=strategy.get("rule_application"),
                 assistance=strategy.get("assistance"),
                 execution_assessment=strategy.get("execution_assessment"),
                 raw_content=result.raw_text or result.text,
@@ -991,14 +1082,14 @@ class LabRunner:
                     (
                         (
                             f"Przeciwnik zagrał {board['last_move']}."
-                            if job.config.communication_language == "pl"
+                            if job.config.game_language == "pl"
                             else f"Opponent played {board['last_move']}."
                         )
                         if board is not None
                         and job.config.public()["model"]["architecture"] == "rwkv7"
                         else (
                             f"Wiadomość {message['message_id']} od {participant}: "
-                            if job.config.communication_language == "pl"
+                            if job.config.game_language == "pl"
                             else f"Message {message['message_id']} from {participant}: "
                         )
                         + message["content"]
@@ -1082,7 +1173,7 @@ class LabRunner:
         if job.config.mode == "operator_review":
             step = review_step(
                 int(turn_id.removeprefix("turn-")) - 1,
-                job.config.communication_language,
+                job.config.game_language,
             )
             recipient = step.recipient
             in_reply_to = job.last_delivered[sender]

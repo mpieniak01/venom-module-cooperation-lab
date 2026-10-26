@@ -96,6 +96,17 @@ const translations = {
   english: ["Angielski", "English", "Englisch"],
   scenarioTicTacToe: ["Kółko i krzyżyk", "Tic-tac-toe", "Tic-Tac-Toe"],
   gameReflectionTokens:["Tokenów na notatkę", "Tokens per note", "Token pro Notiz"],
+  gameEnglishTask:["Ten profil gry używa angielskich poleceń dopasowanych do modelu. Język panelu pozostaje bez zmian.", "This game profile uses English model instructions. The interface language stays unchanged.", "Dieses Spielprofil verwendet englische Modellanweisungen. Die Oberflächensprache bleibt unverändert."],
+  gameComputeSteps:["Kroki Huginn", "Huginn steps", "Huginn-Schritte"],
+  gameNoteSkipped:["Pominięte notatki", "Skipped notes", "Übersprungene Notizen"],
+  gameNoteEvidence:["Reguła potwierdzona na błędzie i 8 orientacjach planszy; stosowanie jej przez model nie zostało potwierdzone", "Rule checked on the mistake and 8 board orientations; future model compliance is unverified", "Regel am Fehler und 8 Brettorientierungen geprüft; künftige Modellanwendung ungeprüft"],
+  gameRuleOpportunities:["Okazje zastosowania reguły", "Rule opportunities", "Regelanwendungen möglich"],
+  gameRuleFollowed:["Reguła zastosowana", "Rule followed", "Regel befolgt"],
+  gameRuleIgnored:["Reguła zignorowana", "Rule ignored", "Regel ignoriert"],
+  gameNoteCatalog:["Model wybrał regułę z podanych możliwości; opis pochodzi z katalogu hosta.", "The model selected a provided rule; its description comes from the host catalog.", "Das Modell wählte eine vorgegebene Regel; die Beschreibung stammt aus dem Host-Katalog."],
+  gameNoteFormat:["Historyczna kontrola formatu; sens reguły nie został sprawdzony", "Historical format check; rule meaning unverified", "Historische Formatprüfung; Regelinhalt ungeprüft"],
+  note_no_supported_mistake:["Brak własnego błędu objętego regułami taktycznymi", "No own mistake covered by the tactical rules", "Kein eigener Fehler durch die taktischen Regeln abgedeckt"],
+  note_unsupported_rule:["Wybrana reguła nie wynika z własnego błędu", "Selected rule is unsupported by the player's mistake", "Gewählte Regel folgt nicht aus dem eigenen Fehler"],
   gameNoteAccepted:["Zapisano do pamięci", "Saved to memory", "Im Gedächtnis gespeichert"],
   gameNoteRejected:["Nie zapisano do pamięci", "Not saved to memory", "Nicht im Gedächtnis gespeichert"],
   gameAcceptedNotes:["Przyjęte notatki", "Accepted notes", "Angenommene Notizen"],
@@ -106,14 +117,14 @@ const translations = {
   note_instruction_echo:["Model skopiował instrukcję.", "The model copied the instruction.", "Das Modell hat die Anweisung kopiert."],
   note_invalid_note_format:["Odpowiedź nie zawiera jednej krótkiej zasady.", "The response does not contain one short rule.", "Die Antwort enthält keine kurze Regel."],
   note_position_specific_note:["Notatka powtarza współrzędne poprzedniej planszy.", "The note repeats coordinates from the previous board.", "Die Notiz wiederholt Koordinaten des vorherigen Bretts."],
-  liveReflectionMemory:["Pamięć jest wymagana w tym wariancie. Każdy gracz korzysta wyłącznie ze sprawdzonej własnej notatki i skrótu wyników. Surowe dawne ruchy nie trafiają do kontekstu.", "Memory is required for this variant. Each player uses only its validated private note and an outcome summary, without old move transcripts.", "Gedächtnis ist für diese Variante erforderlich. Jeder Spieler nutzt nur seine geprüfte eigene Notiz und eine Ergebnisübersicht, ohne alte Zugprotokolle."],
+  liveReflectionMemory:["Pamięć jest wymagana w tym wariancie. Każdy gracz korzysta z wybranej przez siebie reguły taktycznej sprawdzonej na jego błędzie i ze skrótu wyników. Surowe dawne ruchy nie trafiają do kontekstu.", "Memory is required for this variant. Each player uses its selected tactical rule checked on its own mistake and an outcome summary, without old move transcripts.", "Gedächtnis ist für diese Variante erforderlich. Jeder Spieler nutzt nur seine geprüfte eigene Notiz und eine Ergebnisübersicht, ohne alte Zugprotokolle."],
   gameFinishedSeeResults:["Zakończona partia i jej przebieg są w wynikach po prawej stronie.", "The completed game and its timeline are in the results on the right.", "Das abgeschlossene Spiel und sein Verlauf stehen rechts in den Ergebnissen."],
   gameNoResults:["Brak zakończonych partii.", "No completed games yet.", "Noch keine abgeschlossenen Spiele."],
   gameStrategic:["Samodzielna strategia", "Independent strategy", "Eigenständige Strategie"],
   gameReflection:["Strategia z refleksją", "Strategy with reflection", "Strategie mit Reflexion"],
   gameAssisted:["Strategia ze wsparciem solvera", "Solver-assisted strategy", "Strategie mit Solver-Unterstützung"],
   liveStrategyHint:["Model sam wybiera ruchy bez wymuszania legalnej współrzędnej. Plansza i oceny aktualizują się podczas gry.", "The model chooses moves without forced legal coordinates. The board and scores update during play.", "Das Modell wählt Züge ohne erzwungene legale Koordinaten. Brett und Bewertungen aktualisieren sich im Spiel."],
-  liveReflectionHint:["Po każdej partii A i B zapisują własne wnioski z błędów. Notatki trafiają do następnej gry. Wagi pozostają zamrożone.", "After each game A and B write private notes based on their mistakes. Notes carry to the next game. Weights remain frozen.", "Nach jedem Spiel schreiben A und B eigene Fehlernotizen für das nächste Spiel. Die Gewichte bleiben unverändert."],
+  liveReflectionHint:["Między partiami model wybiera regułę wygranej lub obrony. Host sprawdza ją na własnym błędzie oraz obrotach i odbiciach planszy. Bez pasującego błędu pomija notatkę. Wagi pozostają zamrożone.", "After the game the model selects a win or block rule. The host checks it on its own mistake and board symmetries. Without supporting evidence the note is skipped. Weights remain frozen.", "Das Modell wählt eine Gewinn- oder Abwehrregel. Der Host prüft sie am eigenen Fehler und an Brettsymmetrien. Ohne Beleg wird die Notiz übersprungen. Gewichte bleiben unverändert."],
   liveAssistedHint:["Solver poprawia legalne ruchy pogarszające pozycję. W przebiegu widać propozycję modelu i wykonany ruch. Wynik jest wspomagany.", "The solver corrects legal moves that worsen the position. The timeline shows proposed and executed moves. Results are assisted.", "Der Solver korrigiert legale Züge, die die Stellung verschlechtern. Verlauf zeigt Vorschlag und ausgeführten Zug. Ergebnisse sind unterstützt."],
   gameModelProposal:["Propozycja modelu", "Model proposal", "Modellvorschlag"],
   gameExecutedMove:["Wykonany ruch", "Executed move", "Ausgeführter Zug"],
@@ -346,6 +357,6 @@ export function gameModeLabel(t:ReturnType<typeof texts>,mode:string) {
 }
 
 export function noteReasonLabel(t:ReturnType<typeof texts>,reason:unknown) {
-  const labels:Record<string,string>={empty_note:t.note_empty_note,unfinished_note:t.note_unfinished_note,instruction_echo:t.note_instruction_echo,invalid_note_format:t.note_invalid_note_format,position_specific_note:t.note_position_specific_note};
+  const labels:Record<string,string>={no_supported_mistake:t.note_no_supported_mistake,unsupported_rule:t.note_unsupported_rule,empty_note:t.note_empty_note,unfinished_note:t.note_unfinished_note,instruction_echo:t.note_instruction_echo,invalid_note_format:t.note_invalid_note_format,position_specific_note:t.note_position_specific_note};
   return typeof reason==="string"&&Object.hasOwn(labels,reason)?labels[reason]:t.note_invalid_note_format;
 }
