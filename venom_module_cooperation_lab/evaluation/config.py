@@ -22,6 +22,7 @@ class EvaluationRequest(BaseModel):
     observation_mode: Literal["history_replay", "native_incremental"] = "history_replay"
     episode_memory: Literal["fresh", "carry"] = "fresh"
     reflection: Literal["off", "episode_note"] = "off"
+    ttt_variant: Literal["standard", "reflection", "assisted"] = "standard"
     decoding: Literal["greedy", "sampled"] = "greedy"
     temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
     top_p: float = Field(default=0.9, gt=0, le=1, allow_inf_nan=False)

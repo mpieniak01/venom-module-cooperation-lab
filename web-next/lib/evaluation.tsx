@@ -50,6 +50,8 @@ function EvaluationReport({snapshot, language}: {snapshot: EvaluationSnapshot; l
   return <div className="evaluation-report">
     <section className="coop-panel" aria-label={t.results}>
       <h2>{t.results}</h2><p className="coop-message-meta">{t.resultHelp}</p>
+      <p>{t.tttVariant}: {evaluationLabel(t, `variant_${snapshot.config.ttt_variant ?? "standard"}`)}</p>
+      {snapshot.config.ttt_variant === "assisted" && <p role="note">{t.assistedResults} · {t.solverInterventions}: {byGame.reduce((sum,row)=>sum+Number(row.solver_interventions??0),0)}</p>}
       {byGame.length ? <div className="evaluation-table-scroll"><table><thead><tr><th>{t.game}</th>{headings.map(heading=><th key={heading}>{heading}</th>)}</tr></thead>
         <tbody>{byGame.map((row, index)=><tr key={String(row.game)+index}><th scope="row">{gameLabel(t, String(row.game))}</th>{columns.map(key=><td key={key}>{safeValue(row[key], t.noData)}</td>)}</tr>)}</tbody>
       </table></div> : <p>{t.noData}</p>}
@@ -73,8 +75,9 @@ function EvaluationReport({snapshot, language}: {snapshot: EvaluationSnapshot; l
         {episode.decisions.map((decision,number)=><details key={number}><summary>#{number+1} · {decision.player} · {t.seconds}: {safeValue(decision.seconds, t.noData)} {decision.error ? evaluationLabel(t, decision.error) : ""}</summary>
           <strong>{t.observationLabel}</strong><pre>{safeValue(decision.observation, t.noData)}</pre>
           <strong>{t.response}</strong><pre>{safeValue(decision.response, t.noData)}</pre>
+          {decision.model_action && <><strong>{t.modelProposal}</strong><pre>{safeValue(decision.model_action, t.noData)}</pre></>}
           <strong>{t.action}</strong><pre>{safeValue(decision.action, t.noData)}</pre>
-          <strong>{t.assessment}</strong><pre>{JSON.stringify({valid:decision.valid, error:decision.error, response_mapping:decision.response_mapping, usage:decision.usage, assessment:decision.assessment}, null, 2)}</pre>
+          <strong>{t.assessment}</strong><pre>{JSON.stringify({valid:decision.valid, error:decision.error, response_mapping:decision.response_mapping, usage:decision.usage, assessment:decision.assessment, assistance:decision.assistance, execution_assessment:decision.execution_assessment, lesson:decision.lesson}, null, 2)}</pre>
         </details>)}
       </details>)}
     </details>
@@ -133,23 +136,30 @@ export function EvaluationWorkspace({language}: {language:string}) {
           <Field label={t.observation}><select className={field} value={input.observation_mode} onChange={event=>patch({observation_mode:event.target.value as EvaluationRequest["observation_mode"]})}>
             <option value="history_replay">{t.history_replay}</option><option value="native_incremental">{t.native_incremental}</option>
           </select></Field>
-          <Field label={t.memory}><select className={field} value={input.episode_memory} onChange={event=>patch({episode_memory:event.target.value as EvaluationRequest["episode_memory"]})}><option value="fresh">{t.fresh}</option><option value="carry">{t.carry}</option></select></Field>
-          <Field label={t.reflection}><select className={field} value={input.reflection} onChange={event=>patch({reflection:event.target.value as EvaluationRequest["reflection"]})}><option value="off">{t.off}</option><option value="episode_note">{t.episode_note}</option></select></Field>
+          <Field label={t.memory}><select className={field} value={input.episode_memory} disabled={input.ttt_variant==="reflection"} onChange={event=>patch({episode_memory:event.target.value as EvaluationRequest["episode_memory"]})}><option value="fresh">{t.fresh}</option><option value="carry">{t.carry}</option></select></Field>
+          <Field label={t.reflection}><select className={field} value={input.reflection} disabled={input.ttt_variant==="reflection"} onChange={event=>patch({reflection:event.target.value as EvaluationRequest["reflection"]})}><option value="off">{t.off}</option><option value="episode_note">{t.episode_note}</option></select></Field>
           <p className="coop-message-meta">{t.memoryHelp}</p>
           <Field label={t.compute}><select className={field} value={input.num_steps} disabled={!steps.length} onChange={event=>patch({num_steps:Number(event.target.value) as EvaluationRequest["num_steps"]})}>{(steps.length?steps:[8]).map(value=><option key={value} value={value}>{steps.length?value:t.noData}</option>)}</select></Field>
           <p className="coop-message-meta">{t.computeHelp}</p>
         </div>
         <div className="coop-settings-group">
-          <Field label={t.gameSelection}><select className={field} value={selectedGame} onChange={event=>patch({case_ids:cases.filter(item=>!event.target.value || item.game===event.target.value).map(item=>item.id)})}>
+          <Field label={t.gameSelection}><select className={field} value={selectedGame} onChange={event=>patch({ttt_variant:"standard",case_ids:cases.filter(item=>!event.target.value || item.game===event.target.value).map(item=>item.id)})}>
             <option value="">{t.multipleGames}</option>
             {games.map(game=><option key={game} value={game}>{gameLabel(t,game)}</option>)}
           </select></Field>
+          {selectedGame==="tic_tac_toe" && <>
+            <Field label={t.tttVariant}><select className={field} value={input.ttt_variant} onChange={event=>{
+              const variant=event.target.value as EvaluationRequest["ttt_variant"];
+              patch({ttt_variant:variant,episode_memory:variant==="reflection"?"carry":"fresh",reflection:variant==="reflection"?"episode_note":"off",...(variant==="reflection"?{repetitions:Math.max(3,input.repetitions)}:{})});
+            }}>{(["standard","reflection","assisted"] as const).map(variant=><option key={variant} value={variant}>{evaluationLabel(t,`variant_${variant}`)}</option>)}</select></Field>
+            <p className="coop-message-meta" role="note">{evaluationLabel(t,`variantHelp_${input.ttt_variant}`)}</p>
+          </>}
           <span className="coop-setting">{t.cases}</span>
           <div className="evaluation-case-list" role="group" aria-label={t.cases}>{cases.map(item=><label key={item.id}>
-            <input type="checkbox" checked={input.case_ids.includes(item.id)} onChange={event=>patch({case_ids:event.target.checked?[...input.case_ids,item.id]:input.case_ids.filter(id=>id!==item.id)})}/>
+            <input type="checkbox" checked={input.case_ids.includes(item.id)} onChange={event=>patch({ttt_variant:input.ttt_variant!=="standard" && item.game!=="tic_tac_toe"?"standard":input.ttt_variant,case_ids:event.target.checked?[...input.case_ids,item.id]:input.case_ids.filter(id=>id!==item.id)})}/>
             {gameLabel(t,item.game)} · {item.id}<span className="coop-message-meta"> · {t.casesLimit}: {item.max_actions}</span>
           </label>)}</div>
-          {number("repetitions",t.repetitions,1,10)}
+          {number("repetitions",t.repetitions,input.ttt_variant==="reflection"?2:1,10)}
           <Field label={t.opponent}><select className={field} value={input.opponent} onChange={event=>patch({opponent:event.target.value as EvaluationRequest["opponent"]})}><option value="optimal">{t.optimal}</option><option value="random">{t.random}</option><option value="remembering">{t.remembering}</option><option value="model">{t.modelOpponent}</option></select></Field>
           <p className="coop-message-meta">{t.soloHelp}</p>
           <label><input type="checkbox" checked={input.swap_sides} onChange={event=>patch({swap_sides:event.target.checked})}/> {t.swap}</label>
@@ -167,7 +177,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
           {number("decision_timeout_s",t.timeout,1,model?.max_decision_timeout_s??300)}
           <button className={button} disabled={!editable || !validModelBudgets(input,model)} onClick={()=>{void lab.saveBudgets(input.model_id,{max_context_tokens:input.max_context_tokens,max_new_tokens:input.max_new_tokens,decision_timeout_s:input.decision_timeout_s});}}>{t.saveBudgets}</button>
           <p className="coop-message-meta" role="status">{model?.budget_profile?.stale ? t.staleBudgets : model?.budget_profile?.saved && (["max_context_tokens","max_new_tokens","decision_timeout_s"] as const).every(key=>model.budget_profile!.budgets[key]===input[key]) ? t.savedBudgets : t.budgetsHelp}</p>
-          <p className="coop-message-meta">{t.decoderHelp}</p>
+          <p className="coop-message-meta">{input.ttt_variant==="assisted"?t.variantHelp_assisted:t.decoderHelp}</p>
         </div>
       </fieldset>}
       <div className="evaluation-plan" aria-live="polite">

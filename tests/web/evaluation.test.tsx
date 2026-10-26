@@ -404,3 +404,47 @@ test("interrupted series cannot be deleted until its quarantined runtime is reco
     await act(async()=>findButton(box,"Usuń serię").click());await settle();assert.equal(deletes,1);
   }finally{await close();}
 });
+
+
+test("TTT variants configure reflection explicitly and reset support when changing game",async()=>{
+  const requests:Record<string,unknown>[]=[];
+  const {box,close}=await setup(async(url,init)=>{
+    if(String(url).endsWith("/capabilities"))return response(caps);
+    if(String(url).endsWith("/preflight")){requests.push(JSON.parse(String(init?.body)));return response(preflight);}
+    assert.notEqual(init?.method,"POST","selecting a variant must not start a model");
+    return response({evaluations:[]});
+  });
+  try{
+    const variant=select(box,"Wariant kółka i krzyżyka");
+    assert.deepEqual([...variant.options].map(o=>o.value),["standard","reflection","assisted"]);
+    await choose(box,"Wariant kółka i krzyżyka","reflection");
+    assert.equal(select(box,"Pamięć między partiami").value,"carry");
+    assert.equal(select(box,"Pamięć między partiami").disabled,true);
+    assert.equal(select(box,"Notatka po partii").value,"episode_note");
+    await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
+    assert.equal(requests.at(-1)?.ttt_variant,"reflection");assert.equal(requests.at(-1)?.repetitions,3);
+    await choose(box,"Wariant kółka i krzyżyka","assisted");
+    assert.equal(findButton(box,"Rozpocznij serię").disabled,true);
+    assert.match(box.textContent??"",/Solver zastępuje legalny ruch/);
+    await choose(box,"Wybierz grę","memory");
+    assert.equal(select(box,"Wariant kółka i krzyżyka"),undefined);
+    await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
+    assert.equal(requests.at(-1)?.ttt_variant,"standard");
+    const legacy={...evaluationDefaults(),model_id:"huginn-0125",case_ids:["ttt-start"]};
+    assert.equal(savedEvaluationRequest({...legacy,ttt_variant:"unknown"}),null);
+    const {ttt_variant: removed, ...historic}=legacy;assert.equal(removed,"standard");
+    assert.equal(savedEvaluationRequest(historic)?.ttt_variant,"standard");
+  }finally{await close();}
+});
+
+test("assisted report labels solver outcomes and exposes both proposed and executed moves",async()=>{
+  const snapshot:EvaluationSnapshot={...saved("completed"),config:{ttt_variant:"assisted"},summary:{by_game:[{game:"tic_tac_toe",solver_interventions:1}]},episodes:[{case_id:"ttt",episode:1,block_id:"0",attempt:1,status:"game_completed",result:{success:true},decisions:[{player:"A",observation:{},response:'{"square":"B3"}',model_action:{square:"B3"},action:{square:"A3"},valid:true,assistance:{applied:true},assessment:{missed_win:true},execution_assessment:{optimal:true}}]}]};
+  const {box,close}=await setup(async(url)=>String(url).endsWith("/capabilities")?response(caps):response({evaluations:[snapshot]}));
+  try{
+    await choose(box,"Historia serii","series-1");
+    assert.match(box.textContent??"",/Wynik gry wspomaganej/);
+    assert.match(box.textContent??"",/Interwencje solvera: 1/);
+    assert.match(box.textContent??"",/Propozycja modelu/);
+    assert.match(box.textContent??"",/B3/);assert.match(box.textContent??"",/A3/);
+  }finally{await close();}
+});

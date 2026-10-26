@@ -54,6 +54,19 @@ def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
             {
                 "game": game,
                 "episodes": len(episodes),
+                "ttt_variant": snapshot.get("config", {}).get(
+                    "ttt_variant", "standard"
+                ),
+                "result_scope": "assisted"
+                if snapshot.get("config", {}).get("ttt_variant") == "assisted"
+                else "model",
+                "solver_interventions": sum(
+                    bool(d.get("assistance", {}).get("applied")) for d in decisions
+                ),
+                "model_action_samples": sum(
+                    d.get("purpose", "action") == "action" and bool(d.get("valid"))
+                    for d in decisions
+                ),
                 "wins": sum(
                     (r.get("result") or {}).get("winner") == r["player"]
                     for r in finished

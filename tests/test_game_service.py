@@ -1149,3 +1149,133 @@ async def test_ollama_format_does_not_mask_occupied_squares_or_override_sampling
     assert actual.allowed_outputs == ()
     assert actual.temperature == 0.7 and actual.top_p == 0.8
     assert adapters[-1].calls == 1
+
+
+@pytest.mark.parametrize("variant", ["reflection", "assisted"])
+def test_ttt_variants_reject_other_games_and_incomplete_reflection(eval_rig, variant):
+    service, _, _, _ = eval_rig
+    result = service.preflight(request(ttt_variant=variant))
+    assert "ttt_variant_requires_ttt" in result["reason_codes"]
+    if variant == "reflection":
+        assert "ttt_reflection_requires_series" in result["reason_codes"]
+
+
+def losing_ttt_proposal(monkeypatch):
+    original = GameAdapter.generate
+
+    def generate(self, participant, messages, parameters, deadline):
+        event = json.loads(messages[-1].content)
+        observation = event["observation"]
+        if observation.get("board") == ["X", "X", "", "O", "O", "", "", "", ""]:
+            self.settings["response"] = '{"square":"B3"}'
+        else:
+            self.settings.pop("response", None)
+        return original(self, participant, messages, parameters, deadline)
+
+    monkeypatch.setattr(GameAdapter, "generate", generate)
+
+
+@pytest.mark.asyncio
+async def test_solver_support_preserves_model_mistake_and_replays_execution(
+    eval_rig, monkeypatch
+):
+    from venom_module_cooperation_lab.evaluation.replay import replay_episode
+    from venom_module_cooperation_lab.evaluation.reports import export
+
+    losing_ttt_proposal(monkeypatch)
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(
+        request(case_ids=["ttt-win-v1"], ttt_variant="assisted"), "coach"
+    )
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    decision = episode["decisions"][0]
+    assert episode["result"]["success"] is True
+    assert decision["model_action"] == {"square": "B3"}
+    assert decision["action"] == {"square": "A3"}
+    assert decision["assessment"]["missed_win"] is True
+    assert decision["execution_assessment"]["optimal"] is True
+    assert decision["assistance"]["applied"] is True
+    assert "B3" in decision["response"]
+    assert adapters[0].calls == 1  # CPU solver, no hidden model retries.
+    summary = final["summary"]["by_game"][0]
+    assert summary["result_scope"] == "assisted"
+    assert summary["solver_interventions"] == 1
+    assert summary["model_action_samples"] == 1
+    assert summary["metrics"]["missed_win"] == 1
+    assert replay_episode(final, episode)["result"] == episode["result"]
+    journal, _ = export(final, "jsonl")
+    assert '"model_action": {"square": "B3"}' in journal
+    assert '"execution_assessment"' in journal
+
+
+@pytest.mark.asyncio
+async def test_solver_does_not_change_optimal_moves_or_repair_invalid_outputs(eval_rig):
+    service, _, settings, _ = eval_rig
+    for response, status in [
+        (None, "game_completed"),
+        ("bad", "invalid_format"),
+        ('{"square":"A1"}', "illegal_action"),
+    ]:
+        settings["response"] = response
+        row, _ = await service.start(
+            request(case_ids=["ttt-win-v1"], ttt_variant="assisted"), str(status)
+        )
+        final = await finish(service, row)
+        episode = final["episodes"][0]
+        assert episode["status"] == status
+        assert final["summary"]["by_game"][0]["solver_interventions"] == 0
+        if response is None:
+            assert episode["decisions"][0]["assistance"]["applied"] is False
+
+
+@pytest.mark.asyncio
+async def test_reflection_receives_own_errors_only_after_game_and_carries_note(
+    eval_rig, monkeypatch
+):
+    losing_ttt_proposal(monkeypatch)
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(
+        request(
+            case_ids=["ttt-win-v1"],
+            ttt_variant="reflection",
+            repetitions=2,
+            episode_memory="carry",
+            reflection="episode_note",
+        ),
+        "reflection",
+    )
+    final = await finish(service, row)
+    assert len(final["episodes"]) == 2
+    assert all(e["status"] == "game_completed" for e in final["episodes"])
+    first = final["episodes"][0]["decisions"][0]
+    assert first["action"] == first["model_action"] == {"square": "B3"}
+    assert first["lesson"]["better_action"] == {"square": "A3"}
+    assert "coaching" not in first["observation"]["observation"]
+    note = next(
+        d for d in final["episodes"][0]["decisions"] if d.get("purpose") == "reflection"
+    )
+    lessons = note["observation"]["observation"]["coaching"]
+    assert lessons[0]["model_action"] == {"square": "B3"}
+    assert 1 <= len(lessons) <= 3
+    histories = adapters[0].recorded
+    assert any(
+        "compare my next move" in m.content
+        for _, messages, _ in histories
+        for m in messages
+    )
+    assert final["summary"]["by_game"][0]["result_scope"] == "model"
+    assert final["summary"]["by_game"][0]["solver_interventions"] == 0
+
+
+@pytest.mark.asyncio
+async def test_standard_variant_keeps_unassisted_decisions(eval_rig, monkeypatch):
+    losing_ttt_proposal(monkeypatch)
+    service, _, _, _ = eval_rig
+    row, _ = await service.start(request(case_ids=["ttt-win-v1"]), "standard")
+    final = await finish(service, row)
+    first = final["episodes"][0]["decisions"][0]
+    assert first["action"] == {"square": "B3"}
+    assert "assistance" not in first and "lesson" not in first
+    assert "model_action" not in first
+    assert "strategy_version" not in final["config"]
