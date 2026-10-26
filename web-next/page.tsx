@@ -187,7 +187,7 @@ function ConversationWorkspace() {
           {scenario==="tic_tac_toe"&&<>
             <label className="coop-setting">{t.gameCount}<input className={field} type="number" min={mode==="game_reflection"?2:1} max={10} value={gameCount} onInput={event=>setForm({...form,gameCount:Number(event.currentTarget.value),turns:9})}/></label>
             <label><input type="checkbox" checked={rememberGames} disabled={gameCount===1||mode==="game_reflection"} onChange={event=>setForm({...form,rememberGames:event.target.checked})}/> {t.gameMemory}</label>
-            <p className="coop-message-meta">{mode==="game_reflection"?t.liveReflectionMemory:t.gameMemoryHint}</p>
+            <p className="coop-message-meta">{mode==="game_reflection"?t.liveReflectionMemory:strategicGame?t.liveOutcomeMemory:t.gameMemoryHint}</p>
           </>}
           <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={outputTokenLimit(selected)} value={tokens} onInput={event=>setForm({...form,tokens:Number(event.currentTarget.value)})}/></label>
           {scenario==="tic_tac_toe"&&mode==="game_reflection"&&<label className="coop-setting">{t.gameReflectionTokens}<input className={field} type="number" min={32} max={256} value={reflectionTokens} onInput={event=>setForm({...form,reflectionTokens:Number(event.currentTarget.value)})}/></label>}

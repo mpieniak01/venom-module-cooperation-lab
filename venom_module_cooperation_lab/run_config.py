@@ -108,6 +108,8 @@ class RunRequest(BaseModel):
                 self.game_count = 3
             if self.game_count < 2 or not self.remember_games:
                 raise ValueError("game_reflection_requires_memory")
+        elif self.reflection_max_new_tokens != 128:
+            raise ValueError("reflection_tokens_require_reflection_mode")
         if self.game_count == 1:
             self.remember_games = True  # No cross-game memory exists for one game.
         return self

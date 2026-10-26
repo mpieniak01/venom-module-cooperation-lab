@@ -323,6 +323,11 @@ test("conversation reflection variant starts from the existing form and streams 
   await act(async()=>root.render(<CooperationLabPage/>));await settle();
   await act(async()=>{const n=pick("Scenariusz");n.value="tic_tac_toe";n.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
   assert.deepEqual([...pick("Wariant").options].slice(2).map(o=>o.textContent),["Samodzielna strategia","Strategia z refleksją","Strategia ze wsparciem solvera"]);
+  for(const mode of ["game_strategic","game_assisted"]){
+    await act(async()=>{const n=pick("Wariant");n.value=mode;n.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
+    assert.match(box.textContent??"",/Pamięć obejmuje tylko wyniki poprzednich partii/);
+    assert.doesNotMatch(box.textContent??"",/Pamięć: ruchy i wyniki/);
+  }
   await act(async()=>{const n=pick("Wariant");n.value="game_reflection";n.dispatchEvent(new dom.window.Event("change",{bubbles:true}));});
   const count=[...box.querySelectorAll<HTMLInputElement>('input[type="number"]')].find(n=>n.parentElement?.textContent?.startsWith("Liczba gier"))!;
   assert.equal(count.value,"3");assert.equal(count.min,"2");

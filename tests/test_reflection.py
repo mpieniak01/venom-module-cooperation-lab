@@ -161,3 +161,39 @@ async def test_notes_can_exceed_move_budget_without_hiding_cost_or_breaking_idem
         for c in adapters[0].recorded
         if '"supported_rules"' in c[1][-1].content
     )
+
+
+@pytest.mark.parametrize(
+    "scenario,mode",
+    [
+        ("tic_tac_toe", "dialog"),
+        ("tic_tac_toe", "game_strategic"),
+        ("tic_tac_toe", "game_assisted"),
+        ("split_facts", "no_contact"),
+    ],
+)
+def test_irrelevant_reflection_budget_is_rejected_before_it_can_break_idempotency(
+    scenario, mode
+):
+    from venom_module_cooperation_lab.runner import LabRunner
+
+    with pytest.raises(
+        ValidationError, match="reflection_tokens_require_reflection_mode"
+    ):
+        RunRequest(
+            model_id="fixture",
+            scenario_id=scenario,
+            mode=mode,
+            reflection_max_new_tokens=200,
+        )
+    request = RunRequest(model_id="fixture", scenario_id=scenario, mode=mode)
+    config = RunConfig.build(request, {"model_id": "fixture"}).public()
+    assert "reflection_max_new_tokens" not in config
+    assert LabRunner._same_request(config, request, False)
+    note = RunRequest(
+        model_id="fixture",
+        scenario_id="tic_tac_toe",
+        mode="game_reflection",
+        reflection_max_new_tokens=200,
+    )
+    assert note.reflection_max_new_tokens == 200
