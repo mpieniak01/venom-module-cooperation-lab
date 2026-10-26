@@ -34,6 +34,15 @@ export const workspaceStyles = `
 .coop-workspace .coop-column { display:flex; flex-direction:column; gap:12px; min-width:0; }
 .coop-workspace .coop-participants { min-width:0; margin:0; padding:0; border:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .coop-workspace .coop-panel { min-width:0; border:1px solid #ffffff1a; border-radius:12px; padding:12px; }
+.coop-workspace .coop-game-results table { width:100%; border-collapse:collapse; margin:12px 0 0; font-size:12px; }
+.coop-workspace .coop-game-results th, .coop-workspace .coop-game-results td { padding:8px 6px; border-bottom:1px solid #ffffff16; text-align:left; }
+.coop-workspace .coop-game-results th { color:#94a3b8; font-weight:500; }
+.coop-workspace .coop-game-results td { font-variant-numeric:tabular-nums; }
+.coop-workspace .coop-game-results .coop-game-metrics td, .coop-workspace .coop-game-results-table tr > :last-child { text-align:right; }
+.coop-workspace .coop-game-results .coop-game-balance { background:#0f172a; border-radius:8px; }
+.coop-workspace .coop-game-results .coop-game-balance th, .coop-workspace .coop-game-results .coop-game-balance td { text-align:center; }
+.coop-workspace .coop-game-results .coop-game-balance td { font-size:18px; font-weight:600; }
+.coop-workspace .coop-game-results-table tbody tr:nth-child(even) { background:#ffffff04; }
 .coop-workspace .coop-panel h2 { margin:0 0 8px; font-size:16px; font-weight:600; }
 .coop-workspace .coop-messages { display:flex; flex-direction:column; gap:12px; list-style:none; margin:0; padding:4px; max-height:min(20rem, 50dvh); overflow-y:auto; overflow-x:hidden; scrollbar-gutter:stable; overscroll-behavior:contain; }
 .coop-workspace .coop-messages:focus-visible { outline:2px solid #2dd4bf; outline-offset:2px; }

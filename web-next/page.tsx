@@ -12,7 +12,7 @@ import { savedSettings, useWorkspaceViewport, workspaceStyles, type SavedSetting
 
 import { Conversation } from "./lib/chat";
 import { OperatorComposer } from "./lib/operator-composer";
-import { GameBoard, GameSeriesResults, eventsForGame } from "./lib/game-board";
+import { GameBoard, GameSeriesResults, GameReflections, eventsForGame } from "./lib/game-board";
 import { outputTokenLimit } from "./lib/model-limits";
 import { engineId, modelState } from "./lib/model-selection";
 
@@ -86,7 +86,8 @@ function ConversationWorkspace() {
   const gameEvent = lab.events.findLast(event => event.kind === "game");
   const gameSeries=gameEvent?.payload.series;
   const currentGame=gameSeries&&typeof gameSeries==="object"&&!Array.isArray(gameSeries)&&typeof gameSeries.number==="number"?gameSeries.number:1;
-  const currentMessages=isGame?eventsForGame(lab.events,currentGame).filter(event=>event.kind==="message"&&gameEvent?.payload.finished!==true):messageEvents;
+  const currentGameEvents=isGame?eventsForGame(lab.events,currentGame):[];
+  const currentMessages=isGame?currentGameEvents.filter(event=>event.kind==="message"):messageEvents;
   const isReview = resultMode === "operator_review";
   const operatorChat = !qualifying && (resultMode === "operator_chat" || resultMode === "operator_relay" || isReview);
   const operatorEvent = lab.events.findLast(event=>event.kind==="operator"||event.kind==="message"&&event.payload.sender==="operator");
@@ -202,10 +203,11 @@ function ConversationWorkspace() {
           {isGame && <GameBoard event={gameEvent} ended={!!lab.run && terminal(lab.run.status)} language={language} />}
           <section className="coop-panel coop-dialog" aria-label={t.dialog}>
             <h2 className="mb-2 font-semibold">{qualifying?t.qualification:t.dialog}</h2>
-            {!currentMessages.length && <p className="text-sm text-slate-400">{isGame&&gameEvent?.payload.finished===true?t.gameFinishedSeeResults:lab.run ? t.noMessages : t.noRuns}</p>}
+            {!currentMessages.length && <p className="text-sm text-slate-400">{lab.run ? t.noMessages : t.noRuns}</p>}
             <Conversation events={currentMessages} language={language} />
             {operatorChat ? <OperatorComposer key={runId ?? "draft"} runId={runId} active={lab.active} waiting={operatorWaiting&&lab.connection==="connected"} sending={lab.sending} relay={resultMode==="operator_relay"} review={isReview} language={language} onSend={lab.sendMessage} /> : <p className="coop-message-meta">{t.operatorSetup}</p>}
           </section>
+          {isGame&&<GameReflections events={currentGameEvents} language={language}/>}
         </div>
         <aside className="coop-column">
           <section className="coop-panel" aria-label={t.organization}>

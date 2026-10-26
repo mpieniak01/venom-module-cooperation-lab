@@ -251,8 +251,8 @@ Nielegalna propozycja lub niejednoznaczny format nadal kończą próbę błędem
 
 Refleksja ustawia trzy gry i pamięć, wymaga minimum dwóch pełnych partii.
 Po każdej partii każdy gracz osobno dostaje wynik i maksymalnie trzy własne
-błędy wraz z lepszymi ruchami. Generuje krótką prywatną notatkę widoczną w wynikach zakończonej partii
-po prawej stronie, pod „Propozycje organizacji”. Do następnej gry trafia wyłącznie własna notatka danego gracza;
+błędy wraz z lepszymi ruchami. Generuje krótką prywatną notatkę widoczną przy przebiegu bieżącej partii
+po lewej stronie. Do następnej gry trafia wyłącznie własna notatka danego gracza;
 wynik i ruchy poprzednich gier są publiczne. Generacje notatek są rozliczane,
 podlegają STOP, wspólnej dzierżawie oraz budżetom. Nie są treningiem wag.
 
@@ -267,8 +267,9 @@ Zakładka **Gry i strategie** pozostaje osobną ścieżką ewaluacji hurtowej.
 Ten etap dotyczy podglądu i wariantów w **Rozmowa i serie**.
 
 
-W „Rozmowa i serie” lewa kolumna pokazuje planszę oraz wiadomości aktualnej
-partii. Historia prób, wyniki zakończonych partii, zbiorcze liczniki strategii
-oraz notatki są w prawej kolumnie pod „Propozycje organizacji”. Rozwinięcie
-wyniku pokazuje zapis przebiegu i wnioski z tej konkretnej partii. Zapisane
-dane i eksporty nie są zmieniane przez ten podział widoku.
+W „Rozmowa i serie” lewa kolumna pokazuje planszę, wiadomości i notatki
+aktualnej partii, także po jej zakończeniu. Po rozpoczęciu następnej partii
+przebieg po lewej przełącza się na nią. Po prawej, pod „Propozycje organizacji”,
+znajdują się historia prób oraz panel „Wyniki serii”: tabela statystyk strategii,
+bilans A/B/remis i tabela partii z wynikiem oraz liczbą ruchów. Panel wyników
+nie zawiera kopii rozmów. Zapisane dane i eksporty pozostają bez zmian.

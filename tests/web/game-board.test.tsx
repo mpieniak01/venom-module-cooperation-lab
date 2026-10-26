@@ -24,7 +24,10 @@ test("series board shows actual progress and per-game results",()=>{
  const doc=new JSDOM(renderToStaticMarkup(<><GameBoard event={seriesEvent} ended={false} language="pl"/><GameSeriesResults event={seriesEvent} events={[]} language="pl"/></>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
  assert.match(doc.body.textContent??"",/Partia 2 \/ 3/);
  const results=doc.querySelector('[aria-label="Wyniki serii"]')!;
- assert.match(results.textContent??"",/A: 1 · B: 0 · Remis: 1/);
- assert.equal(results.querySelectorAll(":scope > details").length,2);
+ assert.deepEqual([...results.querySelectorAll(".coop-game-balance tbody td")].map(n=>n.textContent),["1","0","1"]);
+ assert.deepEqual([...results.querySelectorAll(".coop-game-results-table thead th")].map(n=>n.textContent),["Partia","Wynik","Ruchy"]);
+ assert.deepEqual([...results.querySelectorAll(".coop-game-results-table tbody tr")].map(n=>[...n.children].map(c=>c.textContent)),[["1","Remis","1"],["2","A (X)","1"]]);
+ assert.equal(results.querySelector("details"),null);
+ assert.equal(results.querySelector(".coop-messages"),null);
  assert.equal(doc.querySelector('[aria-label="Kółko i krzyżyk"] [aria-label="Wyniki serii"]'),null);
 });

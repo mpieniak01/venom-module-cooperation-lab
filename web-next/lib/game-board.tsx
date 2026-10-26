@@ -1,6 +1,5 @@
 import type { LabEvent, Json } from "./protocol";
 import { texts } from "./i18n";
-import { Conversation } from "./chat";
 
 export function GameBoard({event, ended, language}: {event?:LabEvent; ended:boolean; language:string}) {
   const t=texts(language);
@@ -60,23 +59,27 @@ export function GameSeriesResults({event,events,language}:{event?:LabEvent;event
   const series=state?.series&&typeof state.series==="object"&&!Array.isArray(state.series)?state.series:null;
   const candidates:Json[]=Array.isArray(series?.results)?series.results:state?.finished===true?[{number:1,winner:state.winner,draw:state.draw,moves:events.filter(e=>e.kind==="message"&&typeof e.payload.game_move==="string").map(e=>e.payload.game_move)}]:[];
   const results=candidates.filter((row):row is Record<string,import("./protocol").Json>=>!!row&&typeof row==="object"&&!Array.isArray(row)&&Number.isInteger(row.number)&&(row.winner==="A"||row.winner==="B"||row.draw===true));
+  const strategy=state?.strategy&&typeof state.strategy==="object"&&!Array.isArray(state.strategy)?state.strategy:null;
+  const metrics=strategy?[[t.gameModelMoves,strategy.model_moves],[t.gameWorseMoves,strategy.worse_moves],[t.gameMissedWins,strategy.missed_wins],[t.gameSolverIntervention,strategy.solver_interventions]]:[];
   return <section className="coop-panel coop-game-results" aria-label={t.gameResults}>
     <h2>{t.gameResults}</h2>
-    {state?.strategy&&typeof state.strategy==="object"&&!Array.isArray(state.strategy)&&<div aria-live="polite">
-      <p>{t.gameModelMoves}: {String(state.strategy.model_moves??0)} · {t.gameWorseMoves}: {String(state.strategy.worse_moves??0)} · {t.gameMissedWins}: {String(state.strategy.missed_wins??0)} · {t.gameSolverIntervention}: {String(state.strategy.solver_interventions??0)}</p>
-      {state.strategy.result_scope==="assisted"&&<p>{t.gameAssistedResult}</p>}
-    </div>}
-
+    {!!metrics.length&&<table className="coop-game-metrics" aria-label={t.gameStrategyMetrics}><tbody>
+      {metrics.map(([label,value])=><tr key={String(label)}><th scope="row">{String(label)}</th><td>{typeof value==="number"?value:0}</td></tr>)}
+    </tbody></table>}
+    {strategy?.result_scope==="assisted"&&<p className="coop-message-meta">{t.gameAssistedResult}</p>}
     {!results.length?<p className="coop-message-meta">{t.gameNoResults}</p>:<>
-      <p>A: {results.filter(row=>row.winner==="A").length} · B: {results.filter(row=>row.winner==="B").length} · {t.gameDraw}: {results.filter(row=>row.draw===true).length}</p>
-      {results.map(row=>{
-        const archived=eventsForGame(events,Number(row.number));
-        return <details key={String(row.number)} open={state?.finished===true&&(series?.number??1)===row.number}>
-          <summary>{t.gameRound} {String(row.number)}: {row.draw===true?t.gameDraw:t.gameWinner+": "+String(row.winner)} · {t.gameMoves}: {Array.isArray(row.moves)?row.moves.length:"?"}</summary>
-          <Conversation events={archived.filter(e=>e.kind==="message")} language={language}/>
-          <GameReflections events={archived} language={language}/>
-        </details>;
-      })}
+      <table className="coop-game-balance" aria-label={t.gameBalance}>
+        <thead><tr><th scope="col">A (X)</th><th scope="col">B (O)</th><th scope="col">{t.gameDraw}</th></tr></thead>
+        <tbody><tr><td>{results.filter(row=>row.winner==="A").length}</td><td>{results.filter(row=>row.winner==="B").length}</td><td>{results.filter(row=>row.draw===true).length}</td></tr></tbody>
+      </table>
+      <table className="coop-game-results-table" aria-label={t.gameResults}>
+        <thead><tr><th scope="col">{t.gameRound}</th><th scope="col">{t.gameOutcome}</th><th scope="col">{t.gameMoveCount}</th></tr></thead>
+        <tbody>{results.map(row=><tr key={String(row.number)}>
+          <th scope="row">{String(row.number)}</th>
+          <td>{row.draw===true?t.gameDraw:`${String(row.winner)} (${row.winner==="A"?"X":"O"})`}</td>
+          <td>{Array.isArray(row.moves)?row.moves.length:"?"}</td>
+        </tr>)}</tbody>
+      </table>
     </>}
   </section>;
 }

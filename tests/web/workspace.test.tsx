@@ -343,16 +343,22 @@ test("conversation reflection variant starts from the existing form and streams 
   const right=box.querySelector(".coop-main > aside")!;
   assert.match(left.textContent??"",/CURRENT-GAME-ONLY/);
   assert.doesNotMatch(left.textContent??"",/OLD-GAME-ONLY|Następnym razem zablokuję/);
-  assert.match(right.textContent??"",/OLD-GAME-ONLY/);
+  assert.doesNotMatch(right.textContent??"",/OLD-GAME-ONLY/);
   assert.doesNotMatch(left.textContent??"",/Pogorszenia pozycji/);
-  assert.match(right.textContent??"",/Pogorszenia pozycji: 1/);
+  assert.equal(right.querySelector(".coop-game-metrics tr:nth-child(2) td")?.textContent,"1");
   assert.doesNotMatch(right.textContent??"",/CURRENT-GAME-ONLY/);
   assert.ok(right.querySelector(".coop-history"));
   assert.equal(left.querySelector('[aria-label="Wyniki serii"]'),null);
   assert.ok(right.querySelector('[aria-label="Propozycje organizacji"]')!.compareDocumentPosition(right.querySelector('[aria-label="Wyniki serii"]')!)&dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
-  assert.match(box.textContent??"",/Wnioski po partii/);assert.match(box.textContent??"",/Następnym razem zablokuję/);
-  assert.match(box.textContent??"",/Lepszy ruch: A3/);
+  await act(async()=>stream.emit({run_id:"r1",seq:6,kind:"reflection",timestamp:6,payload:{player:"B",content:"CURRENT-NOTE",game_number:2,feedback:{lessons:[{model_action:{square:"B3"},better_action:{square:"A3"}}]}}}));
+  await act(async()=>stream.emit({run_id:"r1",seq:7,kind:"game",timestamp:7,payload:{board:["X","X","X","O","O","","","",""],finished:true,winner:"A",draw:false,moves:5,series:{number:2,total:3,remember_games:true,results:[{number:1,winner:"A",draw:false,moves:["A:A1"]},{number:2,winner:"A",draw:false,moves:["A:A1","B:B1","A:A2","B:B2","A:A3"]}]}}}));
+  assert.match(left.textContent??"",/CURRENT-GAME-ONLY/);
+  assert.match(left.textContent??"",/CURRENT-NOTE/);
+  assert.match(left.textContent??"",/Lepszy ruch: A3/);
+  assert.doesNotMatch(right.textContent??"",/CURRENT-GAME-ONLY|CURRENT-NOTE/);
+  assert.equal(right.querySelectorAll(".coop-game-results-table tbody tr").length,2);
+  assert.equal(right.querySelector(".coop-messages"),null);
+  assert.equal(right.querySelector(".coop-game-results details"),null);
   assert.equal(box.querySelector('[aria-label="A1"]')?.textContent,"X");
-  assert.match(box.textContent??"",/Pogorszenia pozycji: 1/);
  }finally{await act(async()=>root.unmount());box.remove();globalThis.fetch=old;localStorage.clear();}
 });
