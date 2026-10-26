@@ -8,9 +8,11 @@ pozostaje dostępna. Nowy protokół `game-eval-v2` nie zmienia starych wyników
 
 1. Otwórz `/cooperation-lab` i wybierz **Ewaluacja gier**.
 2. Wybierz model oraz przypadki TTT, Nim, Memory lub Sokoban.
-3. Ustaw powtórzenia, pamięć, generację i limity. **Sprawdź konfigurację**
-   pokazuje plan i przyczynę ewentualnej blokady. Każda zmiana wymaga nowego sprawdzenia.
-4. **Rozpocznij serię** uruchamia jeden model przez wspólną blokadę zasobów Venoma.
+3. Wybierz model, grę, wariant i powtórzenia. Pozostałe parametry oraz opcjonalny
+   podgląd planu znajdują się w **Ustawieniach zaawansowanych**.
+4. **Rozpocznij serię** automatycznie sprawdza aktualne ustawienia i uruchamia jeden
+   model przez wspólną blokadę zasobów Venoma. Osobne sprawdzenie nie jest wymagane.
+   Błąd pozostawia formularz otwarty i pokazuje przyczynę przy przycisku START.
    **Zatrzymaj serię** przerywa własne obliczenia; zwolnienie zasobu czeka na unload.
 5. Wyniki, surowe odpowiedzi i decyzje są w historii. Eksport JSON/JSONL/CSV
    zapisuje również stare podejścia bloków. **Usuń serię** usuwa zakończony zapis

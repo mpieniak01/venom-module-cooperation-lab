@@ -1,4 +1,6 @@
 const labels = {
+  advancedSettings:["Ustawienia zaawansowane", "Advanced settings", "Erweiterte Einstellungen"],
+  startReady:["Wybierz model, grę i wariant, potem rozpocznij serię. Ustawienia sprawdzimy automatycznie.", "Choose a model, game and variant, then start the series. Settings will be checked automatically.", "Modell, Spiel und Variante wählen, dann die Serie starten. Einstellungen werden automatisch geprüft."],
   tttVariant:["Wariant kółka i krzyżyka", "Tic-tac-toe variant", "Tic-Tac-Toe-Variante"],
   variant_standard:["Samodzielna", "Independent", "Eigenständig"],
   variant_reflection:["Z refleksją po partii", "Post-game reflection", "Reflexion nach dem Spiel"],

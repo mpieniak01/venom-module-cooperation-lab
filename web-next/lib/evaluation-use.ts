@@ -83,10 +83,19 @@ export function useEvaluations() {
   }, [get]);
   const start = useCallback(async (input: EvaluationRequest) => {
     const key = JSON.stringify(input);
-    if (locked.current || !checked?.value.supported || checked.key !== key) return;
+    if (locked.current) return;
     locked.current = true; setPending(true); setError("");
     if (mutationKey.current.input !== key) mutationKey.current = {input:key, id:crypto.randomUUID()};
     try {
+      // START owns validation and creation under one lock. No separate UI step.
+      let preflight = checked?.key === key ? checked.value : null;
+      if (!preflight) {
+        const result = await get<unknown>("/evaluations/preflight", {method:"POST", headers:{"Content-Type":"application/json"}, body:key});
+        if (!isEvaluationPreflight(result)) throw invalid();
+        preflight = result;
+        if (alive.current) setChecked({key, value:result});
+      }
+      if (!preflight.supported || !alive.current) return;
       const body = await get<{evaluation:unknown}>("/evaluations", {method:"POST", headers:{"Content-Type":"application/json", "Idempotency-Key":mutationKey.current.id}, body:key});
       if (!isEvaluationSnapshot(body?.evaluation)) throw invalid();
       selectedId.current = body.evaluation.id; selectionEpoch.current++;

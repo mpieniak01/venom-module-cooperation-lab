@@ -36,7 +36,7 @@ test("evaluation never auto-starts, requires exact preflight and sends selected 
   });
   try {
     assert.equal(calls.filter(call=>call.init?.method==="POST").length,0);
-    const start=findButton(box,"Rozpocznij serię");assert.equal(start.disabled,true);
+    const start=findButton(box,"Rozpocznij serię");assert.equal(start.disabled,false);
     await choose(box,"Przekazywanie obserwacji","native_incremental");
     await choose(box,"Pamięć między partiami","carry");await choose(box,"Notatka po partii","episode_note");
     await choose(box,"Kroki Huginn","32");await choose(box,"Dekodowanie","sampled");
@@ -47,7 +47,7 @@ test("evaluation never auto-starts, requires exact preflight and sends selected 
     assert.equal(checked.response_mode,"mapped");assert.equal(checked.observation_mode,"native_incremental");assert.equal(checked.episode_memory,"carry");assert.equal(checked.reflection,"episode_note");
     assert.equal(checked.num_steps,32);assert.equal(checked.decoding,"sampled");assert.equal(checked.temperature,0.7);assert.equal(checked.repetitions,2);assert.equal(checked.legal_moves,"hidden");assert.equal(checked.opponent,"random");
     assert.match(box.textContent??"",/Zaplanowane: 4/);assert.match(box.textContent??"",/Bloki: 2/);assert.equal(start.disabled,false);
-    await number(box,"Seed","18");assert.equal(start.disabled,true,"changing the form invalidates preflight");
+    await number(box,"Seed","18");assert.equal(start.disabled,false,"START checks the changed form automatically");
     await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
     await act(async()=>{start.click();start.click();});await settle();
     const starts=calls.filter(call=>call.path.endsWith("/evaluations")&&call.init?.method==="POST");assert.equal(starts.length,1);
@@ -73,7 +73,7 @@ test("unsupported configuration displays reason and cannot start; malformed serv
     assert.match(box.textContent??"",/Model nie obsługuje natywnego stanu/);assert.match(box.textContent??"",/native_unsupported/);
     assert.equal(findButton(box,"Rozpocznij serię").disabled,true);assert.equal(posts.length,1);
     malformed=true;await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
-    assert.match(box.textContent??"",/invalid_response/);assert.equal(findButton(box,"Rozpocznij serię").disabled,true);
+    assert.match(box.textContent??"",/invalid_response/);assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
   }finally{await close();}
 });
 
@@ -301,7 +301,7 @@ test("game selector exposes all environments and replaces the plan without reset
     await number(box,"Tokenów na decyzję","512");
     for(const [game,ids] of [["nim",["nim-a","nim-b"]],["memory",["memory"]],["sokoban",["sokoban"]],["tic_tac_toe",["ttt"]],["",cases.map(item=>item.id)]] as const){
       await choose(box,"Wybierz grę",game);
-      assert.equal(findButton(box,"Rozpocznij serię").disabled,true);
+      assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
       await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
       assert.deepEqual(requests.at(-1)?.case_ids,ids);
       assert.equal(requests.at(-1)?.max_new_tokens,512);
@@ -375,7 +375,7 @@ test("lost evaluation START acknowledgement retains preflight and original body/
     await number(box,"Tokenów na decyzję","4096");
     await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
     await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
-    await act(async()=>findButton(box,"Ustawienia serii").click());
+    assert.ok(box.querySelector("fieldset.coop-settings"), "failed START keeps settings visible");
     assert.equal(token().value,"4096");assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
     await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
     assert.equal(attempts.length,2);assert.deepEqual(attempts[1],attempts[0]);
@@ -424,7 +424,7 @@ test("TTT variants configure reflection explicitly and reset support when changi
     await act(async()=>findButton(box,"Sprawdź konfigurację").click());await settle();
     assert.equal(requests.at(-1)?.ttt_variant,"reflection");assert.equal(requests.at(-1)?.repetitions,3);
     await choose(box,"Wariant kółka i krzyżyka","assisted");
-    assert.equal(findButton(box,"Rozpocznij serię").disabled,true);
+    assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
     assert.match(box.textContent??"",/Solver zastępuje legalny ruch/);
     await choose(box,"Wybierz grę","memory");
     assert.equal(select(box,"Wariant kółka i krzyżyka"),undefined);
@@ -446,5 +446,74 @@ test("assisted report labels solver outcomes and exposes both proposed and execu
     assert.match(box.textContent??"",/Interwencje solvera: 1/);
     assert.match(box.textContent??"",/Propozycja modelu/);
     assert.match(box.textContent??"",/B3/);assert.match(box.textContent??"",/A3/);
+  }finally{await close();}
+});
+
+
+test("one START click checks settings then creates exactly one series; advanced settings start collapsed",async()=>{
+  const posts:{path:string;body:unknown}[]=[];
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response(caps);
+    if(init?.method==="POST"){
+      posts.push({path,body:JSON.parse(String(init.body))});
+      if(path.endsWith("/preflight"))return response(preflight);
+      return response({evaluation:saved("queued")},202);
+    }
+    return response({evaluations:[]});
+  });
+  try{
+    const advanced=box.querySelector<HTMLDetailsElement>("details.evaluation-advanced")!;
+    assert.ok(advanced);assert.equal(advanced.open,false);
+    assert.ok(select(box,"Model").closest("details")===null);
+    assert.ok(select(box,"Wybierz grę").closest("details")===null);
+    assert.ok(select(box,"Wariant kółka i krzyżyka").closest("details")===null);
+    assert.ok(select(box,"Dekodowanie").closest("details")===advanced);
+    assert.equal(posts.length,0);
+    await number(box,"Seed","42");
+    const start=findButton(box,"Rozpocznij serię");assert.equal(start.disabled,false);
+    await act(async()=>{start.click();start.click();});await settle();
+    assert.deepEqual(posts.map(p=>p.path),["/api/v1/cooperation-lab/evaluations/preflight","/api/v1/cooperation-lab/evaluations"]);
+    assert.deepEqual(posts[0].body,posts[1].body);
+    assert.equal((posts[0].body as {seed:number}).seed,42);
+    assert.equal(findButton(box,"Zatrzymaj serię").disabled,false);
+  }finally{await close();}
+});
+
+test("automatic START preflight blocks unsupported settings with a visible reason and keeps form open",async()=>{
+  let checks=0;let starts=0;
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response(caps);
+    if(path.endsWith("/preflight")){checks++;return response({...preflight,supported:false,reason_codes:["unsupported_context_budget"]});}
+    if(init?.method==="POST")starts++;
+    return response({evaluations:[]});
+  });
+  try{
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    assert.equal(checks,1);assert.equal(starts,0);
+    assert.match(box.querySelector("output")?.textContent??"",/Budżet kontekstu przekracza limit adaptera/);
+    assert.match(box.querySelector('[role="alert"]')?.textContent??"",/Budżet kontekstu/);
+    assert.ok(box.querySelector("fieldset.coop-settings"));
+    await number(box,"Budżet kontekstu","1024");
+    assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
+  }finally{await close();}
+});
+
+test("failed automatic preflight can be retried without creating or hiding a series",async()=>{
+  let checks=0;let starts=0;
+  const {box,close}=await setup(async(url,init)=>{
+    const path=String(url);
+    if(path.endsWith("/capabilities"))return response(caps);
+    if(path.endsWith("/preflight")){checks++;if(checks===1)throw Error("offline");return response(preflight);}
+    if(init?.method==="POST"){starts++;return response({evaluation:saved("queued")},202);}
+    return response({evaluations:[]});
+  });
+  try{
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    assert.equal(starts,0);assert.ok(box.querySelector("fieldset.coop-settings"));
+    assert.equal(findButton(box,"Rozpocznij serię").disabled,false);
+    await act(async()=>findButton(box,"Rozpocznij serię").click());await settle();
+    assert.equal(checks,2);assert.equal(starts,1);
   }finally{await close();}
 });
