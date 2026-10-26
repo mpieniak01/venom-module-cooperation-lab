@@ -50,7 +50,7 @@ function EvaluationReport({snapshot, language}: {snapshot: EvaluationSnapshot; l
   return <div className="evaluation-report">
     <section className="coop-panel" aria-label={t.results}>
       <h2>{t.results}</h2><p className="coop-message-meta">{t.resultHelp}</p>
-      <p>{t.tttVariant}: {evaluationLabel(t, `variant_${snapshot.config.ttt_variant ?? "standard"}`)}</p>
+      {byGame.some(row=>row.game==="tic_tac_toe") && <p>{t.tttVariant}: {evaluationLabel(t, `variant_${snapshot.config.ttt_variant ?? "standard"}`)}</p>}
       {snapshot.config.ttt_variant === "assisted" && <p role="note">{t.assistedResults} · {t.solverInterventions}: {byGame.reduce((sum,row)=>sum+Number(row.solver_interventions??0),0)}</p>}
       {byGame.length ? <div className="evaluation-table-scroll"><table><thead><tr><th>{t.game}</th>{headings.map(heading=><th key={heading}>{heading}</th>)}</tr></thead>
         <tbody>{byGame.map((row, index)=><tr key={String(row.game)+index}><th scope="row">{gameLabel(t, String(row.game))}</th>{columns.map(key=><td key={key}>{safeValue(row[key], t.noData)}</td>)}</tr>)}</tbody>

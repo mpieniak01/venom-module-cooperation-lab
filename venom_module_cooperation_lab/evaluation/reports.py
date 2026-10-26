@@ -216,6 +216,9 @@ def export(snapshot: dict[str, Any], format: str) -> tuple[str, str]:
             "winner",
             "actions",
             "result",
+            "ttt_variant",
+            "result_scope",
+            "solver_interventions",
         ]
     )
     for archived, row in _export_rows(snapshot):
@@ -235,6 +238,14 @@ def export(snapshot: dict[str, Any], format: str) -> tuple[str, str]:
                 result.get("winner"),
                 len(row["decisions"]),
                 json.dumps(result, ensure_ascii=False),
+                snapshot.get("config", {}).get("ttt_variant", "standard"),
+                "assisted"
+                if snapshot.get("config", {}).get("ttt_variant") == "assisted"
+                else "model",
+                sum(
+                    bool(d.get("assistance", {}).get("applied"))
+                    for d in row["decisions"]
+                ),
             ]
         )
     return stream.getvalue(), "text/csv"

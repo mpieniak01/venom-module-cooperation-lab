@@ -1207,6 +1207,14 @@ async def test_solver_support_preserves_model_mistake_and_replays_execution(
     journal, _ = export(final, "jsonl")
     assert '"model_action": {"square": "B3"}' in journal
     assert '"execution_assessment"' in journal
+    import csv
+    import io
+
+    csv_text, _ = export(final, "csv")
+    exported = list(csv.DictReader(io.StringIO(csv_text)))[0]
+    assert exported["ttt_variant"] == "assisted"
+    assert exported["result_scope"] == "assisted"
+    assert exported["solver_interventions"] == "1"
 
 
 @pytest.mark.asyncio
@@ -1279,3 +1287,38 @@ async def test_standard_variant_keeps_unassisted_decisions(eval_rig, monkeypatch
     assert "assistance" not in first and "lesson" not in first
     assert "model_action" not in first
     assert "strategy_version" not in final["config"]
+
+
+@pytest.mark.asyncio
+async def test_assisted_continuation_tells_model_about_executed_support(eval_rig):
+    service, adapters, _, _ = eval_rig
+    row, _ = await service.start(
+        request(case_ids=["ttt-opening-v1"], ttt_variant="assisted", opponent="model"),
+        "support-history",
+    )
+    final = await finish(service, row)
+    episode = final["episodes"][0]
+    assert episode["status"] == "game_completed"
+    assert episode["result"]["draw"] is True
+    assert any(d.get("assistance", {}).get("applied") for d in episode["decisions"])
+    prompts = [
+        json.loads(messages[-1].content)["observation"]
+        for _, messages, _ in adapters[0].recorded
+    ]
+    assert any("last_support" in p for p in prompts)
+    assert all("support_policy" in p for p in prompts)
+
+
+def test_reflection_lessons_are_bounded_private_copies():
+    from venom_module_cooperation_lab.evaluation.strategies import lessons_for
+
+    item = {
+        "decisions": [
+            {"actor": "model", "player": p, "lesson": {"board": [index]}}
+            for index, p in enumerate(["A", "B", "A", "A", "A"])
+        ]
+    }
+    lessons = lessons_for(item, "A")
+    assert [lesson["board"] for lesson in lessons] == [[2], [3], [4]]
+    lessons[0]["board"].append(99)
+    assert item["decisions"][2]["lesson"]["board"] == [2]

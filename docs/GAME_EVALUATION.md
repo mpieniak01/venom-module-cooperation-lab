@@ -198,3 +198,36 @@ Po restarcie odzyskiwanie ewaluacji używa zapisanej tożsamości wykonawcy
 (provider/artifact) oraz zgodnej dzierżawy. Nie wymaga ponownego wykrycia ani
 instalacji usuniętego tagu Ollama. Brak poprawnej zapisanej tożsamości pozostawia
 kwarantannę; nadal wymagane są trzy puste odpowiedzi `/api/ps`.
+
+
+## Warianty kółka i krzyżyka — 2026-10-26
+
+W zakładce ewaluacji wybierz **Kółko i krzyżyk**, a następnie pole
+**Wariant kółka i krzyżyka**. Sam wybór nie uruchamia modelu.
+
+- **Samodzielna** (`standard`, również domyślny wariant starszych zapisów):
+  model sam wybiera ruchy; dotychczasowe ustawienia pozostają dostępne.
+- **Z refleksją po partii** (`reflection`): formularz ustawia carry, notatkę
+  po partii i co najmniej trzy powtórzenia. API wymaga co najmniej dwóch.
+  Po zakończeniu partii model dostaje maksymalnie trzy własne ruchy obniżające
+  ocenę minimaksu: planszę, propozycję, ocenę i lepszy ruch. Następnie zapisuje
+  prywatną notatkę do historii swojego bloku. Podpowiedzi nie trafiają do decyzji
+  przed zakończeniem partii. Wagi pozostają zamrożone; to coaching w kontekście,
+  bez treningu ze wzmocnieniem i bez gwarancji poprawy.
+- **Ze wsparciem solvera** (`assisted`): minimaks zastępuje tylko legalny ruch
+  obniżający wartość pozycji. Ruch optymalny pozostaje bez zmian; zły format lub
+  nielegalna akcja nadal kończą epizod błędem. Nie ma ponownej generacji LLM.
+  Model otrzymuje informację o swojej poprzedniej interwencji w kolejnej turze.
+
+W dzienniku `model_action` oznacza propozycję, `action` ruch wykonany,
+`assessment` ocenę pierwotnej propozycji, a `execution_assessment` ocenę ruchu
+po wsparciu. `assistance.applied` i podsumowanie `solver_interventions`
+wskazują interwencje. Wynik partii wspomaganej ma `result_scope=assisted`;
+metryki błędów nadal dotyczą modelu. Nie porównuj takiego wyniku bezpośrednio
+z samodzielną grą. JSON/JSONL zachowują pełny ślad, a replay używa wykonanych
+ruchów. Wersja strategii jest zapisana i sprawdzana przy wznowieniu serii.
+
+Nowe warianty dotyczą wyłącznie przypadków TTT. Ustawienia dekodowania,
+kontekstu, tokenów i kroków Huginn są jawne i nie są zmieniane przez wybór
+wariantu. Korzystają ze ścieżki ewaluacji v2, bez historycznego wymuszania
+legalnych współrzędnych ze zwykłych serii v1. Nie uruchamiają treningu wag.
