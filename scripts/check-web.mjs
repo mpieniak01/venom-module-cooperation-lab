@@ -26,6 +26,7 @@ try {
   run(join(host, "web-next/node_modules/.bin/eslint"), ["web-next", "tests/web", "--max-warnings", "0", "--config", eslint]);
   const tests = readdirSync(join(root, "tests/web")).filter((name) => /\.test\.tsx?$/.test(name)).map((name) => join(root, "tests/web", name));
   run(process.execPath, ["--import", join(host, "web-next/node_modules/tsx/dist/loader.mjs"),
+    "--import", join(root, "tests/web/setup.ts"),
     "--experimental-test-coverage", "--test-coverage-include=web-next/**",
     "--test-reporter=spec", "--test-reporter-destination=stdout",
     "--test-reporter=lcov", "--test-reporter-destination=test-results/lcov.info", "--test", ...tests],
