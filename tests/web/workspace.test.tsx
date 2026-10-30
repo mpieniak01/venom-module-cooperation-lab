@@ -201,7 +201,7 @@ test("selected Qwen history shows its actual immutable settings and module style
     const view = box.querySelector<HTMLElement>(".coop-workspace")!;
     const body = box.querySelector<HTMLElement>(".coop-body")!;
     assert.equal(dom.window.getComputedStyle(view).display,"flex");
-    assert.equal(dom.window.getComputedStyle(view).overflow,"hidden");
+    assert.equal(dom.window.getComputedStyle(view).overflowY,"auto");
     assert.equal(dom.window.getComputedStyle(body).overflowY,"auto");
     assert.equal(dom.window.getComputedStyle(findButton(box,"Rozpocznij eksperyment")).backgroundColor,"rgb(6, 95, 70)");
     assert.equal(dom.window.getComputedStyle(findButton(box,"Zatrzymaj")).backgroundColor,"rgb(159, 18, 57)");

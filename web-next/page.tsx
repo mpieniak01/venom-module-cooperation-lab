@@ -8,7 +8,7 @@ import { EvaluationWorkspace } from "./lib/evaluation";
 import { evaluationTexts } from "./lib/evaluation-i18n";
 import { useLanguage } from "@/lib/i18n";
 import { messageKindLabel, gameModeLabel, modeLabel, scenarioLabel, statusLabel, texts } from "./lib/i18n";
-import { modelId, terminal, type Json, type LabEvent } from "./lib/protocol";
+import { modelId, terminal, type Json, type LabEvent, type Run, type Model } from "./lib/protocol";
 import { useLab } from "./lib/use-lab";
 import { scenarioPolicy, selectScenario, selectMode } from "./lib/experiment-settings";
 import { computationLabel, noticePresentation } from "./lib/presentation";
@@ -54,7 +54,70 @@ export default function CooperationLabPage() {
     <div id="coop-panel-evaluation" role="tabpanel" aria-labelledby="coop-tab-evaluation" hidden={tab !== "evaluation"}>{opened && <EvaluationWorkspace language={language}/>}</div>
   </div>;
 }
-function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
+
+type Lab = ReturnType<typeof useLab>;
+type Draft = SavedSettings & { runId: string | null };
+type EngineFilter = { runId: string | null; engine: string } | null;
+function selectedModels(lab: Lab, selectedModel: string, runId: string | null, engineFilter: EngineFilter) {
+  const models = lab.capabilities?.models ?? [];
+  const fallback = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
+  const stored = lab.run?.config.model;
+  const storedProvider = stored && typeof stored==="object" && !Array.isArray(stored) && typeof stored.provider==="string" ? stored.provider : undefined;
+  const selectedEngine = engineFilter?.runId===runId ? engineFilter.engine : engineId(models.find(m=>modelId(m)===fallback) ?? {provider:storedProvider});
+  const engineModels = models.filter(m=>engineId(m)===selectedEngine);
+  const missingSavedModel = !!selectedModel&&!models.some(m=>modelId(m)===selectedModel)&&engineFilter?.runId!==runId;
+  const chosen = missingSavedModel?selectedModel:engineModels.some(m=>modelId(m)===fallback)?fallback:modelId(engineModels[0]??{});
+  const selected = models.find(m=>modelId(m)===chosen);
+  const engines = lab.capabilities?.engines ?? [...new Set(models.map(engineId))].map(engine_id=>({engine_id,name:engine_id,status:"unknown",supported:true}));
+  return { models, selectedEngine, engineModels, missingSavedModel, chosen, selected, engines };
+}
+function restoredDraft(form: Draft, run: Run | null, runId: string | null): Draft {
+  const restored = run ? savedSettings(run.config) : {};
+  if (run?.config.scenario_id === "model_qualification") return { ...form, model: restored.model ?? form.model, runId };
+  if (run) return { ...form, communicationLanguage: "en", ...restored, runId };
+  return { ...form, runId };
+}
+function validGameSettings(form: SavedSettings, strategicGame: boolean): boolean {
+  if (form.scenario !== "tic_tac_toe") return true;
+  const { gameCount = 1, rememberGames = true, reflectionTokens = 128 } = form;
+  if (!Number.isInteger(gameCount) || gameCount < 1 || gameCount > 10) return false;
+  if ((gameCount > 1 || strategicGame) && form.turns !== 9) return false;
+  if (form.mode !== "game_reflection") return true;
+  return gameCount >= 2 && rememberGames && Number.isInteger(reflectionTokens) && reflectionTokens >= 32 && reflectionTokens <= 256;
+}
+function validExperimentSettings(form: SavedSettings, huginnTask: boolean, strategicGame: boolean): boolean {
+  const { tokens, seed, scenario, mode, turns, numSteps = 8 } = form;
+  const policy = scenarioPolicy(scenario);
+  if (huginnTask && ![8, 16, 32, 64].includes(numSteps)) return false;
+  if (!Number.isInteger(tokens) || tokens < 1 || tokens > 2147483647) return false;
+  if (!Number.isInteger(seed) || seed < 0 || seed > 2147483647) return false;
+  if (!policy || !policy.modes.includes(mode)) return false;
+  if (!Number.isInteger(turns) || turns < policy.min || turns > policy.max || turns % policy.step !== 0) return false;
+  return validGameSettings(form, strategicGame);
+}
+
+function workspaceNotices(lab: Lab, t: ReturnType<typeof texts>, validSettings: boolean, canStart: boolean | undefined, selected: Model | undefined) {
+  const lastFailure = lab.events.findLast(event=>event.kind==="error");
+  const persistedError=typeof lastFailure?.payload.code==="string"?lastFailure.payload.code:"";
+  const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error||persistedError);
+  const blocked = !validSettings?t.problemSettings:!canStart && selected ? modelState(selected,t) : "";
+  const adjusted = lab.run?.config.requested_max_new_tokens;
+  const actualBudgets = lab.run?.config.budgets;
+  const appliedNotice = adjusted && actualBudgets && typeof actualBudgets === "object" && !Array.isArray(actualBudgets) ? `${t.tokensApplied}: ${adjusted} → ${actualBudgets.max_new_tokens}` : "";
+  return { noticeCode, notice, blocked, appliedNotice };
+}
+function workspaceGame(lab: Lab, isGame: boolean) {
+  const messageEvents = lab.events.filter((event) => event.kind === "message");
+  const gameEvent = lab.events.findLast(event => event.kind === "game");
+  const gameSeries=gameEvent?.payload.series;
+  const currentGame=gameSeries&&typeof gameSeries==="object"&&!Array.isArray(gameSeries)&&typeof gameSeries.number==="number"?gameSeries.number:1;
+  const currentGameEvents=isGame?eventsForGame(lab.events,currentGame):[];
+  const currentMessages=isGame?currentGameEvents.filter(event=>event.kind==="message"):messageEvents;
+  return { gameEvent, currentGameEvents, currentMessages };
+}
+
+/** Keeps the live run and draft form stable while presentation sections render independently. */
+function useConversationWorkspace() {
   const { language } = useLanguage();
   const t = texts(language);
   const lab = useLab();
@@ -67,47 +130,25 @@ function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
   // Adjust the draft when selection changes, before committing a render. An
   // effect would briefly display the previous run's model and require a second paint.
   if (form.runId !== runId) {
-    const restored = lab.run ? savedSettings(lab.run.config) : {};
-    const qualification = lab.run?.config.scenario_id==="model_qualification";
-    setForm({ ...form, ...(qualification ? {model:restored.model??form.model} : lab.run ? { communicationLanguage:"en" as const, ...restored } : {}), runId });
+    setForm(restoredDraft(form, lab.run, runId));
   }
   const { model:selectedModel, scenario, mode, turns, tokens, seed, communicationLanguage, gameCount=1, rememberGames=true, reflectionTokens=128, numSteps=8 } = form;
   const [engineFilter, setEngineFilter] = useState<{runId:string|null; engine:string}|null>(null);
-  const models = lab.capabilities?.models ?? [];
-  const fallback = selectedModel || modelId(models.find((m) => m.qualified) ?? models[0] ?? {});
-  const stored = lab.run?.config.model;
-  const storedProvider = stored && typeof stored==="object" && !Array.isArray(stored) && typeof stored.provider==="string" ? stored.provider : undefined;
-  const selectedEngine = engineFilter?.runId===runId ? engineFilter.engine : engineId(models.find(m=>modelId(m)===fallback) ?? {provider:storedProvider});
-  const engineModels = models.filter(m=>engineId(m)===selectedEngine);
-  const missingSavedModel = !!selectedModel&&!models.some(m=>modelId(m)===selectedModel)&&engineFilter?.runId!==runId;
-  const chosen = missingSavedModel?selectedModel:engineModels.some(m=>modelId(m)===fallback)?fallback:modelId(engineModels[0]??{});
-  const selected = models.find(m=>modelId(m)===chosen);
-  const engines = lab.capabilities?.engines ?? [...new Set(models.map(engineId))].map(engine_id=>({engine_id,name:engine_id,status:"unknown",supported:true}));
+  const { models, selectedEngine, engineModels, missingSavedModel, chosen, selected, engines } = selectedModels(lab, selectedModel, runId, engineFilter);
   const qualifying = lab.run?.config.scenario_id==="model_qualification";
   const policy = scenarioPolicy(scenario);
   const availableModes = (lab.capabilities?.modes ?? []).filter(item=>policy?.modes.includes(item));
   const strategicGame = ["game_strategic","game_reflection","game_assisted"].includes(mode);
   const englishTask = strategicGame&&["hrm_text","huginn_raven"].includes(String(selected?.architecture));
   const huginnTask = strategicGame&&selected?.architecture==="huginn_raven";
-  const validSettings = (!huginnTask||[8,16,32,64].includes(numSteps))&& Number.isInteger(tokens)&&tokens>=1&&tokens<=2147483647&&Number.isInteger(seed)&&seed>=0&&seed<=2147483647&&(scenario!=="tic_tac_toe" || Number.isInteger(gameCount)&&gameCount>=1&&gameCount<=10&&(gameCount===1||turns===9)&&(mode!=="game_reflection"||gameCount>=2&&rememberGames&&Number.isInteger(reflectionTokens)&&reflectionTokens>=32&&reflectionTokens<=256)&&(!strategicGame||turns===9))&&!!policy&&availableModes.includes(mode)&&Number.isInteger(turns)&&turns>=policy.min&&turns<=policy.max&&turns%policy.step===0;
+  const validSettings = validExperimentSettings(form, huginnTask, strategicGame) && availableModes.includes(mode);
   const canStart = validSettings&&lab.capabilities?.ready && models.some((m) => modelId(m) === chosen && (m.can_run??m.qualified));
-  const messageEvents = lab.events.filter((event) => event.kind === "message");
-  const lastFailure = lab.events.findLast(event=>event.kind==="error");
-  const persistedError=typeof lastFailure?.payload.code==="string"?lastFailure.payload.code:"";
-  const { code:noticeCode, text:notice } = noticePresentation(t, lab.capabilities, lab.error||persistedError);
-  const blocked = !validSettings?t.problemSettings:!canStart && selected ? modelState(selected,t) : "";
-  const adjusted = lab.run?.config.requested_max_new_tokens;
-  const actualBudgets = lab.run?.config.budgets;
-  const appliedNotice = adjusted && actualBudgets && typeof actualBudgets === "object" && !Array.isArray(actualBudgets) ? `${t.tokensApplied}: ${adjusted} → ${actualBudgets.max_new_tokens}` : "";
+  const { noticeCode, notice, blocked, appliedNotice } = workspaceNotices(lab, t, validSettings, canStart, selected);
   const resultScenario = lab.run?.config.scenario_id??scenario;
   const resultMode = lab.run?.config.mode??mode;
   const organizations = lab.events.filter((event) => event.kind === "organization");
   const isGame = !qualifying && resultScenario === "tic_tac_toe";
-  const gameEvent = lab.events.findLast(event => event.kind === "game");
-  const gameSeries=gameEvent?.payload.series;
-  const currentGame=gameSeries&&typeof gameSeries==="object"&&!Array.isArray(gameSeries)&&typeof gameSeries.number==="number"?gameSeries.number:1;
-  const currentGameEvents=isGame?eventsForGame(lab.events,currentGame):[];
-  const currentMessages=isGame?currentGameEvents.filter(event=>event.kind==="message"):messageEvents;
+  const { gameEvent, currentGameEvents, currentMessages } = workspaceGame(lab, isGame);
   const isReview = resultMode === "operator_review";
   const operatorChat = !qualifying && (resultMode === "operator_chat" || resultMode === "operator_relay" || isReview);
   const operatorEvent = lab.events.findLast(event=>event.kind==="operator"||event.kind==="message"&&event.payload.sender==="operator");
@@ -130,6 +171,12 @@ function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
         {lab.run && <><button type="button" className={button} disabled={lab.pending} onClick={() => { void lab.exportRun(); }}>{t.export}</button>
           <button type="button" className={button} disabled={lab.active || lab.pending} onClick={() => { void lab.remove(); }}>{t.remove}</button></>}
       </div>);
+  return { language, t, lab, viewport, settings, setSettings, form, setForm, runId, models, selectedEngine, engineModels, missingSavedModel, chosen, selected, engines, setEngineFilter, scenario, mode, turns, tokens, seed, communicationLanguage, gameCount, rememberGames, reflectionTokens, numSteps, qualifying, policy, availableModes, strategicGame, englishTask, huginnTask, canStart, noticeCode, notice, appliedNotice, blocked, isGame, gameEvent, currentGameEvents, currentMessages, isReview, operatorChat, operatorWaiting, resultMode, computation, usage, organizations, start, historyControl };
+}
+type WorkspaceView = ReturnType<typeof useConversationWorkspace>;
+function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
+  const view = useConversationWorkspace();
+  const { t, lab, viewport, settings, setSettings, form, setForm, models, chosen, setEngineFilter, canStart, notice, appliedNotice, blocked, operatorChat, computation, operatorWaiting, isGame, start, historyControl } = view;
   return <section aria-labelledby="cooperation-conversation-title" className="coop-workspace" data-operator={operatorChat} ref={viewport}>
     <style>{workspaceStyles}</style>
     <header className="coop-header">
@@ -155,9 +202,27 @@ function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
       {lab.capabilities?.catalog_error?t.catalogError:notice || appliedNotice || (!lab.active?blocked:"") || (lab.active&&operatorWaiting ? t.operatorInputHint : "")}
     </output>
     <div className="coop-body">
-      {settings && <fieldset disabled={lab.active || lab.pending} className="coop-settings">
+      {settings && <WorkspaceSettings view={view} />}
+      {!isGame&&historyControl}
+      <WorkspaceMain view={view} />
+    </div>
+  </section>;
+}
+
+function WorkspaceSettings({ view }: Readonly<{ view: WorkspaceView }>) {
+  const { t, lab } = view;
+  return <fieldset disabled={lab.active || lab.pending} className="coop-settings">
         <legend className="px-1 text-sm">{t.settings}</legend>
-        <div className="coop-settings-group">
+        <TaskSettings view={view} />
+        <RuntimeSettings view={view} />
+        <LimitSettings view={view} />
+      </fieldset>;
+
+}
+
+function TaskSettings({ view }: Readonly<{ view: WorkspaceView }>) {
+  const { t, lab, form, setForm, scenario, mode, policy, availableModes, strategicGame } = view;
+  return <div className="coop-settings-group">
           <h3>{t.setupTask}</h3>
           <label className="coop-setting">{t.scenario}
             <select className={field} value={scenario} onChange={event=>setForm(selectScenario(form,event.target.value))}>
@@ -172,8 +237,12 @@ function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
           {scenario==="tic_tac_toe"&&strategicGame&&<p className="coop-settings-hint">{mode==="game_reflection"?t.liveReflectionHint:mode==="game_assisted"?t.liveAssistedHint:t.liveStrategyHint}</p>}
           {availableModes.length===1&&<p className="coop-message-meta">{t.fixedWorkflow}</p>}
           <p className="coop-settings-hint">{policy?.entry==="operator"?t.startsWithInput:t.startsAutomatic}</p>
-        </div>
-        <div className="coop-settings-group">
+        </div>;
+}
+
+function RuntimeSettings({ view }: Readonly<{ view: WorkspaceView }>) {
+  const { t, lab, setSettings, form, setForm, runId, models, selectedEngine, engineModels, missingSavedModel, chosen, selected, engines, setEngineFilter, communicationLanguage, numSteps, englishTask, huginnTask } = view;
+  return <div className="coop-settings-group">
           <h3>{t.setupRuntime}</h3>
           <label className="coop-setting">{t.engine}
             <select className={field} value={selectedEngine} onChange={event=>{setEngineFilter({runId,engine:event.target.value});setForm({...form,model:modelId(models.find(m=>engineId(m)===event.target.value)??{})});}}>
@@ -197,8 +266,12 @@ function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
           {englishTask&&<p className="coop-message-meta" role="status">{t.gameEnglishTask}</p>}
           {huginnTask&&<label className="coop-setting">{t.gameComputeSteps}<select className={field} value={numSteps} onChange={event=>setForm({...form,numSteps:Number(event.target.value)})}>{[8,16,32,64].map(step=><option key={step} value={step}>{step}</option>)}</select></label>}
           <p className="coop-message-meta">{t.sameWeights}</p>
-        </div>
-        <div className="coop-settings-group">
+        </div>;
+}
+
+function LimitSettings({ view }: Readonly<{ view: WorkspaceView }>) {
+  const { t, form, setForm, selected, scenario, mode, turns, tokens, seed, gameCount, rememberGames, reflectionTokens, policy, strategicGame, isGame, operatorChat } = view;
+  return <div className="coop-settings-group">
           <h3>{t.setupLimits}</h3>
           <label className="coop-setting">{t.turns}<input className={field} type="number" disabled={scenario==="tic_tac_toe"&&(gameCount>1||strategicGame)} min={policy?.min??1} step={policy?.step??1} max={policy?.max??8} value={turns} onChange={event=>setForm({...form,turns:Number(event.target.value)})}/></label>
           {policy&&<p className="coop-message-meta">{operatorChat?t.roundsCount+": "+Math.floor(turns/policy.step):isGame?t.gameMoves+": "+turns:""}</p>}
@@ -210,10 +283,12 @@ function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
           <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={outputTokenLimit(selected)} value={tokens} onInput={event=>setForm({...form,tokens:Number(event.currentTarget.value)})}/></label>
           {scenario==="tic_tac_toe"&&mode==="game_reflection"&&<label className="coop-setting">{t.gameReflectionTokens}<input className={field} type="number" min={32} max={256} value={reflectionTokens} onInput={event=>setForm({...form,reflectionTokens:Number(event.currentTarget.value)})}/></label>}
           <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
-        </div>
-      </fieldset>}
-      {!isGame&&historyControl}
-      <div className="coop-main">
+        </div>;
+}
+
+function WorkspaceMain({ view }: Readonly<{ view: WorkspaceView }>) {
+  const { language, t, lab, runId, qualifying, noticeCode, isGame, gameEvent, currentGameEvents, currentMessages, isReview, operatorChat, operatorWaiting, resultMode, usage, organizations, historyControl } = view;
+  return <div className="coop-main">
         <div className="coop-column">
           <fieldset className="coop-participants" aria-label={t.participants}>
             {(operatorChat ? ["A", "B", "operator"] : ["A", "B"]).map((participant) => {
@@ -253,7 +328,5 @@ function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
             <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(lab.run?.config ?? {}, null, 2)}</pre>
           </details>
         </aside>
-      </div>
-    </div>
-  </section>;
+      </div>;
 }

@@ -5,7 +5,7 @@ import type { Json } from "./protocol";
 // Static, module-owned styles: external module paths are not necessarily scanned
 // by the host Tailwind JIT. Every selector stays inside this workspace.
 export const workspaceStyles = `
-.coop-workspace { box-sizing:border-box; display:flex; flex-direction:column; gap:12px; width:100%; max-width:none; margin:0; padding:0; height:calc(100dvh - var(--coop-top, 12rem) - 16px); min-height:0; overflow:hidden; color:#e2e8f0; }
+.coop-workspace { box-sizing:border-box; display:flex; flex-direction:column; gap:12px; width:100%; max-width:none; margin:0; padding:0; height:max(24rem, calc(100dvh - var(--coop-top, 12rem) - 16px)); min-height:0; overflow-y:auto; overflow-x:hidden; color:#e2e8f0; }
 .coop-workspace *, .coop-workspace *::before, .coop-workspace *::after { box-sizing:border-box; }
 .coop-workspace .coop-header { display:flex; flex-shrink:0; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
 .coop-workspace .coop-header h2 { margin:0; font-size:20px; line-height:1.3; font-weight:600; }
@@ -86,6 +86,10 @@ export const workspaceStyles = `
   .coop-workspace .coop-settings { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .coop-workspace .coop-setting-wide { grid-column:span 2 / span 2; }
   .coop-workspace .coop-main { grid-template-columns:minmax(0,1fr) 18rem; }
+}
+@media (max-height:640px) {
+  .coop-workspace { height:auto; overflow:visible; }
+  .coop-workspace .coop-body { flex:none; overflow:visible; }
 }
 @media (max-width:639px) {
   .coop-workspace .coop-settings { grid-template-columns:minmax(0,1fr); }
