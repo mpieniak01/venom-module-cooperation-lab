@@ -50,6 +50,20 @@ test("workspace has no automatic generation, double start uses one request, SSE 
   const root=createRoot(box);
   try {
     await act(async()=>root.render(<CooperationLabPage/>)); await settle();
+    assert.equal(box.querySelectorAll("h1").length,1);
+    assert.ok(box.querySelector(".page-heading h1"));
+    const tablist=box.querySelector('[role="tablist"]')!;
+    assert.equal(tablist.querySelectorAll('[role="tab"]').length,2);
+    assert.ok(box.querySelector(".page-heading")!.compareDocumentPosition(tablist) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert.equal(box.querySelector('[role="tab"][aria-selected="true"]')?.textContent,"Rozmowa i serie");
+    assert.equal(box.querySelector(".coop-header h2")?.textContent,"Rozmowa i serie");
+    const conversationTab=box.querySelector('[role="tab"][aria-selected="true"]')!;
+    await act(async()=>{conversationTab.dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"ArrowRight",bubbles:true}));});await settle();
+    assert.equal(box.querySelector('[role="tab"][aria-selected="true"]')?.textContent,"Gry i strategie");
+    assert.equal(box.querySelectorAll("h1").length,1);
+    const evaluationTab=box.querySelector('[role="tab"][aria-selected="true"]')!;
+    await act(async()=>{evaluationTab.dispatchEvent(new dom.window.KeyboardEvent("keydown",{key:"ArrowLeft",bubbles:true}));});await settle();
+    assert.equal(box.querySelector('[role="tab"][aria-selected="true"]')?.textContent,"Rozmowa i serie");
     assert.equal(calls.filter((c)=>c.init?.method==="POST").length,0);
     const languageSelect=[...box.querySelectorAll("select")].find(s=>s.parentElement?.textContent?.startsWith("Język rozmowy modeli"))!;
     assert.equal(languageSelect.value,"pl");

@@ -1,5 +1,9 @@
 "use client";
 import { useState } from "react";
+import { FlaskConical, MessageSquare, Gamepad2 } from "lucide-react";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { Button } from "@/components/ui/button";
+import { THEME_TAB_BAR_CLASS, getThemeTabClass } from "@/lib/theme-ui";
 import { EvaluationWorkspace } from "./lib/evaluation";
 import { evaluationTexts } from "./lib/evaluation-i18n";
 import { useLanguage } from "@/lib/i18n";
@@ -27,16 +31,30 @@ export default function CooperationLabPage() {
   const t = evaluationTexts(language);
   const [tab, setTab] = useState<"conversation" | "evaluation">("conversation");
   const [opened, setOpened] = useState(false);
-  return <div>
-    <nav aria-label={texts(language).title} style={{display:"flex",gap:8,padding:"4px 12px",flexWrap:"wrap"}}>
-      <button type="button" aria-pressed={tab==="conversation"} onClick={()=>setTab("conversation")} style={{padding:"6px 10px",border:"1px solid #64748b",borderRadius:8,background:tab==="conversation"?"#065f46":"#0f172a",color:"#e2e8f0"}}>{t.conversationTab}</button>
-      <button type="button" aria-pressed={tab==="evaluation"} onClick={()=>{setOpened(true);setTab("evaluation");}} style={{padding:"6px 10px",border:"1px solid #64748b",borderRadius:8,background:tab==="evaluation"?"#065f46":"#0f172a",color:"#e2e8f0"}}>{t.evaluationTab}</button>
-    </nav>
-    <div hidden={tab!=="conversation"}><ConversationWorkspace/></div>
-    {opened&&<div hidden={tab!=="evaluation"}><EvaluationWorkspace language={language}/></div>}
+  const page = texts(language);
+  const selectTab = (value: "conversation" | "evaluation") => {
+    if (value === "evaluation") setOpened(true);
+    setTab(value);
+  };
+  const tabs = [["conversation", t.conversationTab, MessageSquare], ["evaluation", t.evaluationTab, Gamepad2]] as const;
+  return <div className="space-y-6 pb-48 sm:pb-12">
+    <SectionHeading eyebrow={page.title} title={page.title} description={page.description} as="h1" size="lg" rightSlot={<FlaskConical className="page-heading-icon" />} />
+    <div role="tablist" aria-label={page.title} className={THEME_TAB_BAR_CLASS + " flex-wrap sm:flex-nowrap"}>
+      {tabs.map(([value, label, Icon]) => <Button key={value} id={`coop-tab-${value}`} role="tab" aria-selected={tab === value} aria-controls={`coop-panel-${value}`} tabIndex={tab === value ? 0 : -1}
+        onClick={() => selectTab(value)} onKeyDown={event => {
+          let next: "conversation" | "evaluation";
+          if (event.key === "Home") next = "conversation";
+          else if (event.key === "End") next = "evaluation";
+          else if (event.key === "ArrowLeft" || event.key === "ArrowRight") next = value === "conversation" ? "evaluation" : "conversation";
+          else return;
+          event.preventDefault(); selectTab(next); document.getElementById(`coop-tab-${next}`)?.focus();
+        }} variant="ghost" size="sm" className={getThemeTabClass(tab === value)}><Icon className="h-4 w-4" />{label}</Button>)}
+    </div>
+    <div id="coop-panel-conversation" role="tabpanel" aria-labelledby="coop-tab-conversation" hidden={tab !== "conversation"}><ConversationWorkspace title={t.conversationTab}/></div>
+    {opened && <div id="coop-panel-evaluation" role="tabpanel" aria-labelledby="coop-tab-evaluation" hidden={tab !== "evaluation"}><EvaluationWorkspace language={language}/></div>}
   </div>;
 }
-function ConversationWorkspace() {
+function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
   const { language } = useLanguage();
   const t = texts(language);
   const lab = useLab();
@@ -112,10 +130,10 @@ function ConversationWorkspace() {
         {lab.run && <><button type="button" className={button} disabled={lab.pending} onClick={() => { void lab.exportRun(); }}>{t.export}</button>
           <button type="button" className={button} disabled={lab.active || lab.pending} onClick={() => { void lab.remove(); }}>{t.remove}</button></>}
       </div>);
-  return <section aria-labelledby="cooperation-lab-title" className="coop-workspace" data-operator={operatorChat} ref={viewport}>
+  return <section aria-labelledby="cooperation-conversation-title" className="coop-workspace" data-operator={operatorChat} ref={viewport}>
     <style>{workspaceStyles}</style>
     <header className="coop-header">
-      <div><h1 id="cooperation-lab-title" className="text-xl font-semibold">{t.title}</h1><p className="text-xs text-slate-400">{t.description}</p></div>
+      <h2 id="cooperation-conversation-title">{title}</h2>
       <button type="button" className={button} onClick={lab.refresh} disabled={lab.refreshing}>{lab.refreshing?t.refreshing:t.refresh}</button>
     </header>
     <fieldset className="coop-controls" aria-label={t.title}>

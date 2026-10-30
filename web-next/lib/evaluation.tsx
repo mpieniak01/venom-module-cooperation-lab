@@ -117,7 +117,7 @@ export function EvaluationWorkspace({language}: {language:string}) {
   const notice = lab.error ? reasonText(t, language, lab.error) : !valid ? t.invalid : !ready ? reasonText(t,language,lab.capabilities?.reason_code ?? "runtime_busy") : appliedNotice || (checked ? checked.supported ? t.checked : reasonText(t,language,checked.reason_codes[0] ?? "unsupported") : t.startReady);
   return <section ref={viewport} className="coop-workspace coop-evaluation" aria-label={t.title}>
     <style>{workspaceStyles+styles}</style>
-    <header className="coop-header"><div><h1>{t.title}</h1><p>{t.subtitle}</p></div><button className={button} disabled={lab.refreshing} onClick={()=>{void lab.refresh();}}>{t.refresh}</button></header>
+    <header className="coop-header"><div><h2>{t.title}</h2><p>{t.subtitle}</p></div><button className={button} disabled={lab.refreshing} onClick={()=>{void lab.refresh();}}>{t.refresh}</button></header>
     <div className="coop-controls" role="group" aria-label={t.title}>
       <button className={button+" coop-start"} disabled={!canStart} onClick={()=>{void lab.start(input).then(started=>{if(started){setSettings(false);const applied=savedEvaluationRequest(started.config);if(applied)setDraft({...input,max_new_tokens:applied.max_new_tokens});}});}}>{t.start}</button>
       <button className={button+" coop-stop"} disabled={!lab.active || lab.pending} onClick={()=>{void lab.mutate("cancel");}}>{t.stop}</button>
