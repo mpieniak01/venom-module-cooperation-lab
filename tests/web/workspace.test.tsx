@@ -54,6 +54,9 @@ test("workspace has no automatic generation, double start uses one request, SSE 
     assert.ok(box.querySelector(".page-heading h1"));
     const tablist=box.querySelector('[role="tablist"]')!;
     assert.equal(tablist.querySelectorAll('[role="tab"]').length,2);
+    for (const tab of tablist.querySelectorAll('[role="tab"]')) {
+      assert.ok(box.querySelector(`#${tab.getAttribute("aria-controls")}`));
+    }
     assert.ok(box.querySelector(".page-heading")!.compareDocumentPosition(tablist) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
     assert.equal(box.querySelector('[role="tab"][aria-selected="true"]')?.textContent,"Rozmowa i serie");
     assert.equal(box.querySelector(".coop-header h2")?.textContent,"Rozmowa i serie");

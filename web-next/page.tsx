@@ -51,7 +51,7 @@ export default function CooperationLabPage() {
         }} variant="ghost" size="sm" className={getThemeTabClass(tab === value)}><Icon className="h-4 w-4" />{label}</Button>)}
     </div>
     <div id="coop-panel-conversation" role="tabpanel" aria-labelledby="coop-tab-conversation" hidden={tab !== "conversation"}><ConversationWorkspace title={t.conversationTab}/></div>
-    {opened && <div id="coop-panel-evaluation" role="tabpanel" aria-labelledby="coop-tab-evaluation" hidden={tab !== "evaluation"}><EvaluationWorkspace language={language}/></div>}
+    <div id="coop-panel-evaluation" role="tabpanel" aria-labelledby="coop-tab-evaluation" hidden={tab !== "evaluation"}>{opened && <EvaluationWorkspace language={language}/>}</div>
   </div>;
 }
 function ConversationWorkspace({ title }: Readonly<{ title: string }>) {
