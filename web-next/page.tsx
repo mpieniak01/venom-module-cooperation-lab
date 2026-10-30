@@ -91,7 +91,7 @@ function validExperimentSettings(form: SavedSettings, huginnTask: boolean, strat
   if (huginnTask && ![8, 16, 32, 64].includes(numSteps)) return false;
   if (!Number.isInteger(tokens) || tokens < 1 || tokens > 2147483647) return false;
   if (!Number.isInteger(seed) || seed < 0 || seed > 2147483647) return false;
-  if (!policy || !policy.modes.includes(mode)) return false;
+  if (!policy?.modes.includes(mode)) return false;
   if (!Number.isInteger(turns) || turns < policy.min || turns > policy.max || turns % policy.step !== 0) return false;
   return validGameSettings(form, strategicGame);
 }
