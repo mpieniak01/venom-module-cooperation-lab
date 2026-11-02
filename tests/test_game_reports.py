@@ -262,6 +262,7 @@ def test_game_report_exports_keep_archived_attempts_distinct_from_current_metric
 
 
 def test_planned_started_skipped_and_played_are_distinct_counts():
+    """Keep planned slots distinct from started and completed games."""
     rows = [
         episode(),
         episode("invalid_format", success=False),

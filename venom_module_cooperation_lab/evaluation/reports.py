@@ -13,6 +13,7 @@ from typing import Any
 
 
 def summarize(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Aggregate observed outcomes and costs without counting skips as games."""
     rows = snapshot["episodes"]
     output = []
     for game in sorted({r["game"] for r in rows}):

@@ -37,16 +37,22 @@ class LiveGameStrategy:
     skipped_notes: int = 0
 
     def __post_init__(self) -> None:
+        """Open the first measurement bucket before any model response."""
         self.measurement.begin()
+
+    def _parse_proposal(self, text: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Preserve rejected answers in the proposal denominator before raising."""
+        try:
+            return parse_action(text, "tic_tac_toe", "mapped")
+        except LabError as exc:
+            self.measurement.invalid(exc.code)
+            raise
 
     def choose(
         self, game: TicTacToe, player: str, text: str, seed: int
     ) -> dict[str, Any]:
-        try:
-            action, mapping = parse_action(text, "tic_tac_toe", "mapped")
-        except LabError as exc:
-            self.measurement.invalid(exc.code)
-            raise
+        """Assess a legal model proposal before optional solver intervention."""
+        action, mapping = self._parse_proposal(text)
         env = TicTacToeEnvironment({"board": list(game.board)})
         score = assess(env, player, action)
         if not score["legal"]:
@@ -121,6 +127,7 @@ class LiveGameStrategy:
         return copy.deepcopy(record)
 
     def public(self) -> dict[str, Any]:
+        """Expose counters and detached measurement evidence for the UI."""
         return {
             "mode": self.mode,
             "measurement": self.measurement.public(),
@@ -163,6 +170,7 @@ class LiveGameStrategy:
         return note + label + example
 
     def memory(self, player: str, language: str | None = None) -> str:
+        """Render only this player's selected rule and optional example."""
         note = self.reminder(player, language)
         return (
             (
@@ -180,6 +188,7 @@ class LiveGameStrategy:
         )
 
     def begin(self) -> None:
+        """Start a new game while retaining private cross-game rule evidence."""
         self.decisions.clear()
         self.measurement.begin()
 

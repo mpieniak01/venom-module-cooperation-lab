@@ -21,10 +21,12 @@ BLOCK = ["O", "O", "", "X", "", "", "", "X", ""]
 
 
 def board(cells):
+    """Build a mutable board fixture with a matching move counter."""
     return TicTacToe(board=list(cells), moves=sum(bool(c) for c in cells))
 
 
 def test_opportunities_prioritize_win_and_measure_actual_proposals_before_solver():
+    """Score the model proposal before any solver correction."""
     strategy = LiveGameStrategy("game_assisted")
     record = strategy.choose(board(WIN), "A", "C1", 0)
     assert record["model_action"] == {"square": "C1"}
@@ -41,6 +43,7 @@ def test_opportunities_prioritize_win_and_measure_actual_proposals_before_solver
 
 
 def test_unavoidable_fork_is_not_a_missed_possible_block():
+    """Exclude multiple immediate threats from possible single-move blocks."""
     strategy = LiveGameStrategy("game_strategic")
     game = board(["O", "O", "", "O", "X", "X", "", "X", ""])
     proposal = strategy.choose(game, "A", "A3", 0)
@@ -53,6 +56,7 @@ def test_unavoidable_fork_is_not_a_missed_possible_block():
 @pytest.mark.parametrize("rotation", range(4))
 @pytest.mark.parametrize("mirror", [False, True])
 def test_repeated_errors_are_symmetry_aware_but_private_to_player(rotation, mirror):
+    """Recognize symmetric repeated mistakes without sharing player evidence."""
     strategy = LiveGameStrategy("game_reflection")
     strategy.choose(board(WIN), "A", "C1", 0)
     strategy.begin()
@@ -68,6 +72,7 @@ def test_repeated_errors_are_symmetry_aware_but_private_to_player(rotation, mirr
 
 
 def test_rule_opportunities_and_transfer_are_observed_not_implied_by_acceptance():
+    """Count actual applications separately from rule acceptance."""
     strategy = LiveGameStrategy("game_reflection")
     strategy.choose(board(WIN), "A", "C1", 0)
     strategy.note_ids["A"] = "win_now"
@@ -94,9 +99,11 @@ def test_rule_opportunities_and_transfer_are_observed_not_implied_by_acceptance(
     "raw,code", [("A1 A2", "invalid_format"), ("A1", "occupied_game_square")]
 )
 def test_bad_model_proposals_do_not_disappear_from_legality_denominator(raw, code):
+    """Keep malformed and illegal answers in the proposal denominator."""
     strategy = LiveGameStrategy("game_strategic")
+    game = board(WIN)
     with pytest.raises(LabError, match=code):
-        strategy.choose(board(WIN), "A", raw, 0)
+        strategy.choose(game, "A", raw, 0)
     strategy.measurement.stop("failed", code)
     data = strategy.public()["measurement"]
     assert data["totals"]["proposals"] == 1
@@ -116,6 +123,7 @@ def test_bad_model_proposals_do_not_disappear_from_legality_denominator(raw, cod
     ],
 )
 def test_technical_end_never_invents_a_completed_game(status, reason, category):
+    """Preserve unfinished games when execution stops or fails."""
     strategy = LiveGameStrategy("game_strategic")
     strategy.measurement.stop(status, reason)
     data = strategy.public()["measurement"]
@@ -125,6 +133,7 @@ def test_technical_end_never_invents_a_completed_game(status, reason, category):
 
 
 def test_grounded_context_is_explicit_versioned_and_preserves_legacy_requests():
+    """Version the optional context while preserving legacy idempotency."""
     request = RunRequest(
         model_id="fixture", scenario_id="tic_tac_toe", mode="game_reflection"
     )
@@ -158,6 +167,7 @@ def test_grounded_context_is_explicit_versioned_and_preserves_legacy_requests():
 def test_grounded_reminder_is_private_historical_and_carries_a_verified_better_move(
     language,
 ):
+    """Keep the verified historical example private and explicitly labeled."""
     strategy = LiveGameStrategy("game_reflection", grounded_example=True)
     strategy.choose(board(WIN), "A", "C1", 0)
     evidence = supported_rules(strategy.feedback(board(WIN), "A"))["win_now"]
@@ -169,7 +179,9 @@ def test_grounded_reminder_is_private_historical_and_carries_a_verified_better_m
         "better_moves": evidence["better_actions"],
     }
     own = strategy.reminder("A", language)
-    assert "A3" in own and "C1" in own and "PRIVATE_B" not in own
+    assert "A3" in own
+    assert "C1" in own
+    assert "PRIVATE_B" not in own
     assert ("NIE aktualna" if language == "pl" else "NOT the current") in own
     assert "A3" not in strategy.reminder("B", language)
     assert "PRIVATE_A" in strategy.memory("A", language)
@@ -179,10 +191,12 @@ def test_grounded_reminder_is_private_historical_and_carries_a_verified_better_m
 
 @pytest.mark.asyncio
 async def test_runner_persists_failure_measurements_and_original_proposal(rig):
+    """Persist rejected raw output and measurements before terminal status."""
     runner, _ = rig
     factory = runner.adapter_factory
 
     def configured(model, lease):
+        """Supply deterministic fake responses without invoking a model."""
         adapter = factory(model, lease)
         adapter.responses = ["A1", "A1"]
         return adapter
@@ -213,12 +227,14 @@ async def test_runner_persists_failure_measurements_and_original_proposal(rig):
 async def test_runner_carries_only_own_grounded_example_and_keeps_control_prompt(
     rig, context
 ):
+    """Exercise both context variants through the CPU-only runner."""
     import json
 
     runner, adapters = rig
     factory = runner.adapter_factory
 
     def configured(model, lease):
+        """Supply deterministic fake responses without invoking a model."""
         adapter = factory(model, lease)
         adapter.responses = [
             "A1",

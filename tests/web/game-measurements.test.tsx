@@ -31,8 +31,8 @@ test("measurements expose denominators, partial games, recurrence and real rule 
  assert.equal(doc.querySelectorAll('[aria-label="Partia 1"]').length,1);
  assert.match(text,/Z przypomnieniem0\/2/);
  assert.match(text,/Reguła na innej pozycji niż przykład1\/1/);
- for(const [code,label] of [["illegal_move","nielegalny ruch"],["infrastructure","infrastruktura"],["cancelled","żądanie"]])assert.match(render({...measurement as object,failure_category:code}).querySelector('[role="status"]')?.textContent??"",new RegExp(label));
- assert.equal(render({version:"live-tactical-measurement-v1"}).querySelector('[role="status"]'),null);
+ for(const [code,label] of [["illegal_move","nielegalny ruch"],["infrastructure","infrastruktura"],["cancelled","żądanie"]])assert.match(render({...measurement as object,failure_category:code}).querySelector("output")?.textContent??"",new RegExp(label));
+ assert.equal(render({version:"live-tactical-measurement-v1"}).querySelector("output"),null);
 });
 
 test("new measurement labels have locale parity and grounded memory restores explicitly",()=>{
@@ -46,4 +46,15 @@ test("new measurement labels have locale parity and grounded memory restores exp
  const doc=new JSDOM(renderToStaticMarkup(<GameReflections events={[note]} language="pl"/>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
  assert.match(doc.body.textContent??"",/Poprawna reguła wskazana; zapisano do pamięci/);
  assert.match(doc.body.textContent??"",/stosowanie jej przez model nie zostało potwierdzone/);
+});
+
+
+test("malformed JSON fields cannot become object labels or fabricated statuses",()=>{
+ const doc=render({version:"live-tactical-measurement-v1",failure_category:{invalid:true},
+  games:[{number:{invalid:true},status:{invalid:true}},{number:2,status:"incomplete"},{number:3,status:"in_progress"}]});
+ const text=doc.body.textContent??"";
+ assert.doesNotMatch(text,/\[object Object\]|undefined/);
+ assert.match(text,/Nieznane/);
+ assert.match(text,/Partia nierozstrzygnięta/);
+ assert.equal(doc.querySelector("output"),null);
 });

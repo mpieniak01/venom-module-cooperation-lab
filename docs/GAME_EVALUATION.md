@@ -373,3 +373,14 @@ techniczne; nie zastępować błędów brakami danych. Po próbach pozycyjnych
 porównać pełne partie przeciw ustalonym przeciwnikom, ze zmianą stron.
 
 Zmiana implementacji i jej testy CPU nie oznaczają wykonania tego eksperymentu.
+
+
+### Przegląd implementacji pomiaru — PR #22
+
+Pierwszy pełny przegląd CodeRabbit dla `b8a9f3c` nie zgłosił uwag funkcjonalnych.
+Ostrzeżenie o docstrings oraz 20 uwag utrzymaniowych Sonara objęto jedną poprawką:
+rozdzielono obserwację reguły od transferu, usunięto zagnieżdżone klasyfikacje,
+wydzielono komponenty tabel i refleksji, zawężono typy etykiet oraz użyto natywnego
+`output` dla statusu. Testy zachowują kryteria oceny; sprawdzają także odrzucenie
+obiektów JSON zamiast numeru partii lub statusu. Ta poprawka nie uruchamia modeli
+ani nie zmienia historycznych ocen. Wynik ponownych bramek dotyczy dopiero jej SHA.

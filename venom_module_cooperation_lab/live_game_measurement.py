@@ -32,6 +32,7 @@ COUNTERS = (
 
 
 def counters() -> dict[str, int]:
+    """Initialize identical measured fields for one game and the whole series."""
     return dict.fromkeys(COUNTERS, 0)
 
 
@@ -50,6 +51,8 @@ def canonical_board(board: list[str], player: str) -> tuple[str, ...]:
 
 @dataclass
 class LiveGameMeasurement:
+    """Bounded live-series evidence, isolated from frozen historical scoring."""
+
     totals: dict[str, int] = field(default_factory=counters)
     games: list[dict[str, Any]] = field(default_factory=list)
     rules: dict[str, dict[str, dict[str, dict[str, int]]]] = field(default_factory=dict)
@@ -65,6 +68,7 @@ class LiveGameMeasurement:
         )
 
     def add(self, key: str, value: int = 1) -> None:
+        """Increment the current game and series consistently."""
         if not self.games:
             self.begin()
         self.totals[key] += value
@@ -109,42 +113,67 @@ class LiveGameMeasurement:
             followed = action in actions
             self.add(opportunity_key)
             self.add(success_key, int(followed))
-            phase = "with_reminder" if rule == rule_id else "without_reminder"
-            groups = self.rules.setdefault(player, {}).setdefault(
-                rule,
-                {
-                    "with_reminder": {"opportunities": 0, "followed": 0},
-                    "without_reminder": {"opportunities": 0, "followed": 0},
-                },
+            checks[rule] = self._record_rule(
+                env, player, rule, followed, rule == rule_id, evidence
             )
-            groups[phase]["opportunities"] += 1
-            groups[phase]["followed"] += int(followed)
-            key = (player, rule, canonical_board(env.board, player))
-            repeated = not followed and key in self.mistakes
-            if not followed:
-                self.mistakes.add(key)
-            self.add("repeated_tactical_errors", int(repeated))
-            if rule == rule_id:
-                self.add("rule_opportunities")
-                self.add("rule_followed", int(followed))
-                if evidence:
-                    equivalent = canonical_board(env.board, player) == canonical_board(
-                        evidence["board"], player
-                    )
-                    kind = "source_equivalent" if equivalent else "new_position"
-                    counts = self.transfer.setdefault(player, {}).setdefault(
-                        kind, {"opportunities": 0, "followed": 0}
-                    )
-                    counts["opportunities"] += 1
-                    counts["followed"] += int(followed)
-            checks[rule] = {
-                "followed": followed,
-                "reminder_present": rule == rule_id,
-                "repeated_error": repeated,
-            }
         return checks
 
+    def _record_rule(
+        self,
+        env: TicTacToeEnvironment,
+        player: str,
+        rule: str,
+        followed: bool,
+        reminder_present: bool,
+        evidence: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Keep observed rule use separate from selection and host validation."""
+        phase = "with_reminder" if reminder_present else "without_reminder"
+        groups = self.rules.setdefault(player, {}).setdefault(
+            rule,
+            {
+                "with_reminder": {"opportunities": 0, "followed": 0},
+                "without_reminder": {"opportunities": 0, "followed": 0},
+            },
+        )
+        groups[phase]["opportunities"] += 1
+        groups[phase]["followed"] += int(followed)
+        key = (player, rule, canonical_board(env.board, player))
+        repeated = not followed and key in self.mistakes
+        if not followed:
+            self.mistakes.add(key)
+        self.add("repeated_tactical_errors", int(repeated))
+        if reminder_present:
+            self.add("rule_opportunities")
+            self.add("rule_followed", int(followed))
+            if evidence:
+                self._record_transfer(env, player, followed, evidence)
+        return {
+            "followed": followed,
+            "reminder_present": reminder_present,
+            "repeated_error": repeated,
+        }
+
+    def _record_transfer(
+        self,
+        env: TicTacToeEnvironment,
+        player: str,
+        followed: bool,
+        evidence: dict[str, Any],
+    ) -> None:
+        """Count actual model applications relative to its private example."""
+        equivalent = canonical_board(env.board, player) == canonical_board(
+            evidence["board"], player
+        )
+        kind = "source_equivalent" if equivalent else "new_position"
+        counts = self.transfer.setdefault(player, {}).setdefault(
+            kind, {"opportunities": 0, "followed": 0}
+        )
+        counts["opportunities"] += 1
+        counts["followed"] += int(followed)
+
     def complete(self, board: dict[str, Any]) -> None:
+        """Record only referee-confirmed completed boards."""
         if self.games and board["finished"]:
             self.games[-1].update(
                 status="completed", winner=board["winner"], draw=board["draw"]
@@ -153,24 +182,30 @@ class LiveGameMeasurement:
     def stop(self, status: str, reason: str | None) -> None:
         """Technical completion does not turn an unfinished board into a result."""
         self.run_status = status
-        self.failure_category = (
-            "cancelled"
-            if status == "cancelled"
-            else "format"
-            if reason in {"invalid_format", "invalid_game_move", "empty_model_output"}
-            else "illegal_move"
-            if reason == "occupied_game_square"
-            else "infrastructure"
-            if reason
-            else None
-        )
+        self.failure_category = self._failure_category(status, reason)
         if self.games and self.games[-1]["status"] == "in_progress":
             self.games[-1].update(
                 status="incomplete" if status == "completed" else status,
                 reason_code=reason,
             )
 
+    @staticmethod
+    def _failure_category(status: str, reason: str | None) -> str | None:
+        """Classify termination without counting runtime errors as proposals."""
+        if status == "cancelled":
+            return "cancelled"
+        if not reason:
+            return None
+        categories = {
+            "invalid_format": "format",
+            "invalid_game_move": "format",
+            "empty_model_output": "format",
+            "occupied_game_square": "illegal_move",
+        }
+        return categories.get(reason, "infrastructure")
+
     def public(self) -> dict[str, Any]:
+        """Return a detached snapshot for journaling and UI consumption."""
         return copy.deepcopy(
             {
                 "version": VERSION,

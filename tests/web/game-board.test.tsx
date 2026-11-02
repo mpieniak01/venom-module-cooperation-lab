@@ -39,7 +39,7 @@ test("rejected reflections are labelled and raw output is separate from accepted
   {run_id:"game",seq:2,kind:"reflection",timestamp:2,payload:{player:"B",game_number:1,accepted:true,reason_code:"accepted",content:"Take an immediate winning move before trying to block."}},
  ];
  const doc=new JSDOM(renderToStaticMarkup(<GameReflections events={notes} language="pl"/>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
- assert.match(doc.querySelector('[role="status"]')?.textContent??"",/Nie zapisano do pamięci: Model skopiował instrukcję/);
+ assert.match(doc.querySelector("output")?.textContent??"",/Nie zapisano do pamięci: Model skopiował instrukcję/);
  assert.equal(doc.querySelector("pre")?.textContent,"copied instruction");
  assert.match(doc.body.textContent??"",/Zapisano do pamięci/);
  assert.match(doc.body.textContent??"",/Take an immediate winning move/);

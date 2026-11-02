@@ -162,6 +162,7 @@ class LabRunner:
     async def start(
         self, request: RunRequest, idempotency_key: str, *, qualification: bool = False
     ) -> tuple[dict[str, Any], bool]:
+        """Admit one owned experiment or return an identical prior request."""
         started = time.monotonic()
         _identifier(idempotency_key)
         async with self._lock:
@@ -249,6 +250,7 @@ class LabRunner:
     ) -> bool:
         # Compare the normalized operator input, never a rebuilt config using
         # today's weights, templates, prompts or qualification receipt.
+        """Compare normalized operator inputs against the stored snapshot."""
         model_id = config["model"]["model_id"]
         if qualification:
             return (
@@ -595,6 +597,7 @@ class LabRunner:
         return "A" if mode in {"single", "self_correction"} else ("A", "B")[index % 2]
 
     def _turn_context(self, job: _Job, participant: str) -> list[Any]:
+        """Build a current private observation with the selected reminder."""
         from .adapters.base import ChatMessage
 
         history = job.histories[participant]
@@ -779,6 +782,7 @@ class LabRunner:
                         break
 
     async def _reflect_game(self, job: _Job, parameters: Any) -> None:
+        """Validate one player-selected rule between completed games."""
         from .adapters.base import ChatMessage
 
         assert job.coaching is not None and job.game is not None
@@ -926,6 +930,7 @@ class LabRunner:
 
     @staticmethod
     def _game_state(job: _Job, board: dict[str, Any]) -> dict[str, Any]:
+        """Attach measured progress without inventing a completed board."""
         if job.coaching:
             job.coaching.measurement.complete(board)
         return {
@@ -1035,6 +1040,7 @@ class LabRunner:
     def _publish_result(
         self, job: _Job, participant: str, turn_id: str, result: Any
     ) -> dict[str, Any]:
+        """Journal raw proposals and actual moves before forwarding results."""
         from .adapters.base import ChatMessage
 
         if not result.quiescent:
@@ -1320,6 +1326,7 @@ class LabRunner:
                 return False
 
     def _finish(self, job: _Job, status: str) -> None:
+        """Persist final measurements, status and any terminal failure."""
         try:
             if job.coaching and job.game:
                 job.coaching.measurement.stop(status, job.failure)

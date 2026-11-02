@@ -69,6 +69,7 @@ class RunRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_scenario_limits(self) -> RunRequest:
+        """Reject incompatible scenarios, budgets and reflection contexts."""
         if self.mode == "operator_review" and "max_turns" not in self.model_fields_set:
             self.max_turns = 6
         if self.scenario_id == "tic_tac_toe":
@@ -164,6 +165,7 @@ class RunConfig:
 
     @classmethod
     def build(cls, request: RunRequest, model: dict[str, Any]) -> RunConfig:
+        """Normalize operator settings into an immutable experiment snapshot."""
         requested_tokens = request.max_new_tokens
         request = request.model_copy(
             update={"max_new_tokens": applied_output_tokens(requested_tokens, model)}
@@ -405,6 +407,7 @@ class RunConfig:
         )
 
     def public(self) -> dict[str, Any]:
+        """Serialize versioned settings and a reproducible configuration hash."""
         result = asdict(self)
         if self.num_steps is None:
             result.pop("num_steps")
