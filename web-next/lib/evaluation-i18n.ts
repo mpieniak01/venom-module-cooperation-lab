@@ -78,6 +78,7 @@ const labels = {
   modelOpponent:["Druga sesja modelu", "Second model session", "Zweite Modellsitzung"],
   swap:["Zamień strony / rozpoczynającego", "Swap sides / starting player", "Seiten / Startspieler tauschen"],
   plan:["Plan", "Plan", "Plan"],
+  completedGames:["Rozegrane partie", "Completed games", "Abgeschlossene Spiele"],
   planned:["Zaplanowane", "Planned", "Geplant"],
   blocks:["Bloki", "Blocks", "Blöcke"],
   decisions:["Limit decyzji", "Decision limit", "Entscheidungsgrenze"],

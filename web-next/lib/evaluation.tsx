@@ -49,8 +49,8 @@ function counters(snapshot: EvaluationSnapshot | null) {
 function EvaluationReport({snapshot, language}: {snapshot: EvaluationSnapshot; language: string}) {
   const t = evaluationTexts(language);
   const byGame = Array.isArray(snapshot.summary.by_game) ? snapshot.summary.by_game.filter((item): item is Record<string, Json> => !!item && typeof item === "object" && !Array.isArray(item)) : [];
-  const columns = ["episodes", "successes", "wins", "draws", "losses", "model_errors", "infrastructure_errors", "median_decision_s", "p95_decision_s", "input_tokens", "output_tokens", "peak_vram_bytes"];
-  const headings = [t.planned, t.success, t.wins, t.draws, t.losses, t.modelErrors, t.infrastructureErrors, t.median, t.p95, t.inputTokens, t.outputTokens, t.peakVram];
+  const columns = ["episodes", "started_episodes", "completed_games", "skipped_episodes", "successes", "wins", "draws", "losses", "model_errors", "infrastructure_errors", "median_decision_s", "p95_decision_s", "input_tokens", "output_tokens", "peak_vram_bytes"];
+  const headings = [t.planned, t.started, t.completedGames, t.skipped, t.success, t.wins, t.draws, t.losses, t.modelErrors, t.infrastructureErrors, t.median, t.p95, t.inputTokens, t.outputTokens, t.peakVram];
   return <div className="evaluation-report">
     <section className="coop-panel" aria-label={t.results}>
       <h2>{t.results}</h2><p className="coop-message-meta">{t.resultHelp}</p>

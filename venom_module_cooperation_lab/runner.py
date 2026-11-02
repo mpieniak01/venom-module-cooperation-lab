@@ -269,6 +269,7 @@ class LabRunner:
         stored.update(
             model_id=model_id,
             num_steps=config.get("num_steps", 8),
+            reflection_context=config.get("reflection_context", "rule_only"),
             reflection_max_new_tokens=config.get("reflection_max_new_tokens", 128),
             game_count=config.get("game_count", 1),
             remember_games=config.get("remember_games", True),

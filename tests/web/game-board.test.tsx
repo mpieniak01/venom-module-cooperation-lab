@@ -60,3 +60,13 @@ test("evidence checks, historical format-only notes and skipped notes have diffe
  assert.equal(doc.querySelector("pre")?.textContent,"block_win");
  assert.match(text,/Model wybrał regułę z podanych możliwości/);
 });
+
+
+test("missing historical metrics are not displayed as zero errors",()=>{
+ const historical={...event,payload:{...event.payload,strategy:{mode:"game_reflection",model_moves:7,rule_opportunities:0}}};
+ const doc=new JSDOM(renderToStaticMarkup(<GameSeriesResults event={historical} events={[]} language="pl"/>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
+ const row=[...doc.querySelectorAll("tr")].find(row=>row.textContent?.includes("Pogorszenia pozycji"));
+ assert.equal(row?.querySelector("td")?.textContent,"Nie oceniono");
+ assert.match(doc.body.textContent??"",/brak danych nie oznacza zera błędów/);
+ assert.doesNotMatch(doc.body.textContent??"",/undefined/);
+});

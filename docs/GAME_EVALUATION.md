@@ -319,3 +319,57 @@ Wagi są utrzymywane przez całą serię, a prywatne stany resetowane między pa
 trening wag ani dowód trwałego uczenia. Odbiór i ograniczenia małego pilota:
 [LIVE_STRATEGY_RELEASE.md](LIVE_STRATEGY_RELEASE.md). Próba Huginn v4 przerwana
 podczas przygotowania przez utratę odpowiedzi WSL nie jest wynikiem jakości.
+
+
+## Pomiar refleksji w rozmowie i seriach — 2026-11-02
+
+Nowe próby strategiczne zapisują `live-tactical-measurement-v1`. Historycznych
+zdarzeń ani zamrożonego scorera batch v1 nie przeliczamy. Brak pomiaru lub brak
+okazji jest prezentowany jako „Nie oceniono”, a nie zero błędów.
+
+- Legalność: legalne ruchy / wszystkie zwrócone propozycje, także odrzucone.
+  Awaria runtime bez odpowiedzi nie jest propozycją modelu.
+- Jakość: optymalne ruchy / legalne, wykorzystane natychmiastowe wygrane /
+  okazje oraz wykonane bloki / możliwe bloki. Własna wygrana ma pierwszeństwo;
+  kilka natychmiastowych zagrożeń bez własnej wygranej jest liczone oddzielnie.
+  Starsze `missed_block` zachowuje dotychczasowe znaczenie.
+- Refleksja: poprawna reguła wskazana oznacza tylko walidację wybranego opisu.
+  Jej stosowanie oceniamy na rzeczywistych późniejszych propozycjach, osobno
+  dla gracza i reguły, z przypomnieniem oraz bez niego. Różne pozycje nie tworzą
+  kontrolowanego dowodu poprawy. Żadne wagi nie są aktualizowane.
+- Powtórzenie błędu: ponowne pominięcie tej samej reguły przez tego samego gracza
+  na planszy równoważnej przez obrót/odbicie. Transfer pokazuje zastosowania
+  na równoważnej planszy źródłowej i na innych pozycjach z okazją do tej reguły.
+  Test hosta na ośmiu orientacjach nie jest ośmioma decyzjami modelu.
+- Wyniki są dostępne łącznie i dla każdej rozpoczętej partii. Nieukończona gra
+  zachowuje metryki i status awarii; zakończenie pracy runnera nie oznacza wygranej.
+  Raport batch rozdziela zaplanowane, rozpoczęte, pominięte i rozegrane partie.
+- Wsparcie: wszystkie powyższe oceny dotyczą propozycji modelu przed korektą.
+  Wynik wspomagany i liczba interwencji solvera pozostają osobne. A i B w rozmowie
+  to te same wagi w prywatnych kontekstach; bilans stron nie dowodzi uczenia.
+
+W ustawieniach wariantu „Strategia z refleksją” operator wybiera pamięć:
+`sama reguła` (`reflection_context=rule_only`, v4) albo `reguła i własny przykład`
+(`grounded_example`, `ttt-coaching-v5-grounded-example`). Nowy wariant dodaje
+jedną własną planszę błędu, błędny ruch i sprawdzone lepsze ruchy. Przykład jest
+jawnie historyczny, prywatny i oddzielony od aktualnej planszy. Domyślnie zostaje
+sama reguła; zmiana wariantu zmienia hash konfiguracji. Koszt przykładu mieści się
+w tym samym limicie kontekstu i jest rozliczany przez istniejący runner.
+
+### Następny eksperyment porównawczy (uruchomienie ręczne)
+
+Najpierw krótkie pozycje z dostępną wygraną, koniecznym blokiem, tworzeniem
+wideł i obroną przed nimi. Dla każdego checkpointu porównać bez pamięci,
+samą regułę i regułę z przykładem. Ocenić pozycję źródłową, obroty/odbicia,
+nowe układy oraz obie strony. Powtarzane pozycje muszą mieć oznaczone wspólne
+pochodzenie; nie liczyć ośmiu symetrii jako ośmiu niezależnych problemów.
+
+Utrzymać identyczne rewizje modelu/runtime, parser, temperaturę, top-p, seed,
+limity kontekstu, generacji i kroków oraz brak maskowania akcji we wszystkich
+porównywanych warunkach. Resetować stan runtime między niezależnymi próbami.
+Reguły pochodzą wyłącznie z wcześniejszego błędu danego gracza, nigdy z przyszłej
+pozycji testowej. W raporcie podać liczby sukcesów i okazji oraz osobno awarie
+techniczne; nie zastępować błędów brakami danych. Po próbach pozycyjnych
+porównać pełne partie przeciw ustalonym przeciwnikom, ze zmianą stron.
+
+Zmiana implementacji i jej testy CPU nie oznaczają wykonania tego eksperymentu.

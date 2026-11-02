@@ -27,6 +27,7 @@ tests/test_history_rotation.py
 tests/test_host_contract.py
 tests/test_lifecycle_api.py
 tests/test_lifecycle_namespace.py
+tests/test_live_game_measurement.py
 tests/test_live_game_optimization.py
 tests/test_live_game_strategy.py
 tests/test_model_budgets.py
