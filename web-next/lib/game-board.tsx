@@ -1,5 +1,6 @@
 import type { LabEvent, Json } from "./protocol";
 import { texts, noteReasonLabel } from "./i18n";
+import { GameMeasurements } from "./game-measurements";
 
 export function GameBoard({event, ended, language}: {event?:LabEvent; ended:boolean; language:string}) {
   const t=texts(language);
@@ -43,7 +44,7 @@ export function GameReflections({events,language}:{events:LabEvent[];language:st
         {event.payload.skipped===true?<p role="status">{t.gameNoteSkipped}: {noteReasonLabel(t,event.payload.reason_code)}</p>:event.payload.accepted===false?<>
           <p role="status">{t.gameNoteRejected}: {noteReasonLabel(t,event.payload.reason_code)}</p>
           <details><summary>{t.gameNoteRaw}</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.raw_content==="string"?event.payload.raw_content:t.unknown}</pre></details>
-        </>:<><p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.content==="string"?event.payload.content:t.unknown}</p>{event.payload.accepted===true&&<p className="coop-message-meta">{t.gameNoteAccepted} · {event.payload.validation?t.gameNoteEvidence:t.gameNoteFormat}</p>}</>}
+        </>:<><p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.content==="string"?event.payload.content:t.unknown}</p>{event.payload.accepted===true&&<p className="coop-message-meta">{event.payload.note_source==="model_selected_host_catalog_rule"?t.gameRuleSelected:t.gameNoteAccepted} · {event.payload.validation?t.gameNoteEvidence:t.gameNoteFormat}</p>}</>}
         {event.payload.note_source==="model_selected_host_catalog_rule"&&event.payload.accepted===true&&<><p className="coop-message-meta">{t.gameNoteCatalog}</p><details><summary>{t.gameNoteRaw}</summary><pre style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{typeof event.payload.raw_content==="string"?event.payload.raw_content:t.unknown}</pre></details></>}
         {lessons.map((lesson,i)=>{
           if(!lesson||typeof lesson!=="object"||Array.isArray(lesson))return null;
@@ -65,14 +66,15 @@ export function GameSeriesResults({event,events,language}:{event?:LabEvent;event
   const results=candidates.filter((row):row is Record<string,import("./protocol").Json>=>!!row&&typeof row==="object"&&!Array.isArray(row)&&Number.isInteger(row.number)&&(row.winner==="A"||row.winner==="B"||row.draw===true));
   const strategy=state?.strategy&&typeof state.strategy==="object"&&!Array.isArray(state.strategy)?state.strategy:null;
   const metrics=strategy?[[t.gameModelMoves,strategy.model_moves],[t.gameWorseMoves,strategy.worse_moves],[t.gameMissedWins,strategy.missed_wins],[t.gameSolverIntervention,strategy.solver_interventions]]:[];
-  if(strategy?.mode==="game_reflection")metrics.push([t.gameAcceptedNotes,strategy.accepted_notes??0],[t.gameRejectedNotes,strategy.rejected_notes??0]);
-  if(strategy?.mode==="game_reflection"&&typeof strategy.rule_opportunities==="number")metrics.push([t.gameRuleOpportunities,strategy.rule_opportunities],[t.gameRuleFollowed,strategy.rule_followed??0],[t.gameRuleIgnored,strategy.rule_ignored??0]);
+  if(strategy?.mode==="game_reflection")metrics.push([strategy.measurement?t.gameAcceptedNotes:t.gameHistoricalNotes,strategy.accepted_notes],[t.gameRejectedNotes,strategy.rejected_notes]);
+  if(strategy?.mode==="game_reflection"&&typeof strategy.rule_opportunities==="number")metrics.push([t.gameRuleOpportunities,strategy.rule_opportunities],[t.gameRuleFollowed,strategy.rule_followed],[t.gameRuleIgnored,strategy.rule_ignored]);
   if(typeof strategy?.skipped_notes==="number")metrics.push([t.gameNoteSkipped,strategy.skipped_notes]);
   return <section className="coop-panel coop-game-results" aria-label={t.gameResults}>
     <h2>{t.gameResults}</h2>
     {!!metrics.length&&<table className="coop-game-metrics" aria-label={t.gameStrategyMetrics}><tbody>
-      {metrics.map(([label,value])=><tr key={String(label)}><th scope="row">{String(label)}</th><td>{typeof value==="number"?value:0}</td></tr>)}
+      {metrics.map(([label,value])=><tr key={String(label)}><th scope="row">{String(label)}</th><td>{typeof value==="number"?value:t.gameNotMeasured}</td></tr>)}
     </tbody></table>}
+    <GameMeasurements measurement={strategy?.measurement} language={language}/>
     {strategy?.result_scope==="assisted"&&<p className="coop-message-meta">{t.gameAssistedResult}</p>}
     {!results.length?<p className="coop-message-meta">{t.gameNoResults}</p>:<>
       <table className="coop-game-balance" aria-label={t.gameBalance}>

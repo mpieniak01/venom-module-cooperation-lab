@@ -157,7 +157,7 @@ function useConversationWorkspace() {
   const usage = lab.events.findLast((event) => event.kind === "usage");
   const start = () => {
     const input: Record<string, Json> = { model_id: chosen, scenario_id: scenario, mode, seed, max_turns: turns, max_new_tokens: tokens, communication_language:englishTask?"en":communicationLanguage };
-    if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;if(mode==="game_reflection")input.reflection_max_new_tokens=reflectionTokens;}
+    if(scenario==="tic_tac_toe") {input.game_count=gameCount;input.remember_games=rememberGames;if(mode==="game_reflection"){input.reflection_max_new_tokens=reflectionTokens;input.reflection_context=form.reflectionContext??"rule_only";}}
     if(huginnTask)input.num_steps=numSteps;
      setSettings(false); void lab.start(input);
   };
@@ -281,6 +281,7 @@ function LimitSettings({ view }: Readonly<{ view: WorkspaceView }>) {
             <p className="coop-message-meta">{mode==="game_reflection"?t.liveReflectionMemory:strategicGame?t.liveOutcomeMemory:t.gameMemoryHint}</p>
           </>}
           <label className="coop-setting">{t.tokens}<input className={field} type="number" min={1} max={outputTokenLimit(selected)} value={tokens} onInput={event=>setForm({...form,tokens:Number(event.currentTarget.value)})}/></label>
+          {scenario==="tic_tac_toe"&&mode==="game_reflection"&&<label className="coop-setting">{t.gameReflectionContext}<select className={field} value={form.reflectionContext??"rule_only"} onChange={event=>setForm({...form,reflectionContext:event.target.value as "rule_only" | "grounded_example"})}><option value="rule_only">{t.gameRuleOnly}</option><option value="grounded_example">{t.gameGroundedExample}</option></select></label>}
           {scenario==="tic_tac_toe"&&mode==="game_reflection"&&<label className="coop-setting">{t.gameReflectionTokens}<input className={field} type="number" min={32} max={256} value={reflectionTokens} onInput={event=>setForm({...form,reflectionTokens:Number(event.currentTarget.value)})}/></label>}
           <label className="coop-setting">{t.seed}<input className={field} type="number" min={0} max={2147483647} value={seed} onChange={event=>setForm({...form,seed:Number(event.target.value)})}/></label>
         </div>;

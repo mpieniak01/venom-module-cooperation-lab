@@ -99,6 +99,11 @@ def supported_rules(feedback: dict[str, Any]) -> dict[str, dict[str, Any]]:
                     "orientations_checked": checked,
                     "source_board": list(lesson["board"]),
                     "source_action": lesson["model_action"],
+                    "better_actions": policy_actions(
+                        TicTacToeEnvironment({"board": lesson["board"]}),
+                        feedback["player"],
+                        rule_id,
+                    ),
                     "scope": "catalog_policy_on_own_mistake_and_symmetries",
                     "future_model_behavior_verified": False,
                 }

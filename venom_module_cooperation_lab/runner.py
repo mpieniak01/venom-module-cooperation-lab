@@ -211,7 +211,11 @@ class LabRunner:
             if config.scenario_id == "tic_tac_toe":
                 job.game = TicTacToe()
                 if config.mode in STRATEGIC_MODES:
-                    job.coaching = LiveGameStrategy(config.mode)
+                    job.coaching = LiveGameStrategy(
+                        config.mode,
+                        grounded_example=config.reflection_context
+                        == "grounded_example",
+                    )
                 if config.game_count > 1:
                     job.series = GameSeries(config.game_count, config.remember_games)
             self.jobs[run_id] = job
@@ -595,7 +599,7 @@ class LabRunner:
         history = job.histories[participant]
         if job.game is not None and job.coaching is not None:
             architecture = job.config.public()["model"].get("architecture")
-            reminder = job.coaching.notes.get(participant, "")
+            reminder = job.coaching.reminder(participant, job.config.game_language)
             if architecture == "hrm_text":
                 # Matched live tests showed a tactical regression with the
                 # explicit-cell compression in HRM. Retain its qualified board.
@@ -815,6 +819,11 @@ class LabRunner:
                         key: {
                             "board": evidence["source_board"],
                             "mistaken_move": evidence["source_action"],
+                            **(
+                                {"better_moves": evidence["better_actions"]}
+                                if job.config.reflection_context == "grounded_example"
+                                else {}
+                            ),
                         }
                         for key, evidence in supported.items()
                     },
@@ -872,6 +881,12 @@ class LabRunner:
                 job.coaching.notes[player] = content
                 assert rule_id is not None
                 job.coaching.note_ids[player] = rule_id
+                evidence = supported[rule_id]
+                job.coaching.evidence[player] = {
+                    "board": evidence["source_board"],
+                    "mistaken_move": evidence["source_action"],
+                    "better_moves": evidence["better_actions"],
+                }
                 job.coaching.accepted_notes += 1
             else:
                 job.coaching.rejected_notes += 1
@@ -910,6 +925,8 @@ class LabRunner:
 
     @staticmethod
     def _game_state(job: _Job, board: dict[str, Any]) -> dict[str, Any]:
+        if job.coaching:
+            job.coaching.measurement.complete(board)
         return {
             **board,
             **({"series": job.series.public()} if job.series else {}),
@@ -1045,6 +1062,7 @@ class LabRunner:
             message.update(
                 model_move=strategy["model_action"]["square"],
                 assessment=strategy["assessment"],
+                tactical_measurement=strategy["tactical_measurement"],
                 rule_application=strategy.get("rule_application"),
                 assistance=strategy.get("assistance"),
                 execution_assessment=strategy.get("execution_assessment"),
@@ -1302,6 +1320,9 @@ class LabRunner:
 
     def _finish(self, job: _Job, status: str) -> None:
         try:
+            if job.coaching and job.game:
+                job.coaching.measurement.stop(status, job.failure)
+                self._emit(job, "game", self._game_state(job, job.game.public()))
             if job.failure and status != "cancelled":
                 self._emit(
                     job, "error", {"code": job.failure, "reason_code": job.failure}
