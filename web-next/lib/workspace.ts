@@ -120,7 +120,7 @@ export function useWorkspaceViewport() {
   return ref;
 }
 
-export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean; reflectionTokens?:number; numSteps?:number };
+export type SavedSettings = { model:string; scenario:string; mode:string; turns:number; tokens:number; seed:number; communicationLanguage:"pl" | "en"; gameCount?:number; rememberGames?:boolean; reflectionTokens?:number; reflectionContext?:"rule_only" | "grounded_example"; numSteps?:number };
 function record(value: Json | undefined): Record<string, Json> {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
@@ -139,6 +139,7 @@ export function savedSettings(config: Record<string, Json>): Partial<SavedSettin
   else if(record(config.model).architecture==="huginn_raven"||model==="huginn-0125")result.numSteps=8;
   if(config.mode==="game_reflection")result.reflectionTokens=typeof config.reflection_max_new_tokens==="number"&&config.reflection_max_new_tokens>=32&&config.reflection_max_new_tokens<=256?config.reflection_max_new_tokens:64;
   }
+  if(config.mode==="game_reflection")result.reflectionContext=config.reflection_context==="grounded_example"?"grounded_example":"rule_only";
   const budgets = record(config.budgets);
   const pairs = [["turns", budgets.max_turns, config.mode === "operator_review" ? 3 : 1, config.mode === "operator_review" ? 6 : config.scenario_id === "tic_tac_toe" ? 9 : 8], ["tokens", budgets.max_new_tokens, 1, 1024], ["seed", config.seed, 0, 2147483647]] as const;
   for (const [name, value, minimum, maximum] of pairs) {

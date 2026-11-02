@@ -39,7 +39,7 @@ test("rejected reflections are labelled and raw output is separate from accepted
   {run_id:"game",seq:2,kind:"reflection",timestamp:2,payload:{player:"B",game_number:1,accepted:true,reason_code:"accepted",content:"Take an immediate winning move before trying to block."}},
  ];
  const doc=new JSDOM(renderToStaticMarkup(<GameReflections events={notes} language="pl"/>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
- assert.match(doc.querySelector('[role="status"]')?.textContent??"",/Nie zapisano do pamięci: Model skopiował instrukcję/);
+ assert.match(doc.querySelector("output")?.textContent??"",/Nie zapisano do pamięci: Model skopiował instrukcję/);
  assert.equal(doc.querySelector("pre")?.textContent,"copied instruction");
  assert.match(doc.body.textContent??"",/Zapisano do pamięci/);
  assert.match(doc.body.textContent??"",/Take an immediate winning move/);
@@ -59,4 +59,14 @@ test("evidence checks, historical format-only notes and skipped notes have diffe
  assert.match(text,/Historyczna kontrola formatu/);
  assert.equal(doc.querySelector("pre")?.textContent,"block_win");
  assert.match(text,/Model wybrał regułę z podanych możliwości/);
+});
+
+
+test("missing historical metrics are not displayed as zero errors",()=>{
+ const historical={...event,payload:{...event.payload,strategy:{mode:"game_reflection",model_moves:7,rule_opportunities:0}}};
+ const doc=new JSDOM(renderToStaticMarkup(<GameSeriesResults event={historical} events={[]} language="pl"/>),{url:"http://localhost:3300/cooperation-lab"}).window.document;
+ const row=[...doc.querySelectorAll("tr")].find(row=>row.textContent?.includes("Pogorszenia pozycji"));
+ assert.equal(row?.querySelector("td")?.textContent,"Nie oceniono");
+ assert.match(doc.body.textContent??"",/brak danych nie oznacza zera błędów/);
+ assert.doesNotMatch(doc.body.textContent??"",/undefined/);
 });

@@ -162,6 +162,7 @@ class LabRunner:
     async def start(
         self, request: RunRequest, idempotency_key: str, *, qualification: bool = False
     ) -> tuple[dict[str, Any], bool]:
+        """Admit one owned experiment or return an identical prior request."""
         started = time.monotonic()
         _identifier(idempotency_key)
         async with self._lock:
@@ -211,7 +212,11 @@ class LabRunner:
             if config.scenario_id == "tic_tac_toe":
                 job.game = TicTacToe()
                 if config.mode in STRATEGIC_MODES:
-                    job.coaching = LiveGameStrategy(config.mode)
+                    job.coaching = LiveGameStrategy(
+                        config.mode,
+                        grounded_example=config.reflection_context
+                        == "grounded_example",
+                    )
                 if config.game_count > 1:
                     job.series = GameSeries(config.game_count, config.remember_games)
             self.jobs[run_id] = job
@@ -245,6 +250,7 @@ class LabRunner:
     ) -> bool:
         # Compare the normalized operator input, never a rebuilt config using
         # today's weights, templates, prompts or qualification receipt.
+        """Compare normalized operator inputs against the stored snapshot."""
         model_id = config["model"]["model_id"]
         if qualification:
             return (
@@ -265,6 +271,7 @@ class LabRunner:
         stored.update(
             model_id=model_id,
             num_steps=config.get("num_steps", 8),
+            reflection_context=config.get("reflection_context", "rule_only"),
             reflection_max_new_tokens=config.get("reflection_max_new_tokens", 128),
             game_count=config.get("game_count", 1),
             remember_games=config.get("remember_games", True),
@@ -590,12 +597,13 @@ class LabRunner:
         return "A" if mode in {"single", "self_correction"} else ("A", "B")[index % 2]
 
     def _turn_context(self, job: _Job, participant: str) -> list[Any]:
+        """Build a current private observation with the selected reminder."""
         from .adapters.base import ChatMessage
 
         history = job.histories[participant]
         if job.game is not None and job.coaching is not None:
             architecture = job.config.public()["model"].get("architecture")
-            reminder = job.coaching.notes.get(participant, "")
+            reminder = job.coaching.reminder(participant, job.config.game_language)
             if architecture == "hrm_text":
                 # Matched live tests showed a tactical regression with the
                 # explicit-cell compression in HRM. Retain its qualified board.
@@ -774,6 +782,7 @@ class LabRunner:
                         break
 
     async def _reflect_game(self, job: _Job, parameters: Any) -> None:
+        """Validate one player-selected rule between completed games."""
         from .adapters.base import ChatMessage
 
         assert job.coaching is not None and job.game is not None
@@ -815,6 +824,11 @@ class LabRunner:
                         key: {
                             "board": evidence["source_board"],
                             "mistaken_move": evidence["source_action"],
+                            **(
+                                {"better_moves": evidence["better_actions"]}
+                                if job.config.reflection_context == "grounded_example"
+                                else {}
+                            ),
                         }
                         for key, evidence in supported.items()
                     },
@@ -872,6 +886,12 @@ class LabRunner:
                 job.coaching.notes[player] = content
                 assert rule_id is not None
                 job.coaching.note_ids[player] = rule_id
+                evidence = supported[rule_id]
+                job.coaching.evidence[player] = {
+                    "board": evidence["source_board"],
+                    "mistaken_move": evidence["source_action"],
+                    "better_moves": evidence["better_actions"],
+                }
                 job.coaching.accepted_notes += 1
             else:
                 job.coaching.rejected_notes += 1
@@ -910,6 +930,9 @@ class LabRunner:
 
     @staticmethod
     def _game_state(job: _Job, board: dict[str, Any]) -> dict[str, Any]:
+        """Attach measured progress without inventing a completed board."""
+        if job.coaching:
+            job.coaching.measurement.complete(board)
         return {
             **board,
             **({"series": job.series.public()} if job.series else {}),
@@ -1017,6 +1040,7 @@ class LabRunner:
     def _publish_result(
         self, job: _Job, participant: str, turn_id: str, result: Any
     ) -> dict[str, Any]:
+        """Journal raw proposals and actual moves before forwarding results."""
         from .adapters.base import ChatMessage
 
         if not result.quiescent:
@@ -1045,6 +1069,7 @@ class LabRunner:
             message.update(
                 model_move=strategy["model_action"]["square"],
                 assessment=strategy["assessment"],
+                tactical_measurement=strategy["tactical_measurement"],
                 rule_application=strategy.get("rule_application"),
                 assistance=strategy.get("assistance"),
                 execution_assessment=strategy.get("execution_assessment"),
@@ -1301,7 +1326,11 @@ class LabRunner:
                 return False
 
     def _finish(self, job: _Job, status: str) -> None:
+        """Persist final measurements, status and any terminal failure."""
         try:
+            if job.coaching and job.game:
+                job.coaching.measurement.stop(status, job.failure)
+                self._emit(job, "game", self._game_state(job, job.game.public()))
             if job.failure and status != "cancelled":
                 self._emit(
                     job, "error", {"code": job.failure, "reason_code": job.failure}

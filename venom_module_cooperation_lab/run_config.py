@@ -62,12 +62,14 @@ class RunRequest(BaseModel):
     remember_games: bool = True
     max_new_tokens: int = Field(default=128, ge=1, le=MAX_REQUESTED_TOKENS)
     num_steps: Literal[8, 16, 32, 64] = 8
+    reflection_context: Literal["rule_only", "grounded_example"] = "rule_only"
     reflection_max_new_tokens: int = Field(default=128, ge=32, le=256)
     temperature: float = Field(default=0.8, ge=0, le=2, allow_inf_nan=False)
     top_p: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def validate_scenario_limits(self) -> RunRequest:
+        """Reject incompatible scenarios, budgets and reflection contexts."""
         if self.mode == "operator_review" and "max_turns" not in self.model_fields_set:
             self.max_turns = 6
         if self.scenario_id == "tic_tac_toe":
@@ -110,6 +112,8 @@ class RunRequest(BaseModel):
                 raise ValueError("game_reflection_requires_memory")
         elif self.reflection_max_new_tokens != 128:
             raise ValueError("reflection_tokens_require_reflection_mode")
+        if self.mode != "game_reflection" and self.reflection_context != "rule_only":
+            raise ValueError("reflection_context_requires_reflection_mode")
         if self.game_count == 1:
             self.remember_games = True  # No cross-game memory exists for one game.
         return self
@@ -145,6 +149,7 @@ class RunConfig:
     game_count: int = 1
     remember_games: bool = True
     requested_max_new_tokens: int | None = None
+    reflection_context: str = "rule_only"
     reflection_max_new_tokens: int | None = None
     num_steps: int | None = None
 
@@ -160,6 +165,7 @@ class RunConfig:
 
     @classmethod
     def build(cls, request: RunRequest, model: dict[str, Any]) -> RunConfig:
+        """Normalize operator settings into an immutable experiment snapshot."""
         requested_tokens = request.max_new_tokens
         request = request.model_copy(
             update={"max_new_tokens": applied_output_tokens(requested_tokens, model)}
@@ -331,6 +337,7 @@ class RunConfig:
             2 * (request.game_count - 1) if request.mode == "game_reflection" else 0
         )
         return cls(
+            reflection_context=request.reflection_context,
             requested_max_new_tokens=requested_tokens
             if requested_tokens != request.max_new_tokens
             else None,
@@ -400,6 +407,7 @@ class RunConfig:
         )
 
     def public(self) -> dict[str, Any]:
+        """Serialize versioned settings and a reproducible configuration hash."""
         result = asdict(self)
         if self.num_steps is None:
             result.pop("num_steps")
@@ -411,6 +419,7 @@ class RunConfig:
                 if json.loads(self.model_json).get("architecture") == "hrm_text"
                 else "explicit-cells-v1"
             )
+        result.pop("reflection_context")
         if self.reflection_max_new_tokens is None:
             result.pop("reflection_max_new_tokens")
         if self.requested_max_new_tokens is None:
@@ -423,6 +432,7 @@ class RunConfig:
             result["scheduler"] = "board-series-memory-v1"
             result["scenario_version"] += "-series-1"
         if self.mode in STRATEGIC_MODES:
+            result["measurement_version"] = "live-tactical-measurement-v1"
             result["schema_version"] = 8
             result["scheduler"] = "live-game-strategy-v4"
             result["scenario_version"] += "-live-strategy-4"
@@ -432,6 +442,13 @@ class RunConfig:
                 result["reflection_contract"] = "model-selects-host-tactical-catalog-v1"
                 result["reflection_mapping"] = "rule-choice-map-v1"
                 result["reflection_schedule"] = "between-games-only"
+                result["reflection_context"] = self.reflection_context
+                if self.reflection_context == "grounded_example":
+                    result["schema_version"] = 9
+                    result["strategy_version"] = "ttt-coaching-v5-grounded-example"
+                    result["scheduler"] = "live-game-strategy-v5"
+                    result["memory_policy"] = "outcomes-rule-and-private-example-v1"
+                    result["scenario_version"] += "-grounded-example-1"
         if self.communication_language is None:
             # Preserve exact legacy v1 serialization and hashes.
             result.pop("communication_language")

@@ -12,12 +12,16 @@ from .evaluation.actions import parse_action
 from .evaluation.games import TicTacToeEnvironment
 from .evaluation.references import _winning_squares, assess
 from .evaluation.strategies import strategy_action
+from .live_game_measurement import LiveGameMeasurement
 from .tic_tac_toe import TicTacToe
 
 
 @dataclass
 class LiveGameStrategy:
     mode: str
+    measurement: LiveGameMeasurement = field(default_factory=LiveGameMeasurement)
+    evidence: dict[str, dict[str, Any]] = field(default_factory=dict)
+    grounded_example: bool = False
     decisions: list[dict[str, Any]] = field(default_factory=list)
     notes: dict[str, str] = field(default_factory=dict)
     note_ids: dict[str, str] = field(default_factory=dict)
@@ -32,13 +36,27 @@ class LiveGameStrategy:
     rejected_notes: int = 0
     skipped_notes: int = 0
 
+    def __post_init__(self) -> None:
+        """Open the first measurement bucket before any model response."""
+        self.measurement.begin()
+
+    def _parse_proposal(self, text: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Preserve rejected answers in the proposal denominator before raising."""
+        try:
+            return parse_action(text, "tic_tac_toe", "mapped")
+        except LabError as exc:
+            self.measurement.invalid(exc.code)
+            raise
+
     def choose(
         self, game: TicTacToe, player: str, text: str, seed: int
     ) -> dict[str, Any]:
-        action, mapping = parse_action(text, "tic_tac_toe", "mapped")
+        """Assess a legal model proposal before optional solver intervention."""
+        action, mapping = self._parse_proposal(text)
         env = TicTacToeEnvironment({"board": list(game.board)})
         score = assess(env, player, action)
         if not score["legal"]:
+            self.measurement.invalid("occupied_game_square")
             raise LabError("occupied_game_square", 422)
         record: dict[str, Any] = {
             "actor": "model",
@@ -92,6 +110,15 @@ class LiveGameStrategy:
                         "better_action": better,
                         "assessment": copy.deepcopy(score),
                     }
+        record["tactical_measurement"] = self.measurement.observe(
+            env,
+            player,
+            action,
+            score,
+            rule_id,
+            bool(record.get("assistance", {}).get("applied")),
+            self.evidence.get(player),
+        )
         self.decisions.append(record)
         self.model_moves += 1
         self.worse_moves += bool(score["worse_move"])
@@ -100,8 +127,10 @@ class LiveGameStrategy:
         return copy.deepcopy(record)
 
     def public(self) -> dict[str, Any]:
+        """Expose counters and detached measurement evidence for the UI."""
         return {
             "mode": self.mode,
+            "measurement": self.measurement.public(),
             "rule_opportunities": self.rule_opportunities,
             "rule_followed": self.rule_followed,
             "rule_ignored": self.rule_ignored,
@@ -126,8 +155,23 @@ class LiveGameStrategy:
             ][-3:],
         }
 
+    def reminder(self, player: str, language: str | None = None) -> str:
+        """Optionally append one private, explicitly historical teaching example."""
+        note = self.notes.get(player, "")
+        evidence = self.evidence.get(player)
+        if not self.grounded_example or not note or not evidence:
+            return note
+        example = json.dumps(evidence, ensure_ascii=False, separators=(",", ":"))
+        label = (
+            "\nPrzykład z zakończonej partii, NIE aktualna plansza: "
+            if language == "pl"
+            else "\nPast-game example, NOT the current board: "
+        )
+        return note + label + example
+
     def memory(self, player: str, language: str | None = None) -> str:
-        note = self.notes.get(player)
+        """Render only this player's selected rule and optional example."""
+        note = self.reminder(player, language)
         return (
             (
                 (
@@ -144,7 +188,9 @@ class LiveGameStrategy:
         )
 
     def begin(self) -> None:
+        """Start a new game while retaining private cross-game rule evidence."""
         self.decisions.clear()
+        self.measurement.begin()
 
     @staticmethod
     def encode_feedback(feedback: dict[str, Any]) -> str:

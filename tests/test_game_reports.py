@@ -259,3 +259,18 @@ def test_game_report_exports_keep_archived_attempts_distinct_from_current_metric
     assert [row["archived"] for row in records] == ["true", "false"]
     assert [row["attempt"] for row in records] == ["1", "2"]
     assert all(row["block_id"] == "block-A" for row in records)
+
+
+def test_planned_started_skipped_and_played_are_distinct_counts():
+    """Keep planned slots distinct from started and completed games."""
+    rows = [
+        episode(),
+        episode("invalid_format", success=False),
+        {**episode("skipped", success=False), "started_at": None},
+        {**episode("pending", success=False), "started_at": None},
+    ]
+    result = summarize(snapshot(rows))["by_game"][0]
+    assert result["episodes"] == 4
+    assert result["started_episodes"] == 2
+    assert result["completed_games"] == 1
+    assert result["skipped_episodes"] == 1
