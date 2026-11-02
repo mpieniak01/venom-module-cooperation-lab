@@ -57,9 +57,9 @@ function ReflectionLessons({payload, t}: {payload: LabEvent["payload"]; t: Label
   const feedback = payload.feedback;
   const lessons = feedback && typeof feedback === "object" && !Array.isArray(feedback) && Array.isArray(feedback.lessons) ? feedback.lessons : [];
   const square = (action: Json | undefined) => action && typeof action === "object" && !Array.isArray(action) && typeof action.square === "string" ? action.square : "?";
-  return lessons.map((lesson, index) => {
+  return lessons.map(lesson => {
     if (!lesson || typeof lesson !== "object" || Array.isArray(lesson)) return null;
-    return <p key={index} className="coop-message-meta">{t.gameModelProposal}: {square(lesson.model_action)} → {t.gameBetterMove}: {square(lesson.better_action)}</p>;
+    return <p key={JSON.stringify(lesson)} className="coop-message-meta">{t.gameModelProposal}: {square(lesson.model_action)} → {t.gameBetterMove}: {square(lesson.better_action)}</p>;
   });
 }
 export function GameReflections({events,language}:{events:LabEvent[];language:string}) {
